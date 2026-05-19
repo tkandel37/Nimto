@@ -9,7 +9,7 @@ async function bootstrap() {
   const frontendUrl = config.get<string>("FRONTEND_URL") ?? "http://localhost:3000";
 
   app.enableCors({
-    origin: frontendUrl.split(",").map((origin) => origin.trim()),
+    origin: frontendUrl.split(",").map((origin) => origin.trim().replace(/\/$/, "")),
     credentials: true,
   });
   app.useGlobalPipes(
