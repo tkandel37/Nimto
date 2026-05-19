@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nimto
 
-## Getting Started
+Nimto is a digital invitation platform. This first milestone is a deployment test that connects:
 
-First, run the development server:
+- Vercel frontend: Next.js app in `apps/web`
+- Render backend: NestJS API in `apps/api`
+- Supabase database: PostgreSQL accessed through Prisma
+
+## Local setup
+
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create backend env:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp apps/api/.env.example apps/api/.env
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `DATABASE_URL` to your Supabase PostgreSQL connection string and set a strong `JWT_SECRET`.
 
-## Learn More
+3. Create frontend env:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For local testing, keep:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
 
-## Deploy on Vercel
+4. Create the database table:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run prisma:migrate
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+5. Run both apps:
+
+```bash
+npm run dev:api
+npm run dev:web
+```
+
+Open `http://localhost:3000`, register with name/email/password, then log in.
+
+## Deploy to Supabase, Render, and Vercel
+
+### Supabase
+
+1. In Supabase, create a project.
+2. Go to Project Settings -> Database.
+3. Copy the pooled connection string. It usually contains port `6543`.
+4. Replace the password placeholder in the URL with your real database password.
+
+### Render backend
+
+Create a new Web Service from this GitHub repo.
+
+- Root Directory: `nimto-app/apps/api`
+- Runtime: Node
+- Build Command: `npm install && npm run prisma:generate && npm run build`
+- Start Command: `npm run prisma:migrate:deploy && npm run start:prod`
+
+Environment variables:
+
+- `DATABASE_URL`: Supabase PostgreSQL URL
+- `JWT_SECRET`: long random secret
+- `FRONTEND_URL`: your Vercel app URL, for example `https://nimto.vercel.app`
+- `PORT`: Render sets this automatically, so you do not need to add it
+
+After deploy, test:
+
+```bash
+curl https://your-render-url.onrender.com/health
+```
+
+### Vercel frontend
+
+Create a new Vercel project from the same GitHub repo.
+
+- Root Directory: `nimto-app/apps/web`
+- Framework Preset: Next.js
+- Build Command: `npm run build`
+
+Environment variables:
+
+- `NEXT_PUBLIC_API_URL`: your Render backend URL, for example `https://nimto-api.onrender.com`
+
+Deploy, then register a user from the Vercel site. If the dashboard opens, all three services are connected.
+
+## About Supabase agent skills
+
+The command `npx skills add supabase/agent-skills` installs AI-assistant guidance for Supabase workflows. It is not required for the Nimto app code to run. This app connects to Supabase through Prisma using `DATABASE_URL`.
