@@ -1,14 +1,14 @@
 {
   "builds": [
     {
-      "src": "nimto-app/package.json",
+      "src": "nimto-app/apps/web/package.json",
       "use": "@vercel/next"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "nimto-app/$1"
+      "dest": "nimto-app/apps/web/$1"
     }
   ]
 }
