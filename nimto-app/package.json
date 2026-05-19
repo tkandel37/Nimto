@@ -7,6 +7,7 @@
     "apps/api"
   ],
   "scripts": {
+    "vercel-build": "npm run build:web",
     "dev:web": "npm run dev -w @nimto/web",
     "dev:api": "npm run start:dev -w @nimto/api",
     "build:web": "npm run build -w @nimto/web",
