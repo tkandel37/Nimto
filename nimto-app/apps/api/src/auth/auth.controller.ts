@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
+import { Response } from "express";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -52,5 +54,20 @@ export class AuthController {
       return this.authService.logout(request.user.sessionId);
     }
     return { success: true };
+  }
+
+  @Get("auth/google")
+  @UseGuards(AuthGuard("google"))
+  async googleAuth() {
+    // Initiates the Google OAuth2 login flow
+  }
+
+  @Get("auth/google/callback")
+  @UseGuards(AuthGuard("google"))
+  googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+    const { token } = req.user;
+    // Redirect back to frontend with the token
+    const frontendUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}/auth/oauth-success?token=${token}`);
   }
 }

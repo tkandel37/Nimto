@@ -147,6 +147,68 @@ export class AuthService {
     }
   }
 
+  async validateOAuthLogin(profile: any, accessToken: string, refreshToken: string) {
+    const providerAccountId = profile.id;
+    const email = profile.emails?.[0]?.value?.toLowerCase();
+    const name = profile.displayName || "Google User";
+
+    if (!email) {
+      throw new BadRequestException("No email found in Google profile");
+    }
+
+    // 1. Check if OAuth account exists
+    let oauthAccount = await this.prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: "GOOGLE",
+          providerAccountId,
+        },
+      },
+      include: { user: true },
+    });
+
+    if (oauthAccount) {
+      return this.buildAuthResponse(oauthAccount.user);
+    }
+
+    // 2. If not, check if User exists by email
+    let user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      // 3. Link new OAuth account to existing user
+      await this.prisma.oAuthAccount.create({
+        data: {
+          userId: user.id,
+          provider: "GOOGLE",
+          providerAccountId,
+          email,
+          accessToken,
+          refreshToken,
+        },
+      });
+    } else {
+      // 4. Create new User and link OAuth account
+      user = await this.prisma.user.create({
+        data: {
+          name,
+          email,
+          emailVerifiedAt: new Date(), // Implicitly verified since it's from Google
+          oauthAccounts: {
+            create: {
+              provider: "GOOGLE",
+              providerAccountId,
+              email,
+              accessToken,
+              refreshToken,
+            },
+          },
+        },
+      });
+    }
+
+    return this.buildAuthResponse(user);
+  }
+
   private async buildAuthResponse(user: {
     id: string;
     name: string;
