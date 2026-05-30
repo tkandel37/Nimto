@@ -44,4 +44,13 @@ export class AuthController {
     }
     return this.authService.verifyEmail(token);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("auth/logout")
+  logout(@Req() request: AuthenticatedRequest) {
+    if (request.user?.sessionId) {
+      return this.authService.logout(request.user.sessionId);
+    }
+    return { success: true };
+  }
 }

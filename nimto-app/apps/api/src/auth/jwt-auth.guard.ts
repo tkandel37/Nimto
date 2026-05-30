@@ -12,14 +12,20 @@ export type AuthenticatedRequest = Request & {
   user?: {
     sub: string;
     email: string;
+    sessionId?: string;
   };
 };
 
+import { PrismaService } from "../prisma/prisma.service";
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractToken(request);
 
@@ -36,13 +42,26 @@ export class JwtAuthGuard implements CanActivate {
       const payload = jwt.verify(token, secret) as JwtPayload & {
         sub: string;
         email: string;
+        sessionId?: string;
       };
+
+      if (payload.sessionId) {
+        const session = await this.prisma.userSession.findUnique({
+          where: { id: payload.sessionId },
+        });
+
+        if (!session || session.revokedAt) {
+          throw new UnauthorizedException("Session revoked or invalid.");
+        }
+      }
+
       request.user = {
         sub: payload.sub,
         email: payload.email,
+        sessionId: payload.sessionId,
       };
       return true;
-    } catch {
+    } catch (e) {
       throw new UnauthorizedException("Invalid or expired token.");
     }
   }

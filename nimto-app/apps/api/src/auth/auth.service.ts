@@ -51,7 +51,7 @@ export class AuthService {
         console.error("Failed to send verification email", err);
       });
 
-      return this.buildAuthResponse(user);
+      return await this.buildAuthResponse(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -81,7 +81,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password.");
     }
 
-    return this.buildAuthResponse(user);
+    return await this.buildAuthResponse(user);
   }
 
   async me(userId: string) {
@@ -131,7 +131,23 @@ export class AuthService {
     return { message: "Email successfully verified." };
   }
 
-  private buildAuthResponse(user: {
+  async logout(sessionId: string) {
+    const session = await this.prisma.userSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (session && !session.revokedAt) {
+      await this.prisma.userSession.update({
+        where: { id: sessionId },
+        data: {
+          revokedAt: new Date(),
+          revocationReason: "USER_LOGOUT",
+        },
+      });
+    }
+  }
+
+  private async buildAuthResponse(user: {
     id: string;
     name: string;
     email: string;
@@ -142,9 +158,12 @@ export class AuthService {
       throw new Error("JWT_SECRET is required.");
     }
 
+    const sessionId = crypto.randomBytes(16).toString("hex"); // Generate an ID to track session
+
     const token = jwt.sign(
       {
         email: user.email,
+        sessionId,
       },
       secret,
       {
@@ -152,6 +171,19 @@ export class AuthService {
         expiresIn: "7d",
       },
     );
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.userSession.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
 
     return {
       token,

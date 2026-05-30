@@ -50,7 +50,20 @@ export default function DashboardPage() {
       .finally(() => setIsLoading(false));
   }, [router]);
 
-  function logout() {
+  async function logout() {
+    const token = localStorage.getItem("nimto_token");
+    if (token) {
+      try {
+        await apiRequest("/auth/logout", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.error("Logout failed on server", error);
+      }
+    }
     localStorage.removeItem("nimto_token");
     localStorage.removeItem("nimto_user");
     router.replace("/");
