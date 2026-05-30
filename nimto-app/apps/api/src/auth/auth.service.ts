@@ -52,7 +52,7 @@ export class AuthService {
       },
     });
 
-    if (!user) {
+    if (!user?.passwordHash) {
       throw new UnauthorizedException("Invalid email or password.");
     }
 
