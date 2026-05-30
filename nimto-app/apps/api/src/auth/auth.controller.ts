@@ -35,4 +35,13 @@ export class AuthController {
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.me(request.user!.sub);
   }
+
+  @Get("auth/verify-email")
+  verifyEmail(@Req() request: any) {
+    const token = request.query.token as string;
+    if (!token) {
+      throw new Error("Token is required");
+    }
+    return this.authService.verifyEmail(token);
+  }
 }
