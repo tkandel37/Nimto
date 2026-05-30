@@ -174,7 +174,7 @@ function AuthForm() {
           
           <div className="mt-6">
             <a 
-              href="http://localhost:3001/auth/google" 
+              href={`${process.env.NEXT_PUBLIC_API_URL}/auth/google`} 
               className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink/15 bg-white px-5 py-4 font-bold text-ink transition-colors hover:bg-paper"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">

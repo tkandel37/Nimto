@@ -39,12 +39,13 @@ model User {
   deactivatedAt       DateTime?
   deletionRequestedAt DateTime?
   lastLoginAt         DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   oauthAccounts       OAuthAccount[]
   roles               UserRole[]
   sessions            UserSession[]
   verificationTokens  VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([status])
   @@index([createdAt])
@@ -131,6 +132,18 @@ model OAuthAccount {
 }
 
 model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model PasswordResetToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
