@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsArray,
   IsEnum,
   IsOptional,
@@ -24,6 +25,7 @@ export class UpdateStaffDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @IsString({ each: true })
   roleIds?: string[];
 }

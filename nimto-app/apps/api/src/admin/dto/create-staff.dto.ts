@@ -1,4 +1,10 @@
-import { IsArray, IsEmail, IsString, MinLength } from "class-validator";
+import {
+  ArrayMinSize,
+  IsArray,
+  IsEmail,
+  IsString,
+  MinLength,
+} from "class-validator";
 
 export class CreateStaffDto {
   @IsString()
@@ -13,6 +19,7 @@ export class CreateStaffDto {
   password!: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @IsString({ each: true })
   roleIds!: string[];
 }

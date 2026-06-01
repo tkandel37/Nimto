@@ -174,26 +174,36 @@ export class AdminService {
   async createStaff(dto: CreateStaffDto, context: ActorContext) {
     await this.assertRolesAssignable(dto.roleIds);
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const user = await this.prisma.user.create({
-      data: {
-        name: dto.name.trim(),
-        email: dto.email.trim().toLowerCase(),
-        passwordHash,
-        status: UserStatus.ACTIVE,
-        emailVerifiedAt: new Date(),
-        roles: {
-          create: dto.roleIds.map((roleId) => ({
-            role: { connect: { id: roleId } },
-          })),
-        },
-      },
-      select: this.staffSelect(),
-    });
+    const email = dto.email.trim().toLowerCase();
 
-    await this.record(context, "staff.created", "User", user.id, {
-      email: user.email,
-    });
-    return user;
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          name: dto.name.trim(),
+          email,
+          passwordHash,
+          status: UserStatus.ACTIVE,
+          emailVerifiedAt: new Date(),
+          roles: {
+            create: dto.roleIds.map((roleId) => ({
+              role: { connect: { id: roleId } },
+            })),
+          },
+        },
+        select: this.staffSelect(),
+      });
+
+      await this.record(context, "staff.created", "User", user.id, {
+        email: user.email,
+      });
+      return user;
+    } catch (error) {
+      this.throwIfUniqueConstraint(
+        error,
+        `An account with ${email} already exists.`,
+      );
+      throw error;
+    }
   }
 
   async updateStaff(
@@ -202,6 +212,7 @@ export class AdminService {
     context: ActorContext,
   ) {
     await this.assertNotProtectedSuperAdmin(userId, dto);
+    this.assertActorKeepsOwnAccess(userId, dto, context);
     if (dto.roleIds) {
       await this.assertRolesAssignable(dto.roleIds);
     }
@@ -379,6 +390,20 @@ export class AdminService {
     );
     if (isSuperAdmin && (dto.status || dto.roleIds || dto.password)) {
       throw new ForbiddenException("Super Admin account cannot be restricted.");
+    }
+  }
+
+  private assertActorKeepsOwnAccess(
+    userId: string,
+    dto: UpdateStaffDto,
+    context: ActorContext,
+  ) {
+    const restrictsOwnStatus =
+      dto.status !== undefined && dto.status !== UserStatus.ACTIVE;
+    if (context.actorId === userId && (restrictsOwnStatus || dto.roleIds)) {
+      throw new BadRequestException(
+        "You cannot remove your own access or deactivate your own account.",
+      );
     }
   }
 
