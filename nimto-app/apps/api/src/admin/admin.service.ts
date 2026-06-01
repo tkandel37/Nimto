@@ -128,17 +128,7 @@ export class AdminService {
   listStaff() {
     return this.prisma.user.findMany({
       orderBy: { createdAt: "desc" },
-      include: {
-        roles: {
-          include: {
-            role: {
-              include: {
-                permissions: { include: { permission: true } },
-              },
-            },
-          },
-        },
-      },
+      select: this.staffSelect(),
     });
   }
 
@@ -158,7 +148,7 @@ export class AdminService {
           })),
         },
       },
-      include: { roles: { include: { role: true } } },
+      select: this.staffSelect(),
     });
 
     await this.record(context, "staff.created", "User", user.id, {
@@ -191,11 +181,24 @@ export class AdminService {
           name: dto.name?.trim(),
           passwordHash,
           status: dto.status,
-          blockedAt: dto.status === UserStatus.BLOCKED ? new Date() : undefined,
+          blockedAt:
+            dto.status === UserStatus.BLOCKED
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
           deactivatedAt:
-            dto.status === UserStatus.DEACTIVATED ? new Date() : undefined,
+            dto.status === UserStatus.DEACTIVATED
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
           deletionRequestedAt:
-            dto.status === UserStatus.PENDING_DELETION ? new Date() : undefined,
+            dto.status === UserStatus.PENDING_DELETION
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
           roles: dto.roleIds
             ? {
                 create: dto.roleIds.map((roleId) => ({
@@ -204,7 +207,7 @@ export class AdminService {
               }
             : undefined,
         },
-        include: { roles: { include: { role: true } } },
+        select: this.staffSelect(),
       });
 
       if (dto.status && dto.status !== UserStatus.ACTIVE) {
@@ -333,6 +336,35 @@ export class AdminService {
 
   private normalizeRoleName(name: string) {
     return name.trim().toUpperCase().replace(/\s+/g, "_");
+  }
+
+  private staffSelect() {
+    return {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      emailVerifiedAt: true,
+      blockedAt: true,
+      deactivatedAt: true,
+      deletionRequestedAt: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true,
+      roles: {
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              isSystem: true,
+              permissions: { include: { permission: true } },
+            },
+          },
+        },
+      },
+    } as const;
   }
 
   private record(
