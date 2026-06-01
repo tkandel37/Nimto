@@ -64,7 +64,7 @@ export default async function FeaturesPage() {
 
 function Feature({ body, title }: { body: string; title: string }) {
   return (
-    <article className="rounded-lg border border-ink/10 bg-white p-6">
+    <article className="feature-card p-6">
       <h2 className="text-xl font-black text-ink">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-ink/60">{body}</p>
     </article>
@@ -80,7 +80,9 @@ function SimpleHeader() {
       <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
         <Link href="/blog">Blog</Link>
         <Link href="/about">About</Link>
-        <Link href="/auth?mode=login">Log in</Link>
+        <Link className="site-login-button" href="/auth?mode=login">
+          Log in
+        </Link>
       </nav>
     </header>
   );

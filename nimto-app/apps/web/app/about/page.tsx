@@ -41,7 +41,7 @@ export default async function AboutPage() {
         <div className="mt-10 whitespace-pre-wrap text-base leading-8 text-ink/70">
           {page.body}
         </div>
-        <div className="mt-10 rounded-lg border border-ink/10 bg-white p-5">
+        <div className="feature-card mt-10">
           <h2 className="font-black text-ink">Contact</h2>
           <p className="mt-2 text-sm leading-6 text-ink/65">
             Email: trilochan@mynimto.com
@@ -61,7 +61,9 @@ function SimpleHeader() {
       <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
         <Link href="/features">Features</Link>
         <Link href="/blog">Blog</Link>
-        <Link href="/auth?mode=login">Log in</Link>
+        <Link className="site-login-button" href="/auth?mode=login">
+          Log in
+        </Link>
       </nav>
     </header>
   );

@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbf7ef;
+  --background: #f7f8f5;
   --foreground: #172033;
   --ink: #172033;
-  --marigold: #d99a23;
-  --rose: #a93657;
-  --leaf: #24745b;
-  --paper: #fffaf1;
+  --marigold: #c88918;
+  --rose: #b13f5f;
+  --leaf: #16745e;
+  --paper: #fffdf8;
   --line: rgba(23, 32, 51, 0.14);
 }
 
@@ -34,8 +34,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(120deg, rgba(217, 154, 35, 0.14), transparent 36%),
-    linear-gradient(310deg, rgba(36, 116, 91, 0.13), transparent 34%),
+    linear-gradient(120deg, rgba(22, 116, 94, 0.1), transparent 36%),
+    linear-gradient(310deg, rgba(177, 63, 95, 0.08), transparent 34%),
     var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
@@ -135,30 +135,61 @@ a {
 
 .site-shell {
   min-height: 100vh;
-  background: var(--paper);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 248, 245, 0.98)),
+    var(--background);
 }
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  max-width: 1180px;
-  margin: 0 auto;
+  width: min(1180px, calc(100% - 40px));
+  margin: 14px auto 0;
   padding: 24px 20px;
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.86);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 36px rgba(23, 32, 51, 0.06);
 }
 
 .hero-section {
-  border-top: 1px solid rgba(23, 32, 51, 0.08);
   border-bottom: 1px solid rgba(23, 32, 51, 0.08);
-  background: linear-gradient(180deg, #fffaf1 0%, #f7efe2 100%);
+  background:
+    linear-gradient(135deg, rgba(22, 116, 94, 0.08), transparent 38%),
+    linear-gradient(315deg, rgba(200, 137, 24, 0.1), transparent 34%),
+    #fffdf8;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  border: 1px solid rgba(22, 116, 94, 0.2);
+  border-radius: 999px;
+  background: rgba(22, 116, 94, 0.08);
+  padding: 8px 12px;
+  color: var(--leaf);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .site-button-primary,
-.site-button-secondary {
+.site-button-secondary,
+.site-button-ghost,
+.site-login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
   padding: 14px 18px;
   font-weight: 800;
+  line-height: 1;
 }
 
 .site-button-primary {
@@ -172,6 +203,48 @@ a {
   color: var(--ink);
 }
 
+.site-button-ghost {
+  color: var(--ink);
+}
+
+.site-login-button {
+  border: 1px solid rgba(23, 32, 51, 0.16);
+  background: var(--ink);
+  color: white;
+  padding: 10px 14px;
+}
+
+.landing-preview {
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.95), rgba(255, 253, 248, 0.88)),
+    url("/invitation-preview.svg");
+  background-size: cover;
+  padding: 24px;
+  box-shadow: 0 24px 54px rgba(23, 32, 51, 0.11);
+}
+
+.landing-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(23, 32, 51, 0.1);
+  padding-bottom: 16px;
+  color: rgba(23, 32, 51, 0.58);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.preview-chip {
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 12px;
+}
+
 .invitation-card {
   min-height: 480px;
   border: 1px solid rgba(23, 32, 51, 0.12);
@@ -182,6 +255,14 @@ a {
   background-size: cover;
   padding: 32px;
   box-shadow: 0 24px 60px rgba(23, 32, 51, 0.12);
+}
+
+.feature-card {
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 20px;
+  box-shadow: 0 12px 30px rgba(23, 32, 51, 0.05);
 }
 
 .blog-body h2 {
@@ -263,7 +344,13 @@ a {
   .site-header {
     align-items: flex-start;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
+    margin-top: 0;
+    width: 100%;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-radius: 0;
     padding: 18px 16px;
   }
 
@@ -296,9 +383,18 @@ a {
   }
 
   .site-button-primary,
-  .site-button-secondary {
+  .site-button-secondary,
+  .site-button-ghost {
     width: 100%;
     text-align: center;
+  }
+
+  .site-login-button {
+    flex: 0 0 auto;
+  }
+
+  .landing-preview {
+    padding: 20px;
   }
 
   .invitation-card {
