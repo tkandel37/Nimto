@@ -144,18 +144,24 @@ a {
   position: sticky;
   top: 0;
   z-index: 30;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  margin: 0;
+  padding: 16px max(20px, calc((100vw - 1180px) / 2 + 20px));
+  border-bottom: 1px solid rgba(23, 32, 51, 0.1);
+  background: rgba(255, 253, 248, 0.97);
+  backdrop-filter: blur(12px);
+  box-shadow: none;
+}
+
+.site-header nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: min(1180px, calc(100% - 40px));
-  margin: 14px auto 0;
-  padding: 24px 20px;
-  border: 1px solid rgba(23, 32, 51, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 253, 248, 0.86);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 16px 36px rgba(23, 32, 51, 0.06);
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .hero-section {
@@ -343,18 +349,13 @@ a {
 
   .site-header {
     align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 12px;
-    margin-top: 0;
-    width: 100%;
-    border-left: 0;
-    border-right: 0;
-    border-top: 0;
-    border-radius: 0;
     padding: 18px 16px;
   }
 
   .site-header nav {
+    justify-content: flex-start;
     width: 100%;
     gap: 14px;
     overflow-x: auto;
