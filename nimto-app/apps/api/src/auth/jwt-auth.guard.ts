@@ -22,7 +22,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -48,10 +48,15 @@ export class JwtAuthGuard implements CanActivate {
       if (payload.sessionId) {
         const session = await this.prisma.userSession.findUnique({
           where: { id: payload.sessionId },
+          include: { user: true },
         });
 
-        if (!session || session.revokedAt) {
+        if (!session || session.revokedAt || session.expiresAt < new Date()) {
           throw new UnauthorizedException("Session revoked or invalid.");
+        }
+
+        if (session.user.status !== "ACTIVE") {
+          throw new UnauthorizedException("This account is not active.");
         }
       }
 

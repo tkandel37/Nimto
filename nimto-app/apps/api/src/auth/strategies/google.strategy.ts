@@ -12,8 +12,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
   ) {
     super({
       clientID: config.get<string>("GOOGLE_CLIENT_ID") || "temp-client-id",
-      clientSecret: config.get<string>("GOOGLE_CLIENT_SECRET") || "temp-client-secret",
-      callbackURL: config.get<string>("GOOGLE_CALLBACK_URL") || "http://localhost:3000/api/auth/google/callback",
+      clientSecret:
+        config.get<string>("GOOGLE_CLIENT_SECRET") || "temp-client-secret",
+      callbackURL:
+        config.get<string>("GOOGLE_CALLBACK_URL") ||
+        "http://localhost:3000/api/auth/google/callback",
       scope: ["email", "profile"],
     });
   }
@@ -25,7 +28,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
     done: VerifyCallback,
   ): Promise<any> {
     try {
-      const user = await this.authService.validateOAuthLogin(profile, accessToken, refreshToken);
+      const user = await this.authService.validateOAuthLogin(
+        profile,
+        accessToken,
+        refreshToken,
+      );
       done(null, user);
     } catch (err) {
       done(err, false);

@@ -2,6 +2,10 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  status?: string;
+  emailVerifiedAt?: string | null;
+  roles?: string[];
+  permissions?: string[];
   createdAt: string;
 };
 

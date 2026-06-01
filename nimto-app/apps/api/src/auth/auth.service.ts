@@ -12,6 +12,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
+import { SUPER_ADMIN_ROLE } from "./permissions";
 
 @Injectable()
 export class AuthService {
@@ -51,13 +52,15 @@ export class AuthService {
         console.error("Failed to send verification email", err);
       });
 
-      return await this.buildAuthResponse(user);
+      return await this.buildAuthResponse(user.id);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
-        throw new BadRequestException("An account with this email already exists.");
+        throw new BadRequestException(
+          "An account with this email already exists.",
+        );
       }
 
       throw error;
@@ -76,12 +79,22 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password.");
     }
 
-    const passwordsMatch = await bcrypt.compare(dto.password, user.passwordHash);
+    const passwordsMatch = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
     if (!passwordsMatch) {
       throw new UnauthorizedException("Invalid email or password.");
     }
 
-    return await this.buildAuthResponse(user);
+    this.assertUserCanAuthenticate(user);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return await this.buildAuthResponse(user.id);
   }
 
   async me(userId: string) {
@@ -89,6 +102,7 @@ export class AuthService {
       where: {
         id: userId,
       },
+      include: this.userAccessInclude(),
     });
 
     if (!user) {
@@ -147,7 +161,11 @@ export class AuthService {
     }
   }
 
-  async validateOAuthLogin(profile: any, accessToken: string, refreshToken: string) {
+  async validateOAuthLogin(
+    profile: any,
+    accessToken: string,
+    refreshToken: string,
+  ) {
     const providerAccountId = profile.id;
     const email = profile.emails?.[0]?.value?.toLowerCase();
     const name = profile.displayName || "Google User";
@@ -168,13 +186,19 @@ export class AuthService {
     });
 
     if (oauthAccount) {
-      return this.buildAuthResponse(oauthAccount.user);
+      this.assertUserCanAuthenticate(oauthAccount.user);
+      await this.prisma.user.update({
+        where: { id: oauthAccount.user.id },
+        data: { lastLoginAt: new Date() },
+      });
+      return this.buildAuthResponse(oauthAccount.user.id);
     }
 
     // 2. If not, check if User exists by email
     let user = await this.prisma.user.findUnique({ where: { email } });
 
     if (user) {
+      this.assertUserCanAuthenticate(user);
       // 3. Link new OAuth account to existing user
       await this.prisma.oAuthAccount.create({
         data: {
@@ -206,15 +230,26 @@ export class AuthService {
       });
     }
 
-    return this.buildAuthResponse(user);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return this.buildAuthResponse(user.id);
   }
 
-  private async buildAuthResponse(user: {
-    id: string;
-    name: string;
-    email: string;
-    createdAt: Date;
-  }) {
+  private async buildAuthResponse(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userAccessInclude(),
+    });
+
+    if (!user) {
+      throw new UnauthorizedException("User not found.");
+    }
+
+    this.assertUserCanAuthenticate(user);
+
     const secret = this.config.get<string>("JWT_SECRET");
     if (!secret) {
       throw new Error("JWT_SECRET is required.");
@@ -257,13 +292,74 @@ export class AuthService {
     id: string;
     name: string;
     email: string;
+    status?: string;
+    emailVerifiedAt?: Date | null;
     createdAt: Date;
+    roles?: {
+      role: {
+        name: string;
+        permissions: {
+          permission: {
+            key: string;
+          };
+        }[];
+      };
+    }[];
   }) {
+    const roleNames = user.roles?.map((userRole) => userRole.role.name) ?? [];
+    const permissions = new Set(
+      user.roles?.flatMap((userRole) =>
+        userRole.role.name === SUPER_ADMIN_ROLE
+          ? ["*"]
+          : userRole.role.permissions.map(
+              (rolePermission) => rolePermission.permission.key,
+            ),
+      ) ?? [],
+    );
+
     return {
       id: user.id,
       name: user.name,
       email: user.email,
+      status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt,
+      roles: roleNames,
+      permissions: Array.from(permissions).sort(),
       createdAt: user.createdAt,
     };
+  }
+
+  private assertUserCanAuthenticate(user: { status: string }) {
+    if (user.status === "ACTIVE") {
+      return;
+    }
+
+    const messages: Record<string, string> = {
+      BLOCKED: "This account is blocked.",
+      DEACTIVATED: "This account is deactivated.",
+      PENDING_DELETION: "This account is pending deletion.",
+    };
+
+    throw new UnauthorizedException(
+      messages[user.status] ?? "This account is not active.",
+    );
+  }
+
+  private userAccessInclude() {
+    return {
+      roles: {
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    } as const;
   }
 }

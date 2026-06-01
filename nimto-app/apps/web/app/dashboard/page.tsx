@@ -20,6 +20,25 @@ const templates = [
   },
 ];
 
+const menuItems = [
+  { label: "Dashboard", permission: null },
+  { label: "Roles", permission: "roles:view" },
+  { label: "Permissions", permission: "permissions:view" },
+  { label: "Staff", permission: "staff:view" },
+  { label: "Sessions", permission: "sessions:view" },
+  { label: "Audit Logs", permission: "audit:view" },
+];
+
+function can(user: AuthUser | null, permission: string | null) {
+  if (!permission) {
+    return true;
+  }
+
+  return Boolean(
+    user?.permissions?.includes("*") || user?.permissions?.includes(permission),
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -87,10 +106,20 @@ export default function DashboardPage() {
           Digital invitation workspace
         </p>
         <nav className="mt-10 grid gap-3 text-sm font-bold">
-          <span className="rounded-xl bg-white/10 px-4 py-3">Dashboard</span>
-          <span className="rounded-xl px-4 py-3 text-white/60">Templates</span>
-          <span className="rounded-xl px-4 py-3 text-white/60">Guests</span>
-          <span className="rounded-xl px-4 py-3 text-white/60">RSVPs</span>
+          {menuItems
+            .filter((item) => can(user, item.permission))
+            .map((item, index) => (
+              <span
+                className={
+                  index === 0
+                    ? "rounded-xl bg-white/10 px-4 py-3"
+                    : "rounded-xl px-4 py-3 text-white/60"
+                }
+                key={item.label}
+              >
+                {item.label}
+              </span>
+            ))}
         </nav>
       </aside>
 
@@ -104,6 +133,11 @@ export default function DashboardPage() {
               Welcome, {user?.name ?? "creator"}
             </h1>
             <p className="mt-2 text-ink/65">{user?.email}</p>
+            {user?.roles?.length ? (
+              <p className="mt-2 text-sm font-bold text-ink/45">
+                {user.roles.join(", ")}
+              </p>
+            ) : null}
           </div>
           <button
             className="rounded-xl border border-ink/20 bg-white px-5 py-3 font-bold text-ink"
@@ -139,9 +173,14 @@ export default function DashboardPage() {
                 What Nimto will become
               </h2>
             </div>
-            <button className="rounded-xl bg-ink px-5 py-3 font-bold text-white" type="button">
-              New invitation
-            </button>
+            {can(user, "roles:manage") ? (
+              <button
+                className="rounded-xl bg-ink px-5 py-3 font-bold text-white"
+                type="button"
+              >
+                Manage roles
+              </button>
+            ) : null}
           </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-3">

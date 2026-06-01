@@ -28,12 +28,19 @@ enum SessionRevocationReason {
   ACCOUNT_PENDING_DELETION
 }
 
+enum EventType {
+  WEDDING
+  BIRTHDAY
+  CORPORATE
+  OTHER
+}
+
 model User {
-  id                  String         @id @default(cuid())
+  id                  String               @id @default(cuid())
   name                String
-  email               String         @unique
+  email               String               @unique
   passwordHash        String?
-  status              UserStatus     @default(ACTIVE)
+  status              UserStatus           @default(ACTIVE)
   emailVerifiedAt     DateTime?
   blockedAt           DateTime?
   deactivatedAt       DateTime?
@@ -46,6 +53,8 @@ model User {
   sessions            UserSession[]
   verificationTokens  VerificationToken[]
   passwordResetTokens PasswordResetToken[]
+  events              Event[]
+  auditLogs           AuditLog[]
 
   @@index([status])
   @@index([createdAt])
@@ -153,4 +162,42 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([token])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  type        EventType @default(WEDDING)
+  eventDate   DateTime?
+  venue       String?
+  description String?
+  slug        String    @unique
+  coverImage  String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([slug])
+  @@index([isPublished])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

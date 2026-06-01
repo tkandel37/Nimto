@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from "@nestjs/common";
+import { MailerService } from "@nestjs-modules/mailer";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class MailService {
@@ -12,13 +12,16 @@ export class MailService {
   ) {}
 
   async sendVerificationEmail(to: string, token: string) {
-    const appUrl = this.config.get<string>('NEXT_PUBLIC_APP_URL', 'http://localhost:3000');
+    const appUrl = this.config.get<string>(
+      "NEXT_PUBLIC_APP_URL",
+      "http://localhost:3000",
+    );
     const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
 
     try {
       await this.mailerService.sendMail({
         to,
-        subject: 'Verify your Nimto account',
+        subject: "Verify your Nimto account",
         text: `Welcome to Nimto! Please verify your email address by clicking the link: ${verifyUrl}`,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">

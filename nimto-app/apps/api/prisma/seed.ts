@@ -1,5 +1,6 @@
 import { PrismaClient, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { PERMISSION_CATALOG } from "../src/auth/permissions";
 
 const prisma = new PrismaClient();
 const SUPER_ADMIN_ROLE = "SUPER_ADMIN";
@@ -23,6 +24,16 @@ async function main() {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+
+  await prisma.$transaction(
+    PERMISSION_CATALOG.map((permission) =>
+      prisma.permission.upsert({
+        where: { key: permission.key },
+        update: { description: permission.description },
+        create: permission,
+      }),
+    ),
+  );
 
   const role = await prisma.role.upsert({
     where: {
@@ -73,6 +84,20 @@ async function main() {
       userId: user.id,
       roleId: role.id,
     },
+  });
+
+  await prisma.rolePermission.createMany({
+    data: (
+      await prisma.permission.findMany({
+        where: {
+          key: { in: PERMISSION_CATALOG.map((permission) => permission.key) },
+        },
+      })
+    ).map((permission) => ({
+      roleId: role.id,
+      permissionId: permission.id,
+    })),
+    skipDuplicates: true,
   });
 
   console.log(`Seeded Super Admin: ${email}`);
