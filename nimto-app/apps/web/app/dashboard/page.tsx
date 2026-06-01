@@ -748,21 +748,25 @@ function RolesPanel({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      className="rounded-md border border-ink/15 px-3 py-2 font-bold"
-                      onClick={() => setEditingRoleId(role.id)}
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                    {canManage && !role.isSystem ? (
-                      <button
-                        className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
-                        onClick={() => deleteRole(role)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
+                    {canManage ? (
+                      <>
+                        <button
+                          className="rounded-md border border-ink/15 px-3 py-2 font-bold"
+                          onClick={() => setEditingRoleId(role.id)}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                        {!role.isSystem ? (
+                          <button
+                            className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
+                            onClick={() => deleteRole(role)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                 </td>
