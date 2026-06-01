@@ -337,22 +337,24 @@ export default function DashboardPage() {
   return (
     <main className="dashboard-shell">
       <aside className="sidebar">
-        <Link
-          href="/"
-          className="text-2xl font-black uppercase tracking-[0.28em] text-marigold"
-        >
-          Nimto
-        </Link>
-        <p className="mt-3 text-sm leading-6 text-white/65">
-          Digital invitation workspace
-        </p>
+        <div>
+          <Link
+            href="/"
+            className="text-2xl font-black uppercase tracking-[0.22em] text-marigold"
+          >
+            Nimto
+          </Link>
+          <p className="mt-3 text-sm leading-6 text-white/68">
+            Invitation workspace for events, content, staff, and roles.
+          </p>
+        </div>
         <nav className="mt-10 grid gap-2 text-sm font-bold">
           {visibleTabs.map((tab) => (
             <button
               className={
                 currentTab === tab.key
-                  ? "rounded-lg bg-white/10 px-4 py-3 text-left text-white"
-                  : "rounded-lg px-4 py-3 text-left text-white/60 hover:bg-white/5 hover:text-white"
+                  ? "dashboard-tab dashboard-tab-active"
+                  : "dashboard-tab"
               }
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -364,25 +366,29 @@ export default function DashboardPage() {
         </nav>
       </aside>
 
-      <section className="min-w-0 p-5 md:p-8">
-        <header className="flex flex-col gap-4 border-b border-ink/10 pb-6 md:flex-row md:items-center md:justify-between">
+      <section className="min-w-0 p-4 md:p-8">
+        <header className="dashboard-hero">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
+            <p className="text-sm font-bold uppercase tracking-[0.24em] text-leaf">
               Connected account
             </p>
-            <h1 className="mt-3 text-3xl font-black text-ink md:text-4xl">
+            <h1 className="mt-3 text-3xl font-black text-ink md:text-5xl">
               {user?.name ?? "Creator"}
             </h1>
             <p className="mt-2 break-all text-ink/65">{user?.email}</p>
             {user?.roles?.length ? (
-              <p className="mt-2 text-sm font-bold text-ink/45">
-                {user.roles.join(", ")}
-              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {user.roles.map((role) => (
+                  <span className="role-chip" key={role}>
+                    {role}
+                  </span>
+                ))}
+              </div>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-3">
             <button
-              className="rounded-lg border border-ink/20 bg-white px-4 py-3 font-bold text-ink"
+              className="dashboard-button-secondary"
               disabled={isRefreshing}
               onClick={() => refreshAdminData()}
               type="button"
@@ -390,7 +396,7 @@ export default function DashboardPage() {
               Refresh
             </button>
             <button
-              className="rounded-lg border border-ink/20 bg-white px-4 py-3 font-bold text-ink"
+              className="dashboard-button-secondary"
               onClick={logout}
               type="button"
             >
@@ -495,12 +501,29 @@ function OverviewPanel({
   staffCount: number;
 }) {
   return (
-    <section className="mt-7 grid gap-4 md:grid-cols-4">
-      <Metric label="Events" value={eventCount} tone="text-leaf" />
-      <Metric label="Roles" value={roleCount} tone="text-leaf" />
-      <Metric label="Staff" value={staffCount} tone="text-marigold" />
-      <Metric label="Active sessions" value={sessionCount} tone="text-rose" />
-      <Metric label="Audit events" value={auditCount} tone="text-ink" />
+    <section className="mt-7 grid gap-6">
+      <div className="dashboard-welcome">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-marigold">
+            Before Module 2
+          </p>
+          <h2 className="mt-3 text-2xl font-black text-ink md:text-3xl">
+            A cleaner base for events, templates, and designs.
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">
+            This dashboard now separates the creator workspace feeling from the
+            admin controls, so the next template and design module can sit here
+            naturally.
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric label="Events" value={eventCount} tone="text-leaf" />
+        <Metric label="Roles" value={roleCount} tone="text-leaf" />
+        <Metric label="Staff" value={staffCount} tone="text-marigold" />
+        <Metric label="Active sessions" value={sessionCount} tone="text-rose" />
+        <Metric label="Audit events" value={auditCount} tone="text-ink" />
+      </div>
     </section>
   );
 }
