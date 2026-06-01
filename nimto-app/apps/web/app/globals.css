@@ -41,7 +41,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -123,6 +125,64 @@ button {
 .primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.site-shell {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.hero-section {
+  border-top: 1px solid rgba(23, 32, 51, 0.08);
+  border-bottom: 1px solid rgba(23, 32, 51, 0.08);
+  background: linear-gradient(180deg, #fffaf1 0%, #f7efe2 100%);
+}
+
+.site-button-primary,
+.site-button-secondary {
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-weight: 800;
+}
+
+.site-button-primary {
+  background: var(--ink);
+  color: white;
+}
+
+.site-button-secondary {
+  border: 1px solid rgba(23, 32, 51, 0.18);
+  background: white;
+  color: var(--ink);
+}
+
+.invitation-card {
+  min-height: 480px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255, 250, 241, 0.9), rgba(255, 250, 241, 0.9)),
+    url("/invitation-preview.svg");
+  background-size: cover;
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(23, 32, 51, 0.12);
+}
+
+.blog-body h2 {
+  margin-top: 32px;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--ink);
 }
 
 .dashboard-shell {

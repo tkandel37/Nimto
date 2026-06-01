@@ -1,0 +1,87 @@
+import Link from "next/link";
+
+type PageContent = {
+  title: string;
+  subtitle?: string | null;
+  body?: string | null;
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+async function getPage(): Promise<PageContent> {
+  try {
+    const response = await fetch(`${API_URL}/cms/public/pages/features`, {
+      next: { revalidate: 60 },
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  } catch {}
+
+  return {
+    title: "Features",
+    subtitle: "Simple tools for creating and sharing event invitations.",
+    body: "Invitation design, guest personalization, map links, countdowns, QR options, bulk PDF export, and bilingual content are planned for myNimto.",
+  };
+}
+
+export default async function FeaturesPage() {
+  const page = await getPage();
+
+  return (
+    <main className="site-shell">
+      <SimpleHeader />
+      <section className="mx-auto max-w-6xl px-5 py-16">
+        <h1 className="text-5xl font-black text-ink">{page.title}</h1>
+        <p className="mt-5 max-w-3xl text-xl leading-8 text-ink/65">
+          {page.subtitle}
+        </p>
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
+          <Feature
+            title="Invitation editor"
+            body="Prepare event title, date, venue, message, and cover details."
+          />
+          <Feature
+            title="Guest personalization"
+            body="Add guest names and prepare printable or shareable versions."
+          />
+          <Feature
+            title="Digital sharing"
+            body="Send invitations through WhatsApp, Messenger, email, or direct links."
+          />
+          <Feature
+            title="Content management"
+            body="Keep website pages and blogs editable from the admin dashboard."
+          />
+        </div>
+        <p className="mt-10 max-w-3xl whitespace-pre-wrap text-base leading-8 text-ink/70">
+          {page.body}
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function Feature({ body, title }: { body: string; title: string }) {
+  return (
+    <article className="rounded-lg border border-ink/10 bg-white p-6">
+      <h2 className="text-xl font-black text-ink">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-ink/60">{body}</p>
+    </article>
+  );
+}
+
+function SimpleHeader() {
+  return (
+    <header className="site-header">
+      <Link className="text-xl font-black text-ink" href="/">
+        myNimto
+      </Link>
+      <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
+        <Link href="/blog">Blog</Link>
+        <Link href="/about">About</Link>
+        <Link href="/auth?mode=login">Log in</Link>
+      </nav>
+    </header>
+  );
+}

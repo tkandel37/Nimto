@@ -35,6 +35,11 @@ enum EventType {
   OTHER
 }
 
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -54,6 +59,7 @@ model User {
   verificationTokens  VerificationToken[]
   passwordResetTokens PasswordResetToken[]
   events              Event[]
+  blogPosts           BlogPost[]
   auditLogs           AuditLog[]
 
   @@index([status])
@@ -182,6 +188,42 @@ model Event {
   @@index([userId])
   @@index([slug])
   @@index([isPublished])
+}
+
+model PageContent {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  title       String
+  subtitle    String?
+  body        String?
+  metadata    Json?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
+model BlogPost {
+  id              String        @id @default(cuid())
+  authorId        String
+  title           String
+  slug            String        @unique
+  excerpt         String?
+  content         String
+  metaTitle       String?
+  metaDescription String?
+  keywords        String?
+  status          PublishStatus @default(DRAFT)
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([authorId])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([slug])
 }
 
 model AuditLog {

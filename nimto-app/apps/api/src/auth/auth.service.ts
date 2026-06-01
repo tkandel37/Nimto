@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
+import { AuditService } from "../audit/audit.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { SUPER_ADMIN_ROLE } from "./permissions";
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly mailService: MailService,
+    private readonly audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -50,6 +52,10 @@ export class AuthService {
       // Send verification email asynchronously
       this.mailService.sendVerificationEmail(user.email, token).catch((err) => {
         console.error("Failed to send verification email", err);
+      });
+
+      await this.record(user.id, "auth.registered", "User", user.id, {
+        email: user.email,
       });
 
       return await this.buildAuthResponse(user.id);
@@ -92,6 +98,10 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
+    });
+
+    await this.record(user.id, "auth.login", "UserSession", undefined, {
+      provider: "email",
     });
 
     return await this.buildAuthResponse(user.id);
@@ -158,6 +168,12 @@ export class AuthService {
           revocationReason: "USER_LOGOUT",
         },
       });
+      await this.record(
+        session.userId,
+        "auth.logout",
+        "UserSession",
+        session.id,
+      );
     }
   }
 
@@ -191,6 +207,15 @@ export class AuthService {
         where: { id: oauthAccount.user.id },
         data: { lastLoginAt: new Date() },
       });
+      await this.record(
+        oauthAccount.user.id,
+        "auth.login",
+        "OAuthAccount",
+        oauthAccount.id,
+        {
+          provider: "GOOGLE",
+        },
+      );
       return this.buildAuthResponse(oauthAccount.user.id);
     }
 
@@ -210,6 +235,9 @@ export class AuthService {
           refreshToken,
         },
       });
+      await this.record(user.id, "oauth.linked", "User", user.id, {
+        provider: "GOOGLE",
+      });
     } else {
       // 4. Create new User and link OAuth account
       user = await this.prisma.user.create({
@@ -228,6 +256,9 @@ export class AuthService {
           },
         },
       });
+      await this.record(user.id, "oauth.registered", "User", user.id, {
+        provider: "GOOGLE",
+      });
     }
 
     await this.prisma.user.update({
@@ -236,6 +267,22 @@ export class AuthService {
     });
 
     return this.buildAuthResponse(user.id);
+  }
+
+  private record(
+    actorId: string,
+    action: string,
+    entityType: string,
+    entityId?: string,
+    metadata?: Prisma.InputJsonValue,
+  ) {
+    return this.audit.record({
+      actorId,
+      action,
+      entityType,
+      entityId,
+      metadata,
+    });
   }
 
   private async buildAuthResponse(userId: string) {

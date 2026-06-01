@@ -65,9 +65,34 @@ type InvitationEvent = {
   updatedAt: string;
 };
 
+type PageContent = {
+  id: string;
+  key: string;
+  title: string;
+  subtitle?: string | null;
+  body?: string | null;
+  updatedAt: string;
+};
+
+type BlogPost = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  content: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  keywords?: string | null;
+  status: "DRAFT" | "PUBLISHED";
+  publishedAt?: string | null;
+  updatedAt: string;
+  author?: Pick<AuthUser, "id" | "name" | "email">;
+};
+
 type TabKey =
   | "overview"
   | "events"
+  | "website"
   | "roles"
   | "permissions"
   | "staff"
@@ -77,6 +102,7 @@ type TabKey =
 const tabs: { key: TabKey; label: string; permission: string | null }[] = [
   { key: "overview", label: "Dashboard", permission: null },
   { key: "events", label: "Events", permission: null },
+  { key: "website", label: "Website", permission: null },
   { key: "roles", label: "Roles", permission: "roles:view" },
   { key: "permissions", label: "Permissions", permission: "permissions:view" },
   { key: "staff", label: "Staff", permission: "staff:view" },
@@ -92,6 +118,7 @@ const statuses: Staff["status"][] = [
 ];
 
 const eventTypes: EventType[] = ["WEDDING", "BIRTHDAY", "CORPORATE", "OTHER"];
+const pageKeys = ["landing", "about", "features"];
 
 function can(user: AuthUser | null, permission: string | null) {
   if (!permission) {
@@ -100,6 +127,13 @@ function can(user: AuthUser | null, permission: string | null) {
 
   return Boolean(
     user?.permissions?.includes("*") || user?.permissions?.includes(permission),
+  );
+}
+
+function canAny(user: AuthUser | null, permissions: string[]) {
+  return Boolean(
+    user?.permissions?.includes("*") ||
+    permissions.some((permission) => user?.permissions?.includes(permission)),
   );
 }
 
@@ -128,9 +162,20 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [events, setEvents] = useState<InvitationEvent[]>([]);
+  const [pages, setPages] = useState<PageContent[]>([]);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
   const visibleTabs = useMemo(
-    () => tabs.filter((tab) => can(user, tab.permission)),
+    () =>
+      tabs.filter((tab) =>
+        tab.key === "website"
+          ? canAny(user, [
+              "content:manage",
+              "blog:manage:own",
+              "blog:manage:all",
+            ])
+          : can(user, tab.permission),
+      ),
     [user],
   );
   const currentTab = visibleTabs.some((tab) => tab.key === activeTab)
@@ -209,6 +254,12 @@ export default function DashboardPage() {
           can(authUser, "audit:view")
             ? apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
             : Promise.resolve([]),
+          can(authUser, "content:manage")
+            ? apiRequest<PageContent[]>("/cms/admin/pages", { headers })
+            : Promise.resolve([]),
+          canAny(authUser, ["blog:manage:own", "blog:manage:all"])
+            ? apiRequest<BlogPost[]>("/cms/admin/blog", { headers })
+            : Promise.resolve([]),
         ]);
 
         setEvents(results[0]);
@@ -217,6 +268,8 @@ export default function DashboardPage() {
         setStaff(results[3]);
         setSessions(results[4]);
         setAuditLogs(results[5]);
+        setPages(results[6]);
+        setBlogPosts(results[7]);
       } catch (caughtError) {
         setError(
           caughtError instanceof Error
@@ -369,6 +422,16 @@ export default function DashboardPage() {
           <EventsPanel
             completeAction={completeAction}
             events={events}
+            request={request}
+          />
+        ) : null}
+        {currentTab === "website" ? (
+          <WebsitePanel
+            canManageBlog={canAny(user, ["blog:manage:own", "blog:manage:all"])}
+            canManageContent={can(user, "content:manage")}
+            completeAction={completeAction}
+            pages={pages}
+            posts={blogPosts}
             request={request}
           />
         ) : null}
@@ -646,6 +709,237 @@ function eventPayload(form: FormData) {
     coverImage: coverImage || undefined,
     description: form.get("description") || undefined,
     isPublished: form.get("isPublished") === "on",
+  };
+}
+
+function WebsitePanel({
+  canManageBlog,
+  canManageContent,
+  completeAction,
+  pages,
+  posts,
+  request,
+}: {
+  canManageBlog: boolean;
+  canManageContent: boolean;
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
+  pages: PageContent[];
+  posts: BlogPost[];
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+}) {
+  async function savePage(event: FormEvent<HTMLFormElement>, key: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/cms/admin/pages/${key}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: form.get("title"),
+            subtitle: form.get("subtitle") || undefined,
+            body: form.get("body") || undefined,
+          }),
+        }),
+      "Website content saved.",
+    );
+  }
+
+  async function createPost(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request("/cms/admin/blog", {
+          method: "POST",
+          body: JSON.stringify(blogPayload(form)),
+        }),
+      "Blog post created.",
+    );
+    event.currentTarget.reset();
+  }
+
+  async function updatePost(event: FormEvent<HTMLFormElement>, postId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/cms/admin/blog/${postId}`, {
+          method: "PATCH",
+          body: JSON.stringify(blogPayload(form)),
+        }),
+      "Blog post updated.",
+    );
+  }
+
+  async function deletePost(postId: string) {
+    await completeAction(
+      () => request(`/cms/admin/blog/${postId}`, { method: "DELETE" }),
+      "Blog post deleted.",
+    );
+  }
+
+  return (
+    <section className="mt-7 grid gap-6">
+      {canManageContent ? (
+        <div className="grid gap-4 xl:grid-cols-3">
+          {pageKeys.map((key) => {
+            const page = pages.find((item) => item.key === key);
+            return (
+              <form
+                className="rounded-lg border border-ink/10 bg-white p-5"
+                key={key}
+                onSubmit={(event) => savePage(event, key)}
+              >
+                <h2 className="text-lg font-black capitalize text-ink">
+                  {key}
+                </h2>
+                <label className="field mt-4">
+                  <span className="text-sm font-bold text-ink">Title</span>
+                  <input
+                    defaultValue={page?.title ?? ""}
+                    name="title"
+                    required
+                  />
+                </label>
+                <label className="field mt-4">
+                  <span className="text-sm font-bold text-ink">Subtitle</span>
+                  <input defaultValue={page?.subtitle ?? ""} name="subtitle" />
+                </label>
+                <label className="field mt-4">
+                  <span className="text-sm font-bold text-ink">Body</span>
+                  <textarea
+                    className="min-h-32 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                    defaultValue={page?.body ?? ""}
+                    name="body"
+                  />
+                </label>
+                <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+                  Save page
+                </button>
+              </form>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {canManageBlog ? (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-4">
+            {posts.map((post) => (
+              <form
+                className="rounded-lg border border-ink/10 bg-white p-5"
+                key={post.id}
+                onSubmit={(event) => updatePost(event, post.id)}
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-lg font-black text-ink">
+                      {post.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-ink/55">
+                      /blog/{post.slug}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold text-leaf">{post.status}</p>
+                </div>
+                <BlogFields post={post} />
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
+                    Update post
+                  </button>
+                  <button
+                    className="rounded-lg border border-rose/30 px-4 py-3 font-bold text-rose"
+                    onClick={() => deletePost(post.id)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </form>
+            ))}
+          </div>
+
+          <form
+            className="rounded-lg border border-ink/10 bg-white p-5"
+            onSubmit={createPost}
+          >
+            <h2 className="text-lg font-black text-ink">Create blog post</h2>
+            <BlogFields />
+            <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+              Create post
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function BlogFields({ post }: { post?: BlogPost }) {
+  return (
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Title</span>
+        <input defaultValue={post?.title ?? ""} name="title" required />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Excerpt</span>
+        <input defaultValue={post?.excerpt ?? ""} name="excerpt" />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Content</span>
+        <textarea
+          className="min-h-56 rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={post?.content ?? ""}
+          name="content"
+          required
+        />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Meta title</span>
+        <input defaultValue={post?.metaTitle ?? ""} name="metaTitle" />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Meta description</span>
+        <input
+          defaultValue={post?.metaDescription ?? ""}
+          name="metaDescription"
+        />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Keywords</span>
+        <input defaultValue={post?.keywords ?? ""} name="keywords" />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Status</span>
+        <select
+          className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={post?.status ?? "DRAFT"}
+          name="status"
+        >
+          <option value="DRAFT">DRAFT</option>
+          <option value="PUBLISHED">PUBLISHED</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function blogPayload(form: FormData) {
+  return {
+    title: form.get("title"),
+    excerpt: form.get("excerpt") || undefined,
+    content: form.get("content"),
+    metaTitle: form.get("metaTitle") || undefined,
+    metaDescription: form.get("metaDescription") || undefined,
+    keywords: form.get("keywords") || undefined,
+    status: form.get("status"),
   };
 }
 
@@ -1212,6 +1506,18 @@ function SessionsPanel({
 }
 
 function AuditPanel({ logs }: { logs: AuditLog[] }) {
+  if (!logs.length) {
+    return (
+      <section className="mt-7 rounded-lg border border-ink/10 bg-white p-6">
+        <h2 className="text-xl font-black text-ink">No audit events yet</h2>
+        <p className="mt-2 text-sm leading-6 text-ink/60">
+          New login, content, blog, staff, role, and session actions will appear
+          here.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-7 grid gap-3">
       {logs.map((log) => (

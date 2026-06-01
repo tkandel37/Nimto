@@ -8,6 +8,9 @@ export const PERMISSIONS = {
   sessionsView: "sessions:view",
   sessionsManage: "sessions:manage",
   auditView: "audit:view",
+  contentManage: "content:manage",
+  blogManageOwn: "blog:manage:own",
+  blogManageAll: "blog:manage:all",
 } as const;
 
 export const PERMISSION_CATALOG = [
@@ -32,6 +35,18 @@ export const PERMISSION_CATALOG = [
     description: "Force logout active sessions.",
   },
   { key: PERMISSIONS.auditView, description: "View audit logs." },
+  {
+    key: PERMISSIONS.contentManage,
+    description: "Manage public website page content.",
+  },
+  {
+    key: PERMISSIONS.blogManageOwn,
+    description: "Create and edit own blog posts.",
+  },
+  {
+    key: PERMISSIONS.blogManageAll,
+    description: "Create, edit, publish, and manage all blog posts.",
+  },
 ] as const;
 
 export const SUPER_ADMIN_ROLE = "SUPER_ADMIN";
