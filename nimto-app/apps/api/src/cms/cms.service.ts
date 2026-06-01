@@ -114,10 +114,13 @@ export class CmsService {
         title: dto.title.trim(),
         slug: await this.uniqueSlug(dto.title),
         excerpt: dto.excerpt?.trim() || null,
+        citationSummary: dto.citationSummary?.trim() || null,
         content: dto.content.trim(),
         metaTitle: dto.metaTitle?.trim() || null,
         metaDescription: dto.metaDescription?.trim() || null,
         keywords: dto.keywords?.trim() || null,
+        faq: this.parseFaq(dto.faq) ?? Prisma.JsonNull,
+        sources: this.parseSources(dto.sources) ?? Prisma.JsonNull,
         status: dto.status ?? PublishStatus.DRAFT,
         publishedAt: published ? new Date() : null,
       },
@@ -143,6 +146,10 @@ export class CmsService {
         title: dto.title?.trim(),
         excerpt:
           dto.excerpt !== undefined ? dto.excerpt.trim() || null : undefined,
+        citationSummary:
+          dto.citationSummary !== undefined
+            ? dto.citationSummary.trim() || null
+            : undefined,
         content: dto.content?.trim(),
         metaTitle:
           dto.metaTitle !== undefined
@@ -154,6 +161,14 @@ export class CmsService {
             : undefined,
         keywords:
           dto.keywords !== undefined ? dto.keywords.trim() || null : undefined,
+        faq:
+          dto.faq !== undefined
+            ? (this.parseFaq(dto.faq) ?? Prisma.JsonNull)
+            : undefined,
+        sources:
+          dto.sources !== undefined
+            ? (this.parseSources(dto.sources) ?? Prisma.JsonNull)
+            : undefined,
         status,
         publishedAt:
           status === PublishStatus.PUBLISHED && !existing.publishedAt
@@ -315,6 +330,48 @@ export class CmsService {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
     return slug || `blog-${Date.now()}`;
+  }
+
+  private parseFaq(value?: string): Prisma.InputJsonValue | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const items = value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [question, ...answerParts] = line.split("|");
+        return {
+          question: question?.trim(),
+          answer: answerParts.join("|").trim(),
+        };
+      })
+      .filter((item) => item.question && item.answer);
+
+    return items.length ? items : undefined;
+  }
+
+  private parseSources(value?: string): Prisma.InputJsonValue | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const items = value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [label, ...urlParts] = line.split("|");
+        return {
+          label: label?.trim(),
+          url: urlParts.join("|").trim(),
+        };
+      })
+      .filter((item) => item.label && item.url);
+
+    return items.length ? items : undefined;
   }
 
   private record(

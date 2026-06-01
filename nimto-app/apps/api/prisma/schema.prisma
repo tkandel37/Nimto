@@ -191,15 +191,15 @@ model Event {
 }
 
 model PageContent {
-  id          String   @id @default(cuid())
-  key         String   @unique
+  id          String    @id @default(cuid())
+  key         String    @unique
   title       String
   subtitle    String?
   body        String?
   metadata    Json?
   publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([key])
 }
@@ -210,10 +210,13 @@ model BlogPost {
   title           String
   slug            String        @unique
   excerpt         String?
+  citationSummary String?
   content         String
   metaTitle       String?
   metaDescription String?
   keywords        String?
+  faq             Json?
+  sources         Json?
   status          PublishStatus @default(DRAFT)
   publishedAt     DateTime?
   createdAt       DateTime      @default(now())

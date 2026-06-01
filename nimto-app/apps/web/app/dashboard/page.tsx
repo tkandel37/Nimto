@@ -79,10 +79,13 @@ type BlogPost = {
   title: string;
   slug: string;
   excerpt?: string | null;
+  citationSummary?: string | null;
   content: string;
   metaTitle?: string | null;
   metaDescription?: string | null;
   keywords?: string | null;
+  faq?: { question: string; answer: string }[] | null;
+  sources?: { label: string; url: string }[] | null;
   status: "DRAFT" | "PUBLISHED";
   publishedAt?: string | null;
   updatedAt: string;
@@ -893,6 +896,14 @@ function BlogFields({ post }: { post?: BlogPost }) {
         <input defaultValue={post?.excerpt ?? ""} name="excerpt" />
       </label>
       <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Citation summary</span>
+        <textarea
+          className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={post?.citationSummary ?? ""}
+          name="citationSummary"
+        />
+      </label>
+      <label className="field md:col-span-2">
         <span className="text-sm font-bold text-ink">Content</span>
         <textarea
           className="min-h-56 rounded-lg border border-ink/20 bg-white px-3 py-3"
@@ -916,6 +927,24 @@ function BlogFields({ post }: { post?: BlogPost }) {
         <span className="text-sm font-bold text-ink">Keywords</span>
         <input defaultValue={post?.keywords ?? ""} name="keywords" />
       </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">FAQ</span>
+        <textarea
+          className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={formatFaq(post?.faq)}
+          name="faq"
+          placeholder="Question | Answer"
+        />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Sources</span>
+        <textarea
+          className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={formatSources(post?.sources)}
+          name="sources"
+          placeholder="Source title | https://example.com"
+        />
+      </label>
       <label className="field">
         <span className="text-sm font-bold text-ink">Status</span>
         <select
@@ -935,12 +964,25 @@ function blogPayload(form: FormData) {
   return {
     title: form.get("title"),
     excerpt: form.get("excerpt") || undefined,
+    citationSummary: form.get("citationSummary") || undefined,
     content: form.get("content"),
     metaTitle: form.get("metaTitle") || undefined,
     metaDescription: form.get("metaDescription") || undefined,
     keywords: form.get("keywords") || undefined,
+    faq: form.get("faq") || undefined,
+    sources: form.get("sources") || undefined,
     status: form.get("status"),
   };
+}
+
+function formatFaq(items?: { question: string; answer: string }[] | null) {
+  return (
+    items?.map((item) => `${item.question} | ${item.answer}`).join("\n") ?? ""
+  );
+}
+
+function formatSources(items?: { label: string; url: string }[] | null) {
+  return items?.map((item) => `${item.label} | ${item.url}`).join("\n") ?? "";
 }
 
 function RolesPanel({

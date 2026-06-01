@@ -5,6 +5,7 @@ type BlogPost = {
   title: string;
   slug: string;
   excerpt?: string | null;
+  citationSummary?: string | null;
   metaDescription?: string | null;
   publishedAt?: string | null;
   author?: { name: string };
@@ -25,9 +26,30 @@ async function getPosts(): Promise<BlogPost[]> {
 
 export default async function BlogPage() {
   const posts = await getPosts();
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "myNimto Digital Invitation Blog",
+    description:
+      "Guides about digital invitations, online invitation wording, guest personalization, RSVP planning, and event sharing.",
+    hasPart: posts.map((post) => ({
+      "@type": "Article",
+      headline: post.title,
+      description:
+        post.citationSummary ??
+        post.excerpt ??
+        post.metaDescription ??
+        undefined,
+      url: `/blog/${post.slug}`,
+    })),
+  };
 
   return (
     <main className="site-shell">
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        type="application/ld+json"
+      />
       <header className="site-header">
         <Link className="text-xl font-black text-ink" href="/">
           myNimto
@@ -50,6 +72,11 @@ export default async function BlogPage() {
           invitations, online RSVP, wedding cards, guest personalization, and
           modern invitation sharing.
         </p>
+        <div className="mt-8 grid gap-3 rounded-lg border border-ink/10 bg-white p-5 md:grid-cols-3">
+          <p className="text-sm font-bold text-ink">Clear answers</p>
+          <p className="text-sm font-bold text-ink">FAQ-ready sections</p>
+          <p className="text-sm font-bold text-ink">Source-backed notes</p>
+        </div>
         <div className="mt-12 grid gap-4">
           {posts.length ? (
             posts.map((post) => (
@@ -68,7 +95,7 @@ export default async function BlogPage() {
                   <Link href={`/blog/${post.slug}`}>{post.title}</Link>
                 </h2>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/60">
-                  {post.excerpt ?? post.metaDescription}
+                  {post.citationSummary ?? post.excerpt ?? post.metaDescription}
                 </p>
               </article>
             ))

@@ -18,6 +18,11 @@ export class CreateBlogPostDto {
   @MaxLength(220)
   excerpt?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  citationSummary?: string;
+
   @IsString()
   @MinLength(20)
   @MaxLength(30000)
@@ -37,6 +42,16 @@ export class CreateBlogPostDto {
   @IsString()
   @MaxLength(260)
   keywords?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(6000)
+  faq?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(6000)
+  sources?: string;
 
   @IsOptional()
   @IsEnum(PublishStatus)

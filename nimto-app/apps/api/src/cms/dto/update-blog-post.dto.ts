@@ -21,6 +21,11 @@ export class UpdateBlogPostDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  citationSummary?: string;
+
+  @IsOptional()
+  @IsString()
   @MinLength(20)
   @MaxLength(30000)
   content?: string;
@@ -39,6 +44,16 @@ export class UpdateBlogPostDto {
   @IsString()
   @MaxLength(260)
   keywords?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(6000)
+  faq?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(6000)
+  sources?: string;
 
   @IsOptional()
   @IsEnum(PublishStatus)
