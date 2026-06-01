@@ -1057,7 +1057,7 @@ function RolesPanel({
 
   return (
     <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="overflow-hidden rounded-lg border border-ink/10 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="bg-paper text-ink/60">
             <tr>
@@ -1499,7 +1499,7 @@ function SessionsPanel({
   }
 
   return (
-    <section className="mt-7 overflow-hidden rounded-lg border border-ink/10 bg-white">
+    <section className="mt-7 overflow-x-auto rounded-lg border border-ink/10 bg-white">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
         <thead className="bg-paper text-ink/60">
           <tr>
