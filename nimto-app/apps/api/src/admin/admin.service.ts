@@ -27,7 +27,7 @@ export class AdminService {
     private readonly audit: AuditService,
   ) {}
 
-  async seedPermissionCatalog() {
+  async seedPermissionCatalog(context?: ActorContext) {
     await this.prisma.$transaction(
       PERMISSION_CATALOG.map((permission) =>
         this.prisma.permission.upsert({
@@ -37,6 +37,18 @@ export class AdminService {
         }),
       ),
     );
+
+    if (context) {
+      await this.record(
+        context,
+        "permissions.seeded",
+        "Permission",
+        undefined,
+        {
+          count: PERMISSION_CATALOG.length,
+        },
+      );
+    }
   }
 
   listPermissions() {

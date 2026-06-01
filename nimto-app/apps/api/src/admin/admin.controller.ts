@@ -32,9 +32,9 @@ export class AdminController {
 
   @Post("permissions/seed")
   @RequirePermissions(PERMISSIONS.permissionsManage)
-  seedPermissions() {
+  seedPermissions(@Req() request: AuthenticatedRequest) {
     return this.adminService
-      .seedPermissionCatalog()
+      .seedPermissionCatalog(this.context(request))
       .then(() => ({ success: true }));
   }
 

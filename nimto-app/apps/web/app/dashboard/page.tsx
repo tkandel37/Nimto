@@ -49,10 +49,34 @@ type AuditLog = {
   actor?: Pick<AuthUser, "id" | "name" | "email"> | null;
 };
 
-type TabKey = "overview" | "roles" | "permissions" | "staff" | "sessions" | "audit";
+type EventType = "WEDDING" | "BIRTHDAY" | "CORPORATE" | "OTHER";
+
+type InvitationEvent = {
+  id: string;
+  title: string;
+  type: EventType;
+  eventDate?: string | null;
+  venue?: string | null;
+  description?: string | null;
+  slug: string;
+  coverImage?: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type TabKey =
+  | "overview"
+  | "events"
+  | "roles"
+  | "permissions"
+  | "staff"
+  | "sessions"
+  | "audit";
 
 const tabs: { key: TabKey; label: string; permission: string | null }[] = [
   { key: "overview", label: "Dashboard", permission: null },
+  { key: "events", label: "Events", permission: null },
   { key: "roles", label: "Roles", permission: "roles:view" },
   { key: "permissions", label: "Permissions", permission: "permissions:view" },
   { key: "staff", label: "Staff", permission: "staff:view" },
@@ -66,6 +90,8 @@ const statuses: Staff["status"][] = [
   "DEACTIVATED",
   "PENDING_DELETION",
 ];
+
+const eventTypes: EventType[] = ["WEDDING", "BIRTHDAY", "CORPORATE", "OTHER"];
 
 function can(user: AuthUser | null, permission: string | null) {
   if (!permission) {
@@ -101,6 +127,7 @@ export default function DashboardPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [events, setEvents] = useState<InvitationEvent[]>([]);
 
   const visibleTabs = useMemo(
     () => tabs.filter((tab) => can(user, tab.permission)),
@@ -135,65 +162,73 @@ export default function DashboardPage() {
       .finally(() => setIsLoading(false));
   }, [router]);
 
-  const request = useCallback(async <T,>(path: string, options: RequestInit = {}) => {
-    const savedToken = localStorage.getItem("nimto_token");
-    if (!savedToken) {
-      throw new Error("Missing auth token.");
-    }
+  const request = useCallback(
+    async <T,>(path: string, options: RequestInit = {}) => {
+      const savedToken = localStorage.getItem("nimto_token");
+      if (!savedToken) {
+        throw new Error("Missing auth token.");
+      }
 
-    return apiRequest<T>(path, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${savedToken}`,
-        ...options.headers,
-      },
-    });
-  }, []);
+      return apiRequest<T>(path, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+          ...options.headers,
+        },
+      });
+    },
+    [],
+  );
 
-  const refreshAdminData = useCallback(async (authUser = user) => {
-    const savedToken = localStorage.getItem("nimto_token");
-    if (!savedToken || !authUser) {
-      return;
-    }
+  const refreshAdminData = useCallback(
+    async (authUser = user) => {
+      const savedToken = localStorage.getItem("nimto_token");
+      if (!savedToken || !authUser) {
+        return;
+      }
 
-    setIsRefreshing(true);
-    setError("");
+      setIsRefreshing(true);
+      setError("");
 
-    try {
-      const headers = { Authorization: `Bearer ${savedToken}` };
-      const results = await Promise.all([
-        can(authUser, "permissions:view")
-          ? apiRequest<Permission[]>("/admin/permissions", { headers })
-          : Promise.resolve([]),
-        can(authUser, "roles:view")
-          ? apiRequest<Role[]>("/admin/roles", { headers })
-          : Promise.resolve([]),
-        can(authUser, "staff:view")
-          ? apiRequest<Staff[]>("/admin/staff", { headers })
-          : Promise.resolve([]),
-        can(authUser, "sessions:view")
-          ? apiRequest<Session[]>("/admin/sessions", { headers })
-          : Promise.resolve([]),
-        can(authUser, "audit:view")
-          ? apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
-          : Promise.resolve([]),
-      ]);
+      try {
+        const headers = { Authorization: `Bearer ${savedToken}` };
+        const results = await Promise.all([
+          apiRequest<InvitationEvent[]>("/events", { headers }),
+          can(authUser, "permissions:view")
+            ? apiRequest<Permission[]>("/admin/permissions", { headers })
+            : Promise.resolve([]),
+          can(authUser, "roles:view")
+            ? apiRequest<Role[]>("/admin/roles", { headers })
+            : Promise.resolve([]),
+          can(authUser, "staff:view")
+            ? apiRequest<Staff[]>("/admin/staff", { headers })
+            : Promise.resolve([]),
+          can(authUser, "sessions:view")
+            ? apiRequest<Session[]>("/admin/sessions", { headers })
+            : Promise.resolve([]),
+          can(authUser, "audit:view")
+            ? apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
+            : Promise.resolve([]),
+        ]);
 
-      setPermissions(results[0]);
-      setRoles(results[1]);
-      setStaff(results[2]);
-      setSessions(results[3]);
-      setAuditLogs(results[4]);
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not load admin data.",
-      );
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [user]);
+        setEvents(results[0]);
+        setPermissions(results[1]);
+        setRoles(results[2]);
+        setStaff(results[3]);
+        setSessions(results[4]);
+        setAuditLogs(results[5]);
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Could not load admin data.",
+        );
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [user],
+  );
 
   useEffect(() => {
     if (!user) {
@@ -215,7 +250,10 @@ export default function DashboardPage() {
     router.replace("/");
   }
 
-  async function completeAction(action: () => Promise<unknown>, message: string) {
+  async function completeAction(
+    action: () => Promise<unknown>,
+    message: string,
+  ) {
     setError("");
     setNotice("");
 
@@ -319,9 +357,19 @@ export default function DashboardPage() {
         {currentTab === "overview" ? (
           <OverviewPanel
             auditCount={auditLogs.length}
+            eventCount={events.length}
             roleCount={roles.length}
-            sessionCount={sessions.filter((session) => !session.revokedAt).length}
+            sessionCount={
+              sessions.filter((session) => !session.revokedAt).length
+            }
             staffCount={staff.length}
+          />
+        ) : null}
+        {currentTab === "events" ? (
+          <EventsPanel
+            completeAction={completeAction}
+            events={events}
+            request={request}
           />
         ) : null}
         {currentTab === "roles" && can(user, "roles:view") ? (
@@ -334,7 +382,13 @@ export default function DashboardPage() {
           />
         ) : null}
         {currentTab === "permissions" && can(user, "permissions:view") ? (
-          <PermissionsPanel permissions={permissions} roles={roles} />
+          <PermissionsPanel
+            canManage={can(user, "permissions:manage")}
+            completeAction={completeAction}
+            permissions={permissions}
+            request={request}
+            roles={roles}
+          />
         ) : null}
         {currentTab === "staff" && can(user, "staff:view") ? (
           <StaffPanel
@@ -363,17 +417,20 @@ export default function DashboardPage() {
 
 function OverviewPanel({
   auditCount,
+  eventCount,
   roleCount,
   sessionCount,
   staffCount,
 }: {
   auditCount: number;
+  eventCount: number;
   roleCount: number;
   sessionCount: number;
   staffCount: number;
 }) {
   return (
     <section className="mt-7 grid gap-4 md:grid-cols-4">
+      <Metric label="Events" value={eventCount} tone="text-leaf" />
       <Metric label="Roles" value={roleCount} tone="text-leaf" />
       <Metric label="Staff" value={staffCount} tone="text-marigold" />
       <Metric label="Active sessions" value={sessionCount} tone="text-rose" />
@@ -399,6 +456,199 @@ function Metric({
   );
 }
 
+function EventsPanel({
+  completeAction,
+  events,
+  request,
+}: {
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
+  events: InvitationEvent[];
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+}) {
+  async function createEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request("/events", {
+          method: "POST",
+          body: JSON.stringify(eventPayload(form)),
+        }),
+      "Event created.",
+    );
+    event.currentTarget.reset();
+  }
+
+  async function updateEvent(
+    browserEvent: FormEvent<HTMLFormElement>,
+    invitationEvent: InvitationEvent,
+  ) {
+    browserEvent.preventDefault();
+    const form = new FormData(browserEvent.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/events/${invitationEvent.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(eventPayload(form)),
+        }),
+      "Event updated.",
+    );
+  }
+
+  async function deleteEvent(invitationEvent: InvitationEvent) {
+    await completeAction(
+      () => request(`/events/${invitationEvent.id}`, { method: "DELETE" }),
+      "Event deleted.",
+    );
+  }
+
+  return (
+    <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-4">
+        {events.length ? (
+          events.map((invitationEvent) => (
+            <form
+              className="rounded-lg border border-ink/10 bg-white p-5"
+              key={invitationEvent.id}
+              onSubmit={(event) => updateEvent(event, invitationEvent)}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-ink">
+                    {invitationEvent.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-ink/60">
+                    /invite/{invitationEvent.slug}
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-leaf">
+                    {invitationEvent.isPublished ? "Published" : "Draft"}
+                  </p>
+                </div>
+                <p className="text-sm text-ink/45">
+                  {displayDate(invitationEvent.eventDate)}
+                </p>
+              </div>
+              <EventFields event={invitationEvent} />
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
+                  Update event
+                </button>
+                <button
+                  className="rounded-lg border border-rose/30 px-4 py-3 font-bold text-rose"
+                  onClick={() => deleteEvent(invitationEvent)}
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </form>
+          ))
+        ) : (
+          <div className="rounded-lg border border-ink/10 bg-white p-6">
+            <h2 className="text-xl font-black text-ink">No events yet</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/60">
+              Create the first invitation workspace to start managing event
+              details.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <form
+        className="rounded-lg border border-ink/10 bg-white p-5"
+        onSubmit={createEvent}
+      >
+        <h2 className="text-lg font-black text-ink">Create event</h2>
+        <EventFields />
+        <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+          Create event
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function EventFields({ event }: { event?: InvitationEvent }) {
+  return (
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Title</span>
+        <input defaultValue={event?.title ?? ""} name="title" required />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Type</span>
+        <select
+          className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={event?.type ?? "WEDDING"}
+          name="type"
+        >
+          {eventTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Date and time</span>
+        <input
+          defaultValue={event?.eventDate ? event.eventDate.slice(0, 16) : ""}
+          name="eventDate"
+          type="datetime-local"
+        />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Venue</span>
+        <input defaultValue={event?.venue ?? ""} name="venue" />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Cover image URL</span>
+        <input
+          defaultValue={event?.coverImage ?? ""}
+          name="coverImage"
+          type="url"
+        />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Description</span>
+        <textarea
+          className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={event?.description ?? ""}
+          name="description"
+        />
+      </label>
+      <label className="flex items-center gap-3 text-sm font-bold text-ink md:col-span-2">
+        <input
+          defaultChecked={event?.isPublished ?? false}
+          name="isPublished"
+          type="checkbox"
+        />
+        Publish invitation
+      </label>
+    </div>
+  );
+}
+
+function eventPayload(form: FormData) {
+  const eventDate = String(form.get("eventDate") ?? "");
+  const coverImage = String(form.get("coverImage") ?? "");
+
+  return {
+    title: form.get("title"),
+    type: form.get("type"),
+    eventDate: eventDate ? new Date(eventDate).toISOString() : undefined,
+    venue: form.get("venue") || undefined,
+    coverImage: coverImage || undefined,
+    description: form.get("description") || undefined,
+    isPublished: form.get("isPublished") === "on",
+  };
+}
+
 function RolesPanel({
   canManage,
   completeAction,
@@ -407,13 +657,17 @@ function RolesPanel({
   roles,
 }: {
   canManage: boolean;
-  completeAction: (action: () => Promise<unknown>, message: string) => Promise<void>;
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
   permissions: Permission[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
 }) {
   const [editingRoleId, setEditingRoleId] = useState("");
-  const editingRole = roles.find((role) => role.id === editingRoleId) ?? roles[0];
+  const editingRole =
+    roles.find((role) => role.id === editingRoleId) ?? roles[0];
 
   async function createRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -482,12 +736,16 @@ function RolesPanel({
               <tr className="border-t border-ink/10" key={role.id}>
                 <td className="px-4 py-3">
                   <p className="font-black text-ink">{role.name}</p>
-                  <p className="mt-1 text-ink/55">{role.description ?? "No description"}</p>
+                  <p className="mt-1 text-ink/55">
+                    {role.description ?? "No description"}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-ink/65">
                   {role.permissions.length} assigned
                 </td>
-                <td className="px-4 py-3 text-ink/65">{role._count?.users ?? 0}</td>
+                <td className="px-4 py-3 text-ink/65">
+                  {role._count?.users ?? 0}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -549,15 +807,24 @@ function RoleForm({
   title: string;
 }) {
   const selected = new Set(
-    role?.permissions.map((rolePermission) => rolePermission.permission.key) ?? [],
+    role?.permissions.map((rolePermission) => rolePermission.permission.key) ??
+      [],
   );
 
   return (
-    <form className="rounded-lg border border-ink/10 bg-white p-5" onSubmit={onSubmit}>
+    <form
+      className="rounded-lg border border-ink/10 bg-white p-5"
+      onSubmit={onSubmit}
+    >
       <h2 className="text-lg font-black text-ink">{title}</h2>
       <label className="field mt-4">
         <span className="text-sm font-bold text-ink">Name</span>
-        <input defaultValue={role?.name ?? ""} disabled={disabled} name="name" required />
+        <input
+          defaultValue={role?.name ?? ""}
+          disabled={disabled}
+          name="name"
+          required
+        />
       </label>
       <label className="field mt-4">
         <span className="text-sm font-bold text-ink">Description</span>
@@ -600,33 +867,68 @@ function RoleForm({
 }
 
 function PermissionsPanel({
+  canManage,
+  completeAction,
   permissions,
+  request,
   roles,
 }: {
+  canManage: boolean;
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
   permissions: Permission[];
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
 }) {
-  return (
-    <section className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {permissions.map((permission) => {
-        const assignedRoles = roles.filter((role) =>
-          role.permissions.some(
-            (rolePermission) => rolePermission.permission.key === permission.key,
-          ),
-        );
+  async function syncCatalog() {
+    await completeAction(
+      () => request("/admin/permissions/seed", { method: "POST" }),
+      "Permission catalog synced.",
+    );
+  }
 
-        return (
-          <article className="rounded-lg border border-ink/10 bg-white p-5" key={permission.key}>
-            <h2 className="break-all text-lg font-black text-ink">{permission.key}</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/60">
-              {permission.description}
-            </p>
-            <p className="mt-4 text-sm font-bold text-leaf">
-              {assignedRoles.length} roles assigned
-            </p>
-          </article>
-        );
-      })}
+  return (
+    <section className="mt-7">
+      {canManage ? (
+        <div className="mb-5 flex justify-end">
+          <button
+            className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
+            onClick={syncCatalog}
+            type="button"
+          >
+            Sync catalog
+          </button>
+        </div>
+      ) : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {permissions.map((permission) => {
+          const assignedRoles = roles.filter((role) =>
+            role.permissions.some(
+              (rolePermission) =>
+                rolePermission.permission.key === permission.key,
+            ),
+          );
+
+          return (
+            <article
+              className="rounded-lg border border-ink/10 bg-white p-5"
+              key={permission.key}
+            >
+              <h2 className="break-all text-lg font-black text-ink">
+                {permission.key}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-ink/60">
+                {permission.description}
+              </p>
+              <p className="mt-4 text-sm font-bold text-leaf">
+                {assignedRoles.length} roles assigned
+              </p>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -639,7 +941,10 @@ function StaffPanel({
   staff,
 }: {
   canManage: boolean;
-  completeAction: (action: () => Promise<unknown>, message: string) => Promise<void>;
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
   staff: Staff[];
@@ -664,7 +969,10 @@ function StaffPanel({
     event.currentTarget.reset();
   }
 
-  async function updateStaff(event: FormEvent<HTMLFormElement>, userId: string) {
+  async function updateStaff(
+    event: FormEvent<HTMLFormElement>,
+    userId: string,
+  ) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const password = String(form.get("password") ?? "");
@@ -689,7 +997,9 @@ function StaffPanel({
     <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="grid gap-4">
         {staff.map((member) => {
-          const selectedRoles = new Set(member.roles.map((userRole) => userRole.role.id));
+          const selectedRoles = new Set(
+            member.roles.map((userRole) => userRole.role.id),
+          );
           const protectedAccount = member.roles.some(
             (userRole) => userRole.role.name === "SUPER_ADMIN",
           );
@@ -703,10 +1013,16 @@ function StaffPanel({
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h2 className="text-lg font-black text-ink">{member.name}</h2>
-                  <p className="mt-1 break-all text-sm text-ink/60">{member.email}</p>
-                  <p className="mt-2 text-sm font-bold text-leaf">{member.status}</p>
+                  <p className="mt-1 break-all text-sm text-ink/60">
+                    {member.email}
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-leaf">
+                    {member.status}
+                  </p>
                 </div>
-                <p className="text-sm text-ink/45">{displayDate(member.lastLoginAt)}</p>
+                <p className="text-sm text-ink/45">
+                  {displayDate(member.lastLoginAt)}
+                </p>
               </div>
               {canManage ? (
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -745,7 +1061,10 @@ function StaffPanel({
                       {roles
                         .filter((role) => role.name !== "SUPER_ADMIN")
                         .map((role) => (
-                          <label className="flex items-center gap-2 text-sm" key={role.id}>
+                          <label
+                            className="flex items-center gap-2 text-sm"
+                            key={role.id}
+                          >
                             <input
                               defaultChecked={selectedRoles.has(role.id)}
                               disabled={protectedAccount}
@@ -773,7 +1092,10 @@ function StaffPanel({
       </div>
 
       {canManage ? (
-        <form className="rounded-lg border border-ink/10 bg-white p-5" onSubmit={createStaff}>
+        <form
+          className="rounded-lg border border-ink/10 bg-white p-5"
+          onSubmit={createStaff}
+        >
           <h2 className="text-lg font-black text-ink">Create staff</h2>
           <label className="field mt-4">
             <span className="text-sm font-bold text-ink">Name</span>
@@ -793,7 +1115,10 @@ function StaffPanel({
               {roles
                 .filter((role) => role.name !== "SUPER_ADMIN")
                 .map((role) => (
-                  <label className="flex items-center gap-2 text-sm" key={role.id}>
+                  <label
+                    className="flex items-center gap-2 text-sm"
+                    key={role.id}
+                  >
                     <input name="roleIds" type="checkbox" value={role.id} />
                     {role.name}
                   </label>
@@ -816,7 +1141,10 @@ function SessionsPanel({
   sessions,
 }: {
   canManage: boolean;
-  completeAction: (action: () => Promise<unknown>, message: string) => Promise<void>;
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   sessions: Session[];
 }) {
@@ -849,10 +1177,16 @@ function SessionsPanel({
                 <p className="font-bold text-ink">{session.user.name}</p>
                 <p className="break-all text-ink/55">{session.user.email}</p>
               </td>
-              <td className="px-4 py-3 text-ink/65">{displayDate(session.createdAt)}</td>
-              <td className="px-4 py-3 text-ink/65">{displayDate(session.expiresAt)}</td>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.createdAt)}
+              </td>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.expiresAt)}
+              </td>
               <td className="px-4 py-3 font-bold text-ink">
-                {session.revokedAt ? session.revocationReason ?? "REVOKED" : "ACTIVE"}
+                {session.revokedAt
+                  ? (session.revocationReason ?? "REVOKED")
+                  : "ACTIVE"}
               </td>
               <td className="px-4 py-3">
                 {canManage && !session.revokedAt ? (
@@ -877,7 +1211,10 @@ function AuditPanel({ logs }: { logs: AuditLog[] }) {
   return (
     <section className="mt-7 grid gap-3">
       {logs.map((log) => (
-        <article className="rounded-lg border border-ink/10 bg-white p-4" key={log.id}>
+        <article
+          className="rounded-lg border border-ink/10 bg-white p-4"
+          key={log.id}
+        >
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="font-black text-ink">{log.action}</h2>
