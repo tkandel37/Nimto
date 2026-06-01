@@ -58,23 +58,30 @@ export class AdminService {
 
   async createRole(dto: CreateRoleDto, context: ActorContext) {
     await this.assertPermissionsExist(dto.permissionKeys ?? []);
-    const role = await this.prisma.role.create({
-      data: {
-        name: this.normalizeRoleName(dto.name),
-        description: dto.description,
-        permissions: {
-          create: (dto.permissionKeys ?? []).map((key) => ({
-            permission: { connect: { key } },
-          })),
-        },
-      },
-      include: { permissions: { include: { permission: true } } },
-    });
+    const name = this.normalizeRoleName(dto.name);
 
-    await this.record(context, "role.created", "Role", role.id, {
-      name: role.name,
-    });
-    return role;
+    try {
+      const role = await this.prisma.role.create({
+        data: {
+          name,
+          description: dto.description?.trim() || null,
+          permissions: {
+            create: (dto.permissionKeys ?? []).map((key) => ({
+              permission: { connect: { key } },
+            })),
+          },
+        },
+        include: { permissions: { include: { permission: true } } },
+      });
+
+      await this.record(context, "role.created", "Role", role.id, {
+        name: role.name,
+      });
+      return role;
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, `Role "${name}" already exists.`);
+      throw error;
+    }
   }
 
   async updateRole(roleId: string, dto: UpdateRoleDto, context: ActorContext) {
@@ -84,38 +91,58 @@ export class AdminService {
     }
 
     await this.assertPermissionsExist(dto.permissionKeys ?? []);
-    const role = await this.prisma.$transaction(async (tx) => {
-      if (dto.permissionKeys) {
-        await tx.rolePermission.deleteMany({ where: { roleId } });
-      }
+    try {
+      const role = await this.prisma.$transaction(async (tx) => {
+        if (dto.permissionKeys) {
+          await tx.rolePermission.deleteMany({ where: { roleId } });
+        }
 
-      return tx.role.update({
-        where: { id: roleId },
-        data: {
-          name: dto.name ? this.normalizeRoleName(dto.name) : undefined,
-          description: dto.description,
-          permissions: dto.permissionKeys
-            ? {
-                create: dto.permissionKeys.map((key) => ({
-                  permission: { connect: { key } },
-                })),
-              }
-            : undefined,
-        },
-        include: { permissions: { include: { permission: true } } },
+        return tx.role.update({
+          where: { id: roleId },
+          data: {
+            name: dto.name ? this.normalizeRoleName(dto.name) : undefined,
+            description:
+              dto.description !== undefined
+                ? dto.description.trim() || null
+                : undefined,
+            permissions: dto.permissionKeys
+              ? {
+                  create: dto.permissionKeys.map((key) => ({
+                    permission: { connect: { key } },
+                  })),
+                }
+              : undefined,
+          },
+          include: { permissions: { include: { permission: true } } },
+        });
       });
-    });
 
-    await this.record(context, "role.updated", "Role", role.id, {
-      name: role.name,
-    });
-    return role;
+      await this.record(context, "role.updated", "Role", role.id, {
+        name: role.name,
+      });
+      return role;
+    } catch (error) {
+      this.throwIfUniqueConstraint(
+        error,
+        "A role with this name already exists.",
+      );
+      throw error;
+    }
   }
 
   async deleteRole(roleId: string, context: ActorContext) {
     const role = await this.getRole(roleId);
     if (role.isSystem || role.name === SUPER_ADMIN_ROLE) {
       throw new ForbiddenException("System roles cannot be deleted.");
+    }
+
+    const assignedUsers = await this.prisma.userRole.count({
+      where: { roleId },
+    });
+    if (assignedUsers > 0) {
+      throw new BadRequestException(
+        "Remove this role from all users before deleting it.",
+      );
     }
 
     await this.prisma.role.delete({ where: { id: roleId } });
@@ -252,13 +279,22 @@ export class AdminService {
   }
 
   async forceLogout(sessionId: string, context: ActorContext) {
-    const session = await this.prisma.userSession.update({
+    const existing = await this.prisma.userSession.findUnique({
       where: { id: sessionId },
-      data: {
-        revokedAt: new Date(),
-        revocationReason: "ADMIN_FORCE_LOGOUT",
-      },
     });
+    if (!existing) {
+      throw new NotFoundException("Session not found.");
+    }
+
+    const session = existing.revokedAt
+      ? existing
+      : await this.prisma.userSession.update({
+          where: { id: sessionId },
+          data: {
+            revokedAt: new Date(),
+            revocationReason: "ADMIN_FORCE_LOGOUT",
+          },
+        });
 
     await this.record(
       context,
@@ -336,6 +372,18 @@ export class AdminService {
 
   private normalizeRoleName(name: string) {
     return name.trim().toUpperCase().replace(/\s+/g, "_");
+  }
+
+  private throwIfUniqueConstraint(
+    error: unknown,
+    message: string,
+  ): never | void {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new BadRequestException(message);
+    }
   }
 
   private staffSelect() {

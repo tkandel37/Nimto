@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -47,7 +48,7 @@ export class AuthController {
   verifyEmail(@Req() request: any) {
     const token = request.query.token as string;
     if (!token) {
-      throw new Error("Token is required");
+      throw new BadRequestException("Token is required.");
     }
     return this.authService.verifyEmail(token);
   }
