@@ -15,8 +15,10 @@ import { PermissionsGuard } from "../auth/guards/permissions.guard";
 import { PERMISSIONS } from "../auth/permissions";
 import { CreateDesignCategoryDto } from "./dto/create-design-category.dto";
 import { CreateDesignSubcategoryDto } from "./dto/create-design-subcategory.dto";
+import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dto";
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
 import { UpdateDesignSubcategoryDto } from "./dto/update-design-subcategory.dto";
+import { UpdateInvitationTemplateDto } from "./dto/update-invitation-template.dto";
 import { TemplateDesignService } from "./template-design.service";
 
 @Controller("template-design")
@@ -26,6 +28,45 @@ export class TemplateDesignController {
   @Get("public/categories")
   listPublicCategories() {
     return this.templateDesign.listPublicCategories();
+  }
+
+  @Get("templates")
+  @UseGuards(JwtAuthGuard)
+  listTemplates(@Req() request: AuthenticatedRequest) {
+    return this.templateDesign.listTemplates(request.user!.sub);
+  }
+
+  @Get("templates/:templateId")
+  @UseGuards(JwtAuthGuard)
+  getTemplate(
+    @Param("templateId") templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.getTemplate(templateId, request.user!.sub);
+  }
+
+  @Post("templates")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateCreate)
+  createTemplate(
+    @Body() dto: CreateInvitationTemplateDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.createTemplate(dto, this.context(request));
+  }
+
+  @Patch("templates/:templateId")
+  @UseGuards(JwtAuthGuard)
+  updateTemplate(
+    @Param("templateId") templateId: string,
+    @Body() dto: UpdateInvitationTemplateDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.updateTemplate(
+      templateId,
+      dto,
+      this.context(request),
+    );
   }
 
   @Get("categories")

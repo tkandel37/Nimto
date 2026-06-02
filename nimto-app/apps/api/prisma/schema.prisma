@@ -45,6 +45,12 @@ enum DesignCatalogStatus {
   INACTIVE
 }
 
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -68,6 +74,7 @@ model User {
   auditLogs           AuditLog[]
   designCategories    DesignCategory[]     @relation("DesignCategoriesCreated")
   designSubcategories DesignSubcategory[]  @relation("DesignSubcategoriesCreated")
+  invitationTemplates InvitationTemplate[] @relation("InvitationTemplatesCreated")
 
   @@index([status])
   @@index([createdAt])
@@ -118,39 +125,63 @@ model UserRole {
 }
 
 model DesignCategory {
-  id            String              @id @default(cuid())
+  id            String               @id @default(cuid())
   name          String
-  slug          String              @unique
+  slug          String               @unique
   description   String?
-  sortOrder     Int                 @default(0)
-  status        DesignCatalogStatus @default(ACTIVE)
+  sortOrder     Int                  @default(0)
+  status        DesignCatalogStatus  @default(ACTIVE)
   createdById   String?
-  createdBy     User?               @relation("DesignCategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy     User?                @relation("DesignCategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
   subcategories DesignSubcategory[]
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  templates     InvitationTemplate[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   @@index([status, sortOrder])
   @@index([createdById])
 }
 
 model DesignSubcategory {
-  id          String              @id @default(cuid())
+  id          String               @id @default(cuid())
   categoryId  String
-  category    DesignCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    DesignCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name        String
   slug        String
   description String?
-  sortOrder   Int                 @default(0)
-  status      DesignCatalogStatus @default(ACTIVE)
+  sortOrder   Int                  @default(0)
+  status      DesignCatalogStatus  @default(ACTIVE)
   createdById String?
-  createdBy   User?               @relation("DesignSubcategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdBy   User?                @relation("DesignSubcategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  templates   InvitationTemplate[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   @@unique([categoryId, slug])
   @@index([categoryId, status, sortOrder])
   @@index([createdById])
+}
+
+model InvitationTemplate {
+  id             String             @id @default(cuid())
+  name           String
+  status         TemplateStatus     @default(DRAFT)
+  rawHtml        String
+  sourceFileName String?
+  htmlSize       Int
+  categoryId     String?
+  category       DesignCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subcategoryId  String?
+  subcategory    DesignSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  createdById    String?
+  createdBy      User?              @relation("InvitationTemplatesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([createdById])
+  @@index([categoryId])
+  @@index([subcategoryId])
 }
 
 model UserSession {

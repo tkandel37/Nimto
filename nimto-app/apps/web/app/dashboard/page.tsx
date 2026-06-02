@@ -91,6 +91,21 @@ type DesignCategory = {
   subcategories?: DesignSubcategory[];
 };
 
+type InvitationTemplate = {
+  id: string;
+  name: string;
+  status: "DRAFT" | "PUBLISHED" | "UNPUBLISHED";
+  sourceFileName?: string | null;
+  htmlSize: number;
+  categoryId?: string | null;
+  subcategoryId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  category?: Pick<DesignCategory, "id" | "name" | "slug"> | null;
+  subcategory?: Pick<DesignSubcategory, "id" | "name" | "slug"> | null;
+  createdBy?: Pick<AuthUser, "id" | "name" | "email"> | null;
+};
+
 type PageContent = {
   id: string;
   key: string;
@@ -196,6 +211,7 @@ export default function DashboardPage() {
   const [designCategories, setDesignCategories] = useState<DesignCategory[]>(
     [],
   );
+  const [templates, setTemplates] = useState<InvitationTemplate[]>([]);
   const [pages, setPages] = useState<PageContent[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
@@ -208,6 +224,11 @@ export default function DashboardPage() {
             "category:manage",
             "subcategory:view",
             "subcategory:manage",
+            "template:view:own",
+            "template:view:all",
+            "template:create",
+            "template:update:own",
+            "template:update:all",
           ]);
         }
 
@@ -307,6 +328,17 @@ export default function DashboardPage() {
                 headers,
               })
             : Promise.resolve([]),
+          canAny(authUser, [
+            "template:view:own",
+            "template:view:all",
+            "template:create",
+            "template:update:own",
+            "template:update:all",
+          ])
+            ? apiRequest<InvitationTemplate[]>("/template-design/templates", {
+                headers,
+              })
+            : Promise.resolve([]),
           can(authUser, "content:manage")
             ? apiRequest<PageContent[]>("/cms/admin/pages", { headers })
             : Promise.resolve([]),
@@ -322,8 +354,9 @@ export default function DashboardPage() {
         setSessions(results[4]);
         setAuditLogs(results[5]);
         setDesignCategories(results[6]);
-        setPages(results[7]);
-        setBlogPosts(results[8]);
+        setTemplates(results[7]);
+        setPages(results[8]);
+        setBlogPosts(results[9]);
       } catch (caughtError) {
         setError(
           caughtError instanceof Error
@@ -489,9 +522,11 @@ export default function DashboardPage() {
           <DesignSetupPanel
             canManageCategories={can(user, "category:manage")}
             canManageSubcategories={can(user, "subcategory:manage")}
+            canCreateTemplates={can(user, "template:create")}
             categories={designCategories}
             completeAction={completeAction}
             request={request}
+            templates={templates}
           />
         ) : null}
         {currentTab === "website" ? (
@@ -801,19 +836,38 @@ function eventPayload(form: FormData) {
 function DesignSetupPanel({
   canManageCategories,
   canManageSubcategories,
+  canCreateTemplates,
   categories,
   completeAction,
   request,
+  templates,
 }: {
   canManageCategories: boolean;
   canManageSubcategories: boolean;
+  canCreateTemplates: boolean;
   categories: DesignCategory[];
   completeAction: (
     action: () => Promise<unknown>,
     message: string,
   ) => Promise<void>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
+  templates: InvitationTemplate[];
 }) {
+  async function createTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      async () =>
+        request("/template-design/templates", {
+          method: "POST",
+          body: JSON.stringify(await templatePayload(form)),
+        }),
+      "Template uploaded as draft.",
+    );
+    event.currentTarget.reset();
+  }
+
   async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -882,6 +936,51 @@ function DesignSetupPanel({
   return (
     <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="grid gap-4">
+        <div className="rounded-lg border border-ink/10 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-black text-ink">Draft templates</h2>
+              <p className="mt-1 text-sm leading-6 text-ink/55">
+                Uploaded HTML files are stored as draft templates before they
+                become published designs.
+              </p>
+            </div>
+            <p className="text-sm font-black text-leaf">{templates.length}</p>
+          </div>
+          {templates.length ? (
+            <div className="mt-5 grid gap-3">
+              {templates.map((template) => (
+                <article
+                  className="rounded-lg border border-ink/10 bg-paper/70 p-4"
+                  key={template.id}
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h3 className="font-black text-ink">{template.name}</h3>
+                      <p className="mt-1 text-sm text-ink/55">
+                        {template.sourceFileName ?? "HTML template"} ·{" "}
+                        {Math.ceil(template.htmlSize / 1024)} KB
+                      </p>
+                      <p className="mt-1 text-sm text-ink/45">
+                        {[template.category?.name, template.subcategory?.name]
+                          .filter(Boolean)
+                          .join(" / ") || "Uncategorized"}
+                      </p>
+                    </div>
+                    <p className="text-sm font-black text-marigold">
+                      {template.status}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-6 text-ink/55">
+              No templates uploaded yet.
+            </p>
+          )}
+        </div>
+
         {categories.length ? (
           categories.map((category) => (
             <article
@@ -979,20 +1078,83 @@ function DesignSetupPanel({
         )}
       </div>
 
-      {canManageCategories ? (
-        <form
-          className="rounded-lg border border-ink/10 bg-white p-5"
-          onSubmit={createCategory}
-        >
-          <h2 className="text-lg font-black text-ink">Create category</h2>
-          <div className="mt-5 grid gap-4">
-            <TaxonomyFields />
-          </div>
-          <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-            Create category
-          </button>
-        </form>
-      ) : null}
+      <div className="grid content-start gap-5">
+        {canCreateTemplates ? (
+          <form
+            className="rounded-lg border border-ink/10 bg-white p-5"
+            onSubmit={createTemplate}
+          >
+            <h2 className="text-lg font-black text-ink">Upload template</h2>
+            <div className="mt-5 grid gap-4">
+              <label className="field">
+                <span className="text-sm font-bold text-ink">Name</span>
+                <input name="name" required />
+              </label>
+              <label className="field">
+                <span className="text-sm font-bold text-ink">HTML file</span>
+                <input accept=".html,text/html" name="templateFile" type="file" />
+              </label>
+              <label className="field">
+                <span className="text-sm font-bold text-ink">Category</span>
+                <select
+                  className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  name="categoryId"
+                >
+                  <option value="">Uncategorized</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="text-sm font-bold text-ink">Subcategory</span>
+                <select
+                  className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  name="subcategoryId"
+                >
+                  <option value="">None</option>
+                  {categories.flatMap((category) =>
+                    (category.subcategories ?? []).map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {category.name} / {subcategory.name}
+                      </option>
+                    )),
+                  )}
+                </select>
+              </label>
+              <label className="field">
+                <span className="text-sm font-bold text-ink">
+                  Paste HTML fallback
+                </span>
+                <textarea
+                  className="min-h-40 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  name="rawHtml"
+                />
+              </label>
+            </div>
+            <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+              Upload draft
+            </button>
+          </form>
+        ) : null}
+
+        {canManageCategories ? (
+          <form
+            className="rounded-lg border border-ink/10 bg-white p-5"
+            onSubmit={createCategory}
+          >
+            <h2 className="text-lg font-black text-ink">Create category</h2>
+            <div className="mt-5 grid gap-4">
+              <TaxonomyFields />
+            </div>
+            <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+              Create category
+            </button>
+          </form>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -1057,6 +1219,25 @@ function taxonomyPayload(form: FormData) {
     description: description || undefined,
     sortOrder: Number(form.get("sortOrder") ?? 0),
     status: form.get("status"),
+  };
+}
+
+async function templatePayload(form: FormData) {
+  const file = form.get("templateFile");
+  const rawHtml =
+    file instanceof File && file.size > 0
+      ? await file.text()
+      : String(form.get("rawHtml") ?? "");
+  const categoryId = String(form.get("categoryId") ?? "");
+  const subcategoryId = String(form.get("subcategoryId") ?? "");
+
+  return {
+    name: form.get("name"),
+    rawHtml,
+    sourceFileName:
+      file instanceof File && file.size > 0 ? file.name : undefined,
+    categoryId: categoryId || undefined,
+    subcategoryId: subcategoryId || undefined,
   };
 }
 

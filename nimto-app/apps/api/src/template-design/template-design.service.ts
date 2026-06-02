@@ -1,15 +1,19 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { DesignCatalogStatus, Prisma } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
+import { PERMISSIONS, SUPER_ADMIN_ROLE } from "../auth/permissions";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateDesignCategoryDto } from "./dto/create-design-category.dto";
 import { CreateDesignSubcategoryDto } from "./dto/create-design-subcategory.dto";
+import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dto";
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
 import { UpdateDesignSubcategoryDto } from "./dto/update-design-subcategory.dto";
+import { UpdateInvitationTemplateDto } from "./dto/update-invitation-template.dto";
 
 type ActorContext = {
   actorId: string;
@@ -47,6 +51,149 @@ export class TemplateDesignService {
         },
       },
     });
+  }
+
+  async listTemplates(userId: string) {
+    const access = await this.templateAccess(userId);
+    if (!access.viewAll && !access.viewOwn) {
+      throw new ForbiddenException("You cannot view templates.");
+    }
+
+    return this.prisma.invitationTemplate.findMany({
+      where: access.viewAll ? undefined : { createdById: userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        sourceFileName: true,
+        htmlSize: true,
+        categoryId: true,
+        subcategoryId: true,
+        createdAt: true,
+        updatedAt: true,
+        category: { select: { id: true, name: true, slug: true } },
+        subcategory: { select: { id: true, name: true, slug: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  async getTemplate(templateId: string, userId: string) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+      include: {
+        category: true,
+        subcategory: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!template) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const access = await this.templateAccess(userId);
+    if (!access.viewAll && !(access.viewOwn && template.createdById === userId)) {
+      throw new ForbiddenException("You cannot view this template.");
+    }
+
+    return template;
+  }
+
+  async createTemplate(
+    dto: CreateInvitationTemplateDto,
+    context: ActorContext,
+  ) {
+    this.assertNimtoHtml(dto.rawHtml);
+    await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
+
+    const template = await this.prisma.invitationTemplate.create({
+      data: {
+        name: dto.name.trim(),
+        rawHtml: dto.rawHtml,
+        sourceFileName: dto.sourceFileName?.trim() || null,
+        htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
+        categoryId: dto.categoryId || null,
+        subcategoryId: dto.subcategoryId || null,
+        createdById: context.actorId,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        sourceFileName: true,
+        htmlSize: true,
+        categoryId: true,
+        subcategoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.record(context, "invitationTemplate.created", template.id, {
+      name: template.name,
+      sourceFileName: template.sourceFileName,
+      htmlSize: template.htmlSize,
+    });
+    return template;
+  }
+
+  async updateTemplate(
+    templateId: string,
+    dto: UpdateInvitationTemplateDto,
+    context: ActorContext,
+  ) {
+    const existing = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!existing) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const access = await this.templateAccess(context.actorId);
+    const canUpdate =
+      access.updateAll || (access.updateOwn && existing.createdById === context.actorId);
+    if (!canUpdate) {
+      throw new ForbiddenException("You cannot update this template.");
+    }
+
+    if (dto.rawHtml) {
+      this.assertNimtoHtml(dto.rawHtml);
+    }
+    await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
+
+    const template = await this.prisma.invitationTemplate.update({
+      where: { id: templateId },
+      data: {
+        name: dto.name?.trim(),
+        rawHtml: dto.rawHtml,
+        sourceFileName:
+          dto.sourceFileName !== undefined
+            ? dto.sourceFileName.trim() || null
+            : undefined,
+        htmlSize: dto.rawHtml ? Buffer.byteLength(dto.rawHtml, "utf8") : undefined,
+        categoryId: dto.categoryId,
+        subcategoryId: dto.subcategoryId,
+        status: dto.status,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        sourceFileName: true,
+        htmlSize: true,
+        categoryId: true,
+        subcategoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.record(context, "invitationTemplate.updated", template.id, {
+      name: template.name,
+      status: template.status,
+    });
+    return template;
   }
 
   async createCategory(dto: CreateDesignCategoryDto, context: ActorContext) {
@@ -207,6 +354,80 @@ export class TemplateDesignService {
       throw new NotFoundException("Design subcategory not found.");
     }
     return subcategory;
+  }
+
+  private async assertTemplateTaxonomy(
+    categoryId?: string,
+    subcategoryId?: string,
+  ) {
+    if (categoryId) {
+      await this.assertCategory(categoryId);
+    }
+
+    if (!subcategoryId) {
+      return;
+    }
+
+    const subcategory = await this.assertSubcategory(subcategoryId);
+    if (categoryId && subcategory.categoryId !== categoryId) {
+      throw new BadRequestException(
+        "Selected subcategory does not belong to the selected category.",
+      );
+    }
+  }
+
+  private assertNimtoHtml(rawHtml: string) {
+    if (!/<html[\s>]/i.test(rawHtml)) {
+      throw new BadRequestException("Template must be a complete HTML file.");
+    }
+
+    if (!/id=(["'])nimto-template-meta\1/i.test(rawHtml)) {
+      throw new BadRequestException(
+        "Template must include nimto-template-meta metadata.",
+      );
+    }
+  }
+
+  private async templateAccess(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const roleNames = user?.roles.map((userRole) => userRole.role.name) ?? [];
+    if (roleNames.includes(SUPER_ADMIN_ROLE)) {
+      return {
+        viewOwn: true,
+        viewAll: true,
+        updateOwn: true,
+        updateAll: true,
+      };
+    }
+
+    const permissions = new Set(
+      user?.roles.flatMap((userRole) =>
+        userRole.role.permissions.map(
+          (rolePermission) => rolePermission.permission.key,
+        ),
+      ) ?? [],
+    );
+
+    return {
+      viewOwn: permissions.has(PERMISSIONS.templateViewOwn),
+      viewAll: permissions.has(PERMISSIONS.templateViewAll),
+      updateOwn: permissions.has(PERMISSIONS.templateUpdateOwn),
+      updateAll: permissions.has(PERMISSIONS.templateUpdateAll),
+    };
   }
 
   private async record(
