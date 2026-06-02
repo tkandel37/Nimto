@@ -95,6 +95,7 @@ type InvitationTemplate = {
   id: string;
   name: string;
   status: "DRAFT" | "PUBLISHED" | "UNPUBLISHED";
+  rawHtml?: string;
   sourceFileName?: string | null;
   htmlSize: number;
   scanResult?: {
@@ -130,6 +131,17 @@ type PageContent = {
   subtitle?: string | null;
   body?: string | null;
   updatedAt: string;
+};
+
+type TemplateEditorField = {
+  key: string;
+  label: string;
+  type: string;
+  sectionKey?: string;
+  required: boolean;
+  paid: boolean;
+  locked: boolean;
+  value: string;
 };
 
 type BlogPost = {
@@ -540,6 +552,10 @@ export default function DashboardPage() {
             canManageCategories={can(user, "category:manage")}
             canManageSubcategories={can(user, "subcategory:manage")}
             canCreateTemplates={can(user, "template:create")}
+            canUpdateTemplates={canAny(user, [
+              "template:update:own",
+              "template:update:all",
+            ])}
             categories={designCategories}
             completeAction={completeAction}
             request={request}
@@ -854,6 +870,7 @@ function DesignSetupPanel({
   canManageCategories,
   canManageSubcategories,
   canCreateTemplates,
+  canUpdateTemplates,
   categories,
   completeAction,
   request,
@@ -862,6 +879,7 @@ function DesignSetupPanel({
   canManageCategories: boolean;
   canManageSubcategories: boolean;
   canCreateTemplates: boolean;
+  canUpdateTemplates: boolean;
   categories: DesignCategory[];
   completeAction: (
     action: () => Promise<unknown>,
@@ -870,6 +888,15 @@ function DesignSetupPanel({
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   templates: InvitationTemplate[];
 }) {
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<InvitationTemplate | null>(null);
+  const [editorFields, setEditorFields] = useState<TemplateEditorField[]>([]);
+  const [selectedFieldKey, setSelectedFieldKey] = useState<string>("");
+
+  const selectedField = editorFields.find(
+    (field) => field.key === selectedFieldKey,
+  );
+
   async function createTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -884,6 +911,64 @@ function DesignSetupPanel({
     );
     event.currentTarget.reset();
   }
+
+  async function openTemplateEditor(templateId: string) {
+    const template = await request<InvitationTemplate>(
+      `/template-design/templates/${templateId}`,
+    );
+    setSelectedTemplate(template);
+    const fields = extractTemplateEditorFields(template);
+    setEditorFields(fields);
+    setSelectedFieldKey(fields[0]?.key ?? "");
+  }
+
+  async function saveTemplateDraft() {
+    if (!selectedTemplate?.rawHtml) return;
+    const rawHtml = applyTemplateEditorFields(
+      selectedTemplate.rawHtml,
+      editorFields,
+    );
+
+    await completeAction(
+      async () => {
+        const template = await request<InvitationTemplate>(
+          `/template-design/templates/${selectedTemplate.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ rawHtml }),
+          },
+        );
+        setSelectedTemplate({ ...template, rawHtml });
+        setEditorFields(extractTemplateEditorFields({ ...template, rawHtml }));
+      },
+      "Template draft saved.",
+    );
+  }
+
+  function updateEditorField(
+    key: string,
+    patch: Partial<TemplateEditorField>,
+  ) {
+    setEditorFields((fields) =>
+      fields.map((field) => (field.key === key ? { ...field, ...patch } : field)),
+    );
+  }
+
+  useEffect(() => {
+    function receivePreviewMessage(event: MessageEvent) {
+      if (event.data?.source !== "nimto-template-preview") return;
+      if (event.data.type === "selectField") {
+        setSelectedFieldKey(event.data.fieldKey);
+      }
+      if (event.data.type === "fieldValue") {
+        setSelectedFieldKey(event.data.fieldKey);
+        updateEditorField(event.data.fieldKey, { value: event.data.value });
+      }
+    }
+
+    window.addEventListener("message", receivePreviewMessage);
+    return () => window.removeEventListener("message", receivePreviewMessage);
+  }, []);
 
   async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1006,6 +1091,15 @@ function DesignSetupPanel({
                       {template.status}
                     </p>
                   </div>
+                  {canUpdateTemplates ? (
+                    <button
+                      className="mt-4 rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
+                      onClick={() => openTemplateEditor(template.id)}
+                      type="button"
+                    >
+                      Edit template
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1015,6 +1109,147 @@ function DesignSetupPanel({
             </p>
           )}
         </div>
+
+        {selectedTemplate ? (
+          <div className="rounded-lg border border-ink/10 bg-white p-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-ink">
+                  {selectedTemplate.name}
+                </h2>
+                <p className="mt-1 text-sm text-ink/55">
+                  Click fields in preview or edit from the side panel.
+                </p>
+              </div>
+              <button
+                className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
+                onClick={saveTemplateDraft}
+                type="button"
+              >
+                Save draft
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <iframe
+                className="h-[640px] w-full rounded-lg border border-ink/10 bg-white"
+                sandbox="allow-scripts allow-same-origin"
+                srcDoc={templateEditorPreviewHtml(
+                  selectedTemplate.rawHtml ?? "",
+                  editorFields,
+                  selectedFieldKey,
+                )}
+                title={`${selectedTemplate.name} preview`}
+              />
+
+              <div className="rounded-lg border border-ink/10 bg-paper/70 p-4">
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-ink/55">
+                  Layers
+                </h3>
+                <div className="mt-4 grid gap-2">
+                  {groupTemplateFields(
+                    editorFields,
+                    selectedTemplate.scanResult?.sections ?? [],
+                  ).map((group) => (
+                    <div key={group.key}>
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/40">
+                        {group.label}
+                      </p>
+                      <div className="mt-2 grid gap-2">
+                        {group.fields.map((field) => (
+                          <button
+                            className={`rounded-lg border px-3 py-2 text-left text-sm font-bold ${
+                              field.key === selectedFieldKey
+                                ? "border-leaf bg-leaf/10 text-leaf"
+                                : "border-ink/10 bg-white text-ink"
+                            }`}
+                            key={field.key}
+                            onClick={() => setSelectedFieldKey(field.key)}
+                            type="button"
+                          >
+                            {field.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedField ? (
+                  <div className="mt-5 grid gap-3 border-t border-ink/10 pt-4">
+                    <label className="field">
+                      <span className="text-sm font-bold text-ink">Value</span>
+                      <textarea
+                        className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                        value={selectedField.value}
+                        onChange={(event) =>
+                          updateEditorField(selectedField.key, {
+                            value: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="text-sm font-bold text-ink">Type</span>
+                      <select
+                        className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                        value={selectedField.type}
+                        onChange={(event) =>
+                          updateEditorField(selectedField.key, {
+                            type: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="text">Text</option>
+                        <option value="long_text">Long text</option>
+                        <option value="date">Date</option>
+                        <option value="datetime">Date time</option>
+                        <option value="custom_name">Custom name</option>
+                        <option value="image">Image</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={selectedField.required}
+                        onChange={(event) =>
+                          updateEditorField(selectedField.key, {
+                            required: event.target.checked,
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      Required
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={selectedField.locked}
+                        onChange={(event) =>
+                          updateEditorField(selectedField.key, {
+                            locked: event.target.checked,
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      Locked
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={selectedField.paid}
+                        onChange={(event) =>
+                          updateEditorField(selectedField.key, {
+                            paid: event.target.checked,
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      Paid custom field
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {categories.length ? (
           categories.map((category) => (
@@ -1274,6 +1509,146 @@ async function templatePayload(form: FormData) {
     categoryId: categoryId || undefined,
     subcategoryId: subcategoryId || undefined,
   };
+}
+
+function extractTemplateEditorFields(template: InvitationTemplate) {
+  if (!template.rawHtml || typeof DOMParser === "undefined") return [];
+  const document = new DOMParser().parseFromString(template.rawHtml, "text/html");
+  const scannedFields = template.scanResult?.fields ?? [];
+
+  return scannedFields.map((field) => {
+    const element = document.querySelector(`[data-nimto-field="${field.key}"]`);
+    return {
+      key: field.key,
+      label: field.label,
+      type: field.type,
+      sectionKey: element?.getAttribute("data-nimto-section-ref") ?? undefined,
+      required: field.required,
+      paid: field.paid,
+      locked: field.locked,
+      value: element?.textContent?.trim() ?? "",
+    };
+  });
+}
+
+function applyTemplateEditorFields(
+  rawHtml: string,
+  fields: TemplateEditorField[],
+) {
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+    return rawHtml;
+  }
+
+  const document = new DOMParser().parseFromString(rawHtml, "text/html");
+  fields.forEach((field) => {
+    const element = document.querySelector(`[data-nimto-field="${field.key}"]`);
+    if (!element) return;
+
+    element.textContent = field.value;
+    element.setAttribute("data-nimto-type", field.type);
+    setBooleanMarker(element, "data-nimto-required", field.required);
+    setBooleanMarker(element, "data-nimto-paid", field.paid);
+    setBooleanMarker(element, "data-nimto-locked", field.locked);
+  });
+
+  return `<!doctype html>\n${new XMLSerializer().serializeToString(document)}`;
+}
+
+function setBooleanMarker(element: Element, attribute: string, enabled: boolean) {
+  if (enabled) {
+    element.setAttribute(attribute, "true");
+    return;
+  }
+  element.removeAttribute(attribute);
+}
+
+function templateEditorPreviewHtml(
+  rawHtml: string,
+  fields: TemplateEditorField[],
+  selectedFieldKey: string,
+) {
+  const html = applyTemplateEditorFields(rawHtml, fields);
+  const state = JSON.stringify({
+    fields: fields.map((field) => ({
+      key: field.key,
+      locked: field.locked,
+    })),
+    selectedFieldKey,
+  }).replace(/<\/script/gi, "<\\/script");
+  const script = `
+    <style>
+      [data-nimto-field] { cursor: text; outline-offset: 3px; }
+      [data-nimto-field][data-nimto-preview-selected="true"] {
+        outline: 2px solid #3f8f5f !important;
+        background: rgba(63, 143, 95, 0.10) !important;
+      }
+    </style>
+    <script>
+      (() => {
+        const state = ${state};
+        const fields = new Map(state.fields.map((field) => [field.key, field]));
+        function selectField(key) {
+          document.querySelectorAll("[data-nimto-field]").forEach((element) => {
+            element.removeAttribute("data-nimto-preview-selected");
+          });
+          const element = document.querySelector('[data-nimto-field="' + key + '"]');
+          element?.setAttribute("data-nimto-preview-selected", "true");
+          window.parent.postMessage({
+            source: "nimto-template-preview",
+            type: "selectField",
+            fieldKey: key
+          }, "*");
+        }
+        document.querySelectorAll("[data-nimto-field]").forEach((element) => {
+          const key = element.getAttribute("data-nimto-field");
+          const field = fields.get(key);
+          if (!field?.locked) element.setAttribute("contenteditable", "true");
+          element.addEventListener("click", (event) => {
+            event.preventDefault();
+            selectField(key);
+          });
+          element.addEventListener("input", () => {
+            window.parent.postMessage({
+              source: "nimto-template-preview",
+              type: "fieldValue",
+              fieldKey: key,
+              value: element.textContent || ""
+            }, "*");
+          });
+        });
+        if (state.selectedFieldKey) selectField(state.selectedFieldKey);
+      })();
+    </script>
+  `;
+
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${script}</body>`);
+  }
+  return `${html}${script}`;
+}
+
+function groupTemplateFields(
+  fields: TemplateEditorField[],
+  sections: { key: string; label: string }[],
+) {
+  const sectionMap = new Map(
+    sections.map((section) => [
+      section.key,
+      { key: section.key, label: section.label, fields: [] as TemplateEditorField[] },
+    ]),
+  );
+  const fallback = { key: "unsectioned", label: "Other", fields: [] };
+
+  fields.forEach((field) => {
+    const group =
+      (field.sectionKey ? sectionMap.get(field.sectionKey) : undefined) ??
+      fallback;
+    group.fields.push(field);
+  });
+
+  return [...sectionMap.values(), fallback].filter(
+    (group) => group.fields.length,
+  );
 }
 
 function WebsitePanel({
