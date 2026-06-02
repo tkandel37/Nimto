@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 type InvitationEvent = {
   title: string;
@@ -10,6 +11,11 @@ type InvitationEvent = {
   user?: {
     name: string;
   };
+  designFieldValues?: Record<string, string> | null;
+  designVersion?: {
+    rawHtml: string;
+    design?: { name: string; slug: string };
+  } | null;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -25,21 +31,70 @@ function displayDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+async function getInvitation(slug: string) {
+  const response = await fetch(`${API_URL}/events/public/${slug}`, {
+    next: { revalidate: 60 },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return (await response.json()) as InvitationEvent;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await getInvitation(slug);
+  if (!event) {
+    return { title: "Invitation not found" };
+  }
+
+  const title = `${event.title} Invitation`;
+  const description =
+    event.description ||
+    `${event.type} invitation${event.eventDate ? ` on ${displayDate(event.eventDate)}` : ""}.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: event.coverImage ? [{ url: event.coverImage }] : undefined,
+    },
+  };
+}
+
 export default async function InvitationPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const response = await fetch(`${API_URL}/events/public/${slug}`, {
-    next: { revalidate: 60 },
-  });
+  const event = await getInvitation(slug);
+  if (!event) notFound();
+  const renderedHtml = event.designVersion?.rawHtml
+    ? applyFieldValuesToHtml(event.designVersion.rawHtml, event)
+    : null;
 
-  if (!response.ok) {
-    notFound();
+  if (renderedHtml) {
+    return (
+      <main className="min-h-screen bg-paper">
+        <iframe
+          className="min-h-screen w-full border-0 bg-white"
+          sandbox="allow-scripts"
+          srcDoc={renderedHtml}
+          title={event.title}
+        />
+      </main>
+    );
   }
-
-  const event = (await response.json()) as InvitationEvent;
 
   return (
     <main className="min-h-screen bg-paper">
@@ -80,4 +135,36 @@ export default async function InvitationPage({
       </section>
     </main>
   );
+}
+
+function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
+  const values = {
+    title: event.title,
+    event_title: event.title,
+    event_date: event.eventDate ? event.eventDate.slice(0, 10) : "",
+    venue: event.venue ?? "",
+    description: event.description ?? "",
+    ...(event.designFieldValues ?? {}),
+  };
+
+  return Object.entries(values).reduce((html, [key, value]) => {
+    if (!value) return html;
+    const pattern = new RegExp(
+      `(<[^>]*data-nimto-field=(["'])${escapeRegExp(key)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
+      "gis",
+    );
+    return html.replace(pattern, `$1${escapeHtml(value)}$4`);
+  }, rawHtml);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
