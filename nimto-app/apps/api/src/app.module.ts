@@ -7,6 +7,7 @@ import { AuditModule } from "./audit/audit.module";
 import { AdminModule } from "./admin/admin.module";
 import { EventsModule } from "./events/events.module";
 import { CmsModule } from "./cms/cms.module";
+import { TemplateDesignModule } from "./template-design/template-design.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CmsModule } from "./cms/cms.module";
     AdminModule,
     EventsModule,
     CmsModule,
+    TemplateDesignModule,
   ],
 })
 export class AppModule {}

@@ -50,6 +50,7 @@ type AuditLog = {
 };
 
 type EventType = "WEDDING" | "BIRTHDAY" | "CORPORATE" | "OTHER";
+type DesignCatalogStatus = "ACTIVE" | "INACTIVE";
 
 type InvitationEvent = {
   id: string;
@@ -63,6 +64,31 @@ type InvitationEvent = {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+type DesignSubcategory = {
+  id: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sortOrder: number;
+  status: DesignCatalogStatus;
+  createdAt: string;
+  updatedAt: string;
+  category?: Pick<DesignCategory, "id" | "name" | "slug" | "status">;
+};
+
+type DesignCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sortOrder: number;
+  status: DesignCatalogStatus;
+  createdAt: string;
+  updatedAt: string;
+  subcategories?: DesignSubcategory[];
 };
 
 type PageContent = {
@@ -95,6 +121,7 @@ type BlogPost = {
 type TabKey =
   | "overview"
   | "events"
+  | "designSetup"
   | "website"
   | "roles"
   | "permissions"
@@ -105,6 +132,7 @@ type TabKey =
 const tabs: { key: TabKey; label: string; permission: string | null }[] = [
   { key: "overview", label: "Dashboard", permission: null },
   { key: "events", label: "Events", permission: null },
+  { key: "designSetup", label: "Design Setup", permission: null },
   { key: "website", label: "Website", permission: null },
   { key: "roles", label: "Roles", permission: "roles:view" },
   { key: "permissions", label: "Permissions", permission: "permissions:view" },
@@ -165,20 +193,32 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [events, setEvents] = useState<InvitationEvent[]>([]);
+  const [designCategories, setDesignCategories] = useState<DesignCategory[]>(
+    [],
+  );
   const [pages, setPages] = useState<PageContent[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
   const visibleTabs = useMemo(
     () =>
-      tabs.filter((tab) =>
-        tab.key === "website"
+      tabs.filter((tab) => {
+        if (tab.key === "designSetup") {
+          return canAny(user, [
+            "category:view",
+            "category:manage",
+            "subcategory:view",
+            "subcategory:manage",
+          ]);
+        }
+
+        return tab.key === "website"
           ? canAny(user, [
               "content:manage",
               "blog:manage:own",
               "blog:manage:all",
             ])
-          : can(user, tab.permission),
-      ),
+          : can(user, tab.permission);
+      }),
     [user],
   );
   const currentTab = visibleTabs.some((tab) => tab.key === activeTab)
@@ -257,6 +297,16 @@ export default function DashboardPage() {
           can(authUser, "audit:view")
             ? apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
             : Promise.resolve([]),
+          canAny(authUser, [
+            "category:view",
+            "category:manage",
+            "subcategory:view",
+            "subcategory:manage",
+          ])
+            ? apiRequest<DesignCategory[]>("/template-design/categories", {
+                headers,
+              })
+            : Promise.resolve([]),
           can(authUser, "content:manage")
             ? apiRequest<PageContent[]>("/cms/admin/pages", { headers })
             : Promise.resolve([]),
@@ -271,8 +321,9 @@ export default function DashboardPage() {
         setStaff(results[3]);
         setSessions(results[4]);
         setAuditLogs(results[5]);
-        setPages(results[6]);
-        setBlogPosts(results[7]);
+        setDesignCategories(results[6]);
+        setPages(results[7]);
+        setBlogPosts(results[8]);
       } catch (caughtError) {
         setError(
           caughtError instanceof Error
@@ -431,6 +482,15 @@ export default function DashboardPage() {
           <EventsPanel
             completeAction={completeAction}
             events={events}
+            request={request}
+          />
+        ) : null}
+        {currentTab === "designSetup" ? (
+          <DesignSetupPanel
+            canManageCategories={can(user, "category:manage")}
+            canManageSubcategories={can(user, "subcategory:manage")}
+            categories={designCategories}
+            completeAction={completeAction}
             request={request}
           />
         ) : null}
@@ -735,6 +795,268 @@ function eventPayload(form: FormData) {
     coverImage: coverImage || undefined,
     description: form.get("description") || undefined,
     isPublished: form.get("isPublished") === "on",
+  };
+}
+
+function DesignSetupPanel({
+  canManageCategories,
+  canManageSubcategories,
+  categories,
+  completeAction,
+  request,
+}: {
+  canManageCategories: boolean;
+  canManageSubcategories: boolean;
+  categories: DesignCategory[];
+  completeAction: (
+    action: () => Promise<unknown>,
+    message: string,
+  ) => Promise<void>;
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+}) {
+  async function createCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request("/template-design/categories", {
+          method: "POST",
+          body: JSON.stringify(taxonomyPayload(form)),
+        }),
+      "Category created.",
+    );
+    event.currentTarget.reset();
+  }
+
+  async function updateCategory(
+    event: FormEvent<HTMLFormElement>,
+    category: DesignCategory,
+  ) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/template-design/categories/${category.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(taxonomyPayload(form)),
+        }),
+      "Category updated.",
+    );
+  }
+
+  async function createSubcategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const categoryId = String(form.get("categoryId") ?? "");
+
+    await completeAction(
+      () =>
+        request(`/template-design/categories/${categoryId}/subcategories`, {
+          method: "POST",
+          body: JSON.stringify(taxonomyPayload(form)),
+        }),
+      "Subcategory created.",
+    );
+    event.currentTarget.reset();
+  }
+
+  async function updateSubcategory(
+    event: FormEvent<HTMLFormElement>,
+    subcategory: DesignSubcategory,
+  ) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/template-design/subcategories/${subcategory.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(taxonomyPayload(form)),
+        }),
+      "Subcategory updated.",
+    );
+  }
+
+  return (
+    <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-4">
+        {categories.length ? (
+          categories.map((category) => (
+            <article
+              className="rounded-lg border border-ink/10 bg-white p-5"
+              key={category.id}
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-ink">
+                    {category.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-ink/55">
+                    /{category.slug}
+                  </p>
+                </div>
+                <p className="text-sm font-black text-leaf">
+                  {category.status}
+                </p>
+              </div>
+
+              {canManageCategories ? (
+                <form
+                  className="mt-5 grid gap-4 md:grid-cols-2"
+                  onSubmit={(event) => updateCategory(event, category)}
+                >
+                  <TaxonomyFields item={category} />
+                  <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white md:col-span-2">
+                    Update category
+                  </button>
+                </form>
+              ) : null}
+
+              <div className="mt-6 border-t border-ink/10 pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-black uppercase tracking-[0.16em] text-ink/55">
+                    Subcategories
+                  </h3>
+                  <span className="text-sm font-bold text-ink/45">
+                    {category.subcategories?.length ?? 0}
+                  </span>
+                </div>
+
+                {category.subcategories?.length ? (
+                  <div className="mt-4 grid gap-3">
+                    {category.subcategories.map((subcategory) => (
+                      <form
+                        className="rounded-lg border border-ink/10 bg-paper/70 p-4"
+                        key={subcategory.id}
+                        onSubmit={(event) =>
+                          updateSubcategory(event, subcategory)
+                        }
+                      >
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <TaxonomyFields item={subcategory} />
+                          {canManageSubcategories ? (
+                            <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white md:col-span-2">
+                              Update subcategory
+                            </button>
+                          ) : null}
+                        </div>
+                      </form>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm leading-6 text-ink/55">
+                    No subcategories yet.
+                  </p>
+                )}
+
+                {canManageSubcategories ? (
+                  <form
+                    className="mt-5 grid gap-4 md:grid-cols-2"
+                    onSubmit={createSubcategory}
+                  >
+                    <input name="categoryId" type="hidden" value={category.id} />
+                    <TaxonomyFields titlePrefix="New" />
+                    <button className="rounded-lg border border-ink/15 bg-white px-4 py-3 font-bold text-ink md:col-span-2">
+                      Add subcategory
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-lg border border-ink/10 bg-white p-6">
+            <h2 className="text-xl font-black text-ink">
+              No design categories yet
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-ink/60">
+              Create categories like Wedding, Birthday, Proposal, Festival, or
+              Corporate before uploading templates.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {canManageCategories ? (
+        <form
+          className="rounded-lg border border-ink/10 bg-white p-5"
+          onSubmit={createCategory}
+        >
+          <h2 className="text-lg font-black text-ink">Create category</h2>
+          <div className="mt-5 grid gap-4">
+            <TaxonomyFields />
+          </div>
+          <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+            Create category
+          </button>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
+function TaxonomyFields({
+  item,
+  titlePrefix,
+}: {
+  item?: Pick<
+    DesignCategory | DesignSubcategory,
+    "description" | "name" | "slug" | "sortOrder" | "status"
+  >;
+  titlePrefix?: string;
+}) {
+  return (
+    <>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">
+          {titlePrefix ? `${titlePrefix} name` : "Name"}
+        </span>
+        <input defaultValue={item?.name ?? ""} name="name" required />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Slug</span>
+        <input defaultValue={item?.slug ?? ""} name="slug" />
+      </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Description</span>
+        <input defaultValue={item?.description ?? ""} name="description" />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Sort order</span>
+        <input
+          defaultValue={item?.sortOrder ?? 0}
+          min={0}
+          name="sortOrder"
+          type="number"
+        />
+      </label>
+      <label className="field">
+        <span className="text-sm font-bold text-ink">Status</span>
+        <select
+          className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+          defaultValue={item?.status ?? "ACTIVE"}
+          name="status"
+        >
+          <option value="ACTIVE">ACTIVE</option>
+          <option value="INACTIVE">INACTIVE</option>
+        </select>
+      </label>
+    </>
+  );
+}
+
+function taxonomyPayload(form: FormData) {
+  const slug = String(form.get("slug") ?? "").trim();
+  const description = String(form.get("description") ?? "").trim();
+
+  return {
+    name: form.get("name"),
+    slug: slug || undefined,
+    description: description || undefined,
+    sortOrder: Number(form.get("sortOrder") ?? 0),
+    status: form.get("status"),
   };
 }
 
