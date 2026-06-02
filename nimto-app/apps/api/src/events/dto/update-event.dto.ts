@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsEnum,
   IsOptional,
+  IsObject,
   IsString,
   IsUrl,
   MaxLength,
@@ -43,4 +44,12 @@ export class UpdateEventDto {
   @IsBoolean()
   @IsOptional()
   isPublished?: boolean;
+
+  @IsString()
+  @IsOptional()
+  designVersionId?: string;
+
+  @IsObject()
+  @IsOptional()
+  designFieldValues?: Record<string, unknown>;
 }

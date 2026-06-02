@@ -62,6 +62,13 @@ type InvitationEvent = {
   slug: string;
   coverImage?: string | null;
   isPublished: boolean;
+  designVersionId?: string | null;
+  designFieldValues?: Record<string, string> | null;
+  designVersion?: {
+    id: string;
+    versionNumber: number;
+    design: { id: string; name: string; slug: string; status: string };
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -149,6 +156,7 @@ type InvitationDesign = {
     versionNumber: number;
     status: "CURRENT" | "SUPERSEDED";
     htmlSize: number;
+    scanResult?: InvitationTemplate["scanResult"];
     createdAt: string;
   }[];
   createdAt: string;
@@ -273,6 +281,7 @@ export default function DashboardPage() {
   );
   const [templates, setTemplates] = useState<InvitationTemplate[]>([]);
   const [designs, setDesigns] = useState<InvitationDesign[]>([]);
+  const [publicDesigns, setPublicDesigns] = useState<InvitationDesign[]>([]);
   const [pages, setPages] = useState<PageContent[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
@@ -428,6 +437,9 @@ export default function DashboardPage() {
         setDesigns(results[8]);
         setPages(results[9]);
         setBlogPosts(results[10]);
+        setPublicDesigns(
+          await apiRequest<InvitationDesign[]>("/template-design/public/designs"),
+        );
       } catch (caughtError) {
         setError(
           caughtError instanceof Error
@@ -585,6 +597,7 @@ export default function DashboardPage() {
         {currentTab === "events" ? (
           <EventsPanel
             completeAction={completeAction}
+            designs={publicDesigns}
             events={events}
             request={request}
           />
@@ -721,6 +734,7 @@ function Metric({
 
 function EventsPanel({
   completeAction,
+  designs,
   events,
   request,
 }: {
@@ -728,6 +742,7 @@ function EventsPanel({
     action: () => Promise<unknown>,
     message: string,
   ) => Promise<void>;
+  designs: InvitationDesign[];
   events: InvitationEvent[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
 }) {
@@ -796,7 +811,7 @@ function EventsPanel({
                   {displayDate(invitationEvent.eventDate)}
                 </p>
               </div>
-              <EventFields event={invitationEvent} />
+              <EventFields designs={designs} event={invitationEvent} />
               <div className="mt-5 flex flex-wrap gap-3">
                 <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
                   Update event
@@ -827,7 +842,7 @@ function EventsPanel({
         onSubmit={createEvent}
       >
         <h2 className="text-lg font-black text-ink">Create event</h2>
-        <EventFields />
+        <EventFields designs={designs} />
         <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
           Create event
         </button>
@@ -836,7 +851,26 @@ function EventsPanel({
   );
 }
 
-function EventFields({ event }: { event?: InvitationEvent }) {
+function EventFields({
+  designs,
+  event,
+}: {
+  designs: InvitationDesign[];
+  event?: InvitationEvent;
+}) {
+  const [designVersionId, setDesignVersionId] = useState(
+    event?.designVersionId ?? "",
+  );
+  const selectedVersion = designs
+    .flatMap((design) =>
+      design.versions
+        .filter((version) => version.status === "CURRENT")
+        .map((version) => version),
+    )
+    .find((version) => version.id === designVersionId);
+  const designFields =
+    selectedVersion?.scanResult?.fields?.filter((field) => !field.locked) ?? [];
+
   return (
     <div className="mt-5 grid gap-4 md:grid-cols-2">
       <label className="field md:col-span-2">
@@ -885,6 +919,45 @@ function EventFields({ event }: { event?: InvitationEvent }) {
           name="description"
         />
       </label>
+      <label className="field md:col-span-2">
+        <span className="text-sm font-bold text-ink">Design</span>
+        <select
+          className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+          name="designVersionId"
+          value={designVersionId}
+          onChange={(browserEvent) =>
+            setDesignVersionId(browserEvent.target.value)
+          }
+        >
+          <option value="">No design selected</option>
+          {designs.flatMap((design) =>
+            design.versions
+              .filter((version) => version.status === "CURRENT")
+              .map((version) => (
+                <option key={version.id} value={version.id}>
+                  {design.name} · v{version.versionNumber}
+                </option>
+              )),
+          )}
+        </select>
+      </label>
+      {designFields.map((field) => (
+        <label
+          className="field md:col-span-2"
+          key={field.key}
+        >
+          <span className="text-sm font-bold text-ink">
+            {field.label}
+            {field.paid ? " · paid custom" : ""}
+          </span>
+          <input
+            defaultValue={event?.designFieldValues?.[field.key] ?? ""}
+            name={`designField_${field.key}`}
+            required={field.required}
+            type={field.type === "date" ? "date" : "text"}
+          />
+        </label>
+      ))}
       <label className="flex items-center gap-3 text-sm font-bold text-ink md:col-span-2">
         <input
           defaultChecked={event?.isPublished ?? false}
@@ -900,6 +973,12 @@ function EventFields({ event }: { event?: InvitationEvent }) {
 function eventPayload(form: FormData) {
   const eventDate = String(form.get("eventDate") ?? "");
   const coverImage = String(form.get("coverImage") ?? "");
+  const designVersionId = String(form.get("designVersionId") ?? "");
+  const designFieldValues = Object.fromEntries(
+    [...form.entries()]
+      .filter(([key]) => key.startsWith("designField_"))
+      .map(([key, value]) => [key.replace("designField_", ""), String(value)]),
+  );
 
   return {
     title: form.get("title"),
@@ -909,6 +988,8 @@ function eventPayload(form: FormData) {
     coverImage: coverImage || undefined,
     description: form.get("description") || undefined,
     isPublished: form.get("isPublished") === "on",
+    designVersionId: designVersionId || undefined,
+    designFieldValues: designVersionId ? designFieldValues : undefined,
   };
 }
 

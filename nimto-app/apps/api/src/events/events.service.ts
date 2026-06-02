@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { DesignStatus, DesignVersionStatus, Prisma } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEventDto } from "./dto/create-event.dto";
@@ -25,10 +27,21 @@ export class EventsService {
     return this.prisma.event.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      include: {
+        designVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            status: true,
+            design: { select: { id: true, name: true, slug: true, status: true } },
+          },
+        },
+      },
     });
   }
 
   async create(userId: string, dto: CreateEventDto, context: ActorContext) {
+    const designData = await this.designEventData(dto);
     const event = await this.prisma.event.create({
       data: {
         title: dto.title.trim(),
@@ -38,6 +51,7 @@ export class EventsService {
         description: dto.description?.trim() || undefined,
         coverImage: dto.coverImage?.trim() || undefined,
         isPublished: dto.isPublished,
+        ...designData,
         userId,
         slug: await this.uniqueSlug(dto.title),
       },
@@ -63,9 +77,10 @@ export class EventsService {
     context: ActorContext,
   ) {
     await this.assertOwner(userId, eventId);
+    const designData = await this.designEventData(dto);
     const event = await this.prisma.event.update({
       where: { id: eventId },
-      data: this.eventData(dto),
+      data: { ...this.eventData(dto), ...designData },
     });
 
     await this.audit.record({
@@ -101,7 +116,12 @@ export class EventsService {
   async findPublished(slug: string) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      include: { user: { select: { id: true, name: true } } },
+      include: {
+        user: { select: { id: true, name: true } },
+        designVersion: {
+          include: { design: { select: { id: true, name: true, slug: true } } },
+        },
+      },
     });
 
     if (!event || !event.isPublished) {
@@ -120,6 +140,32 @@ export class EventsService {
       description: dto.description?.trim() || undefined,
       coverImage: dto.coverImage?.trim() || undefined,
       isPublished: dto.isPublished,
+    };
+  }
+
+  private async designEventData(dto: CreateEventDto | UpdateEventDto) {
+    if (!dto.designVersionId && dto.designFieldValues === undefined) {
+      return {};
+    }
+    if (!dto.designVersionId) {
+      throw new BadRequestException("Design version is required for design fields.");
+    }
+
+    const version = await this.prisma.designVersion.findUnique({
+      where: { id: dto.designVersionId },
+      include: { design: true },
+    });
+    if (
+      !version ||
+      version.status !== DesignVersionStatus.CURRENT ||
+      version.design.status !== DesignStatus.ACTIVE
+    ) {
+      throw new BadRequestException("Select a current active design version.");
+    }
+
+    return {
+      designVersionId: version.id,
+      designFieldValues: (dto.designFieldValues ?? {}) as Prisma.InputJsonObject,
     };
   }
 
