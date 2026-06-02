@@ -136,6 +136,25 @@ type InvitationTemplate = {
   createdBy?: Pick<AuthUser, "id" | "name" | "email"> | null;
 };
 
+type InvitationDesign = {
+  id: string;
+  name: string;
+  slug: string;
+  status: "ACTIVE" | "UNPUBLISHED";
+  category?: Pick<DesignCategory, "id" | "name" | "slug"> | null;
+  subcategory?: Pick<DesignSubcategory, "id" | "name" | "slug"> | null;
+  createdBy?: Pick<AuthUser, "id" | "name" | "email"> | null;
+  versions: {
+    id: string;
+    versionNumber: number;
+    status: "CURRENT" | "SUPERSEDED";
+    htmlSize: number;
+    createdAt: string;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 type PageContent = {
   id: string;
   key: string;
@@ -253,6 +272,7 @@ export default function DashboardPage() {
     [],
   );
   const [templates, setTemplates] = useState<InvitationTemplate[]>([]);
+  const [designs, setDesigns] = useState<InvitationDesign[]>([]);
   const [pages, setPages] = useState<PageContent[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
@@ -270,6 +290,9 @@ export default function DashboardPage() {
             "template:create",
             "template:update:own",
             "template:update:all",
+            "template:duplicate",
+            "design:view:own",
+            "design:view:all",
           ]);
         }
 
@@ -375,8 +398,14 @@ export default function DashboardPage() {
             "template:create",
             "template:update:own",
             "template:update:all",
+            "template:duplicate",
           ])
             ? apiRequest<InvitationTemplate[]>("/template-design/templates", {
+                headers,
+              })
+            : Promise.resolve([]),
+          canAny(authUser, ["design:view:own", "design:view:all"])
+            ? apiRequest<InvitationDesign[]>("/template-design/designs", {
                 headers,
               })
             : Promise.resolve([]),
@@ -396,8 +425,9 @@ export default function DashboardPage() {
         setAuditLogs(results[5]);
         setDesignCategories(results[6]);
         setTemplates(results[7]);
-        setPages(results[8]);
-        setBlogPosts(results[9]);
+        setDesigns(results[8]);
+        setPages(results[9]);
+        setBlogPosts(results[10]);
       } catch (caughtError) {
         setError(
           caughtError instanceof Error
@@ -564,6 +594,7 @@ export default function DashboardPage() {
             canManageCategories={can(user, "category:manage")}
             canManageSubcategories={can(user, "subcategory:manage")}
             canCreateTemplates={can(user, "template:create")}
+            canDuplicateTemplates={can(user, "template:duplicate")}
             canPublishTemplates={can(user, "template:publish")}
             canUnpublishTemplates={can(user, "template:unpublish")}
             canUpdateTemplates={canAny(user, [
@@ -572,6 +603,7 @@ export default function DashboardPage() {
             ])}
             categories={designCategories}
             completeAction={completeAction}
+            designs={designs}
             request={request}
             templates={templates}
           />
@@ -884,17 +916,20 @@ function DesignSetupPanel({
   canManageCategories,
   canManageSubcategories,
   canCreateTemplates,
+  canDuplicateTemplates,
   canPublishTemplates,
   canUnpublishTemplates,
   canUpdateTemplates,
   categories,
   completeAction,
+  designs,
   request,
   templates,
 }: {
   canManageCategories: boolean;
   canManageSubcategories: boolean;
   canCreateTemplates: boolean;
+  canDuplicateTemplates: boolean;
   canPublishTemplates: boolean;
   canUnpublishTemplates: boolean;
   canUpdateTemplates: boolean;
@@ -903,6 +938,7 @@ function DesignSetupPanel({
     action: () => Promise<unknown>,
     message: string,
   ) => Promise<void>;
+  designs: InvitationDesign[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   templates: InvitationTemplate[];
 }) {
@@ -992,6 +1028,16 @@ function DesignSetupPanel({
     );
     setSelectedTemplate((current) =>
       current?.id === template.id ? template : current,
+    );
+  }
+
+  async function duplicateTemplate(templateId: string) {
+    await completeAction(
+      () =>
+        request(`/template-design/templates/${templateId}/duplicate`, {
+          method: "POST",
+        }),
+      "Template duplicated as draft.",
     );
   }
 
@@ -1091,6 +1137,74 @@ function DesignSetupPanel({
         <div className="rounded-lg border border-ink/10 bg-white p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
+              <h2 className="text-xl font-black text-ink">
+                Staff design library
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-ink/55">
+                Current designs and saved version history from published
+                templates.
+              </p>
+            </div>
+            <p className="text-sm font-black text-leaf">{designs.length}</p>
+          </div>
+          {designs.length ? (
+            <div className="mt-5 grid gap-3">
+              {designs.map((design) => {
+                const current = design.versions.find(
+                  (version) => version.status === "CURRENT",
+                );
+                const supersededCount = design.versions.filter(
+                  (version) => version.status === "SUPERSEDED",
+                ).length;
+
+                return (
+                  <article
+                    className="rounded-lg border border-ink/10 bg-paper/70 p-4"
+                    key={design.id}
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="font-black text-ink">{design.name}</h3>
+                        <p className="mt-1 text-sm text-ink/55">
+                          /{design.slug}
+                        </p>
+                        <p className="mt-1 text-sm text-ink/45">
+                          {[design.category?.name, design.subcategory?.name]
+                            .filter(Boolean)
+                            .join(" / ") || "Uncategorized"}
+                        </p>
+                      </div>
+                      <p className="text-sm font-black text-leaf">
+                        {design.status}
+                      </p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-ink/55">
+                      {current ? (
+                        <span className="rounded-md bg-white px-2 py-1 text-leaf">
+                          current v{current.versionNumber}
+                        </span>
+                      ) : null}
+                      <span className="rounded-md bg-white px-2 py-1">
+                        {supersededCount} superseded
+                      </span>
+                      <span className="rounded-md bg-white px-2 py-1">
+                        {design.createdBy?.name ?? "Unknown owner"}
+                      </span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-6 text-ink/55">
+              No designs published yet.
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-ink/10 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
               <h2 className="text-xl font-black text-ink">Draft templates</h2>
               <p className="mt-1 text-sm leading-6 text-ink/55">
                 Uploaded HTML files are stored as draft templates before they
@@ -1173,6 +1287,15 @@ function DesignSetupPanel({
                         type="button"
                       >
                         Unpublish
+                      </button>
+                    ) : null}
+                    {canDuplicateTemplates ? (
+                      <button
+                        className="rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
+                        onClick={() => duplicateTemplate(template.id)}
+                        type="button"
+                      >
+                        Duplicate
                       </button>
                     ) : null}
                   </div>

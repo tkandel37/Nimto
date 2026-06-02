@@ -45,6 +45,12 @@ export class TemplateDesignController {
     return this.templateDesign.getTemplate(templateId, request.user!.sub);
   }
 
+  @Get("designs")
+  @UseGuards(JwtAuthGuard)
+  listDesigns(@Req() request: AuthenticatedRequest) {
+    return this.templateDesign.listDesigns(request.user!.sub);
+  }
+
   @Post("templates")
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.templateCreate)
@@ -53,6 +59,19 @@ export class TemplateDesignController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.templateDesign.createTemplate(dto, this.context(request));
+  }
+
+  @Post("templates/:templateId/duplicate")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateDuplicate)
+  duplicateTemplate(
+    @Param("templateId") templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.duplicateTemplate(
+      templateId,
+      this.context(request),
+    );
   }
 
   @Patch("templates/:templateId")

@@ -157,6 +157,33 @@ export class TemplateDesignService {
     return template;
   }
 
+  async listDesigns(userId: string) {
+    const access = await this.designAccess(userId);
+    if (!access.viewAll && !access.viewOwn) {
+      throw new ForbiddenException("You cannot view designs.");
+    }
+
+    return this.prisma.invitationDesign.findMany({
+      where: access.viewAll ? undefined : { createdById: userId },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        subcategory: { select: { id: true, name: true, slug: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+        versions: {
+          orderBy: { versionNumber: "desc" },
+          select: {
+            id: true,
+            versionNumber: true,
+            status: true,
+            htmlSize: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  }
+
   async createTemplate(
     dto: CreateInvitationTemplateDto,
     context: ActorContext,
@@ -199,6 +226,53 @@ export class TemplateDesignService {
       htmlSize: template.htmlSize,
     });
     return template;
+  }
+
+  async duplicateTemplate(templateId: string, context: ActorContext) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!template) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const access = await this.templateAccess(context.actorId);
+    if (!access.viewAll && !(access.viewOwn && template.createdById === context.actorId)) {
+      throw new ForbiddenException("You cannot duplicate this template.");
+    }
+
+    const scanResult = this.scanTemplateHtml(template.rawHtml);
+    const copy = await this.prisma.invitationTemplate.create({
+      data: {
+        name: `Copy of ${template.name}`,
+        rawHtml: template.rawHtml,
+        sourceFileName: template.sourceFileName,
+        htmlSize: template.htmlSize,
+        scanResult,
+        scannedAt: new Date(),
+        categoryId: template.categoryId,
+        subcategoryId: template.subcategoryId,
+        createdById: context.actorId,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        sourceFileName: true,
+        htmlSize: true,
+        scanResult: true,
+        scannedAt: true,
+        categoryId: true,
+        subcategoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.record(context, "invitationTemplate.duplicated", copy.id, {
+      sourceTemplateId: template.id,
+    });
+    return copy;
   }
 
   async updateTemplate(
@@ -799,6 +873,41 @@ export class TemplateDesignService {
       viewAll: permissions.has(PERMISSIONS.templateViewAll),
       updateOwn: permissions.has(PERMISSIONS.templateUpdateOwn),
       updateAll: permissions.has(PERMISSIONS.templateUpdateAll),
+    };
+  }
+
+  private async designAccess(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const roleNames = user?.roles.map((userRole) => userRole.role.name) ?? [];
+    if (roleNames.includes(SUPER_ADMIN_ROLE)) {
+      return { viewOwn: true, viewAll: true };
+    }
+
+    const permissions = new Set(
+      user?.roles.flatMap((userRole) =>
+        userRole.role.permissions.map(
+          (rolePermission) => rolePermission.permission.key,
+        ),
+      ) ?? [],
+    );
+
+    return {
+      viewOwn: permissions.has(PERMISSIONS.designViewOwn),
+      viewAll: permissions.has(PERMISSIONS.designViewAll),
     };
   }
 
