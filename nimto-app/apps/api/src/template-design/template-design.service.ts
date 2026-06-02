@@ -82,6 +82,68 @@ export class TemplateDesignService {
     });
   }
 
+  listPublicDesigns(filters: {
+    categoryId?: string;
+    subcategoryId?: string;
+    search?: string;
+  }) {
+    const search = filters.search?.trim();
+    return this.prisma.invitationDesign.findMany({
+      where: {
+        status: DesignStatus.ACTIVE,
+        categoryId: filters.categoryId || undefined,
+        subcategoryId: filters.subcategoryId || undefined,
+        AND: [
+          filters.categoryId
+            ? {}
+            : {
+                OR: [
+                  { categoryId: null },
+                  { category: { status: DesignCatalogStatus.ACTIVE } },
+                ],
+              },
+          filters.subcategoryId
+            ? {}
+            : {
+                OR: [
+                  { subcategoryId: null },
+                  { subcategory: { status: DesignCatalogStatus.ACTIVE } },
+                ],
+              },
+        ],
+        versions: { some: { status: DesignVersionStatus.CURRENT } },
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" as const } },
+                { slug: { contains: search, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        subcategory: { select: { id: true, name: true, slug: true } },
+        versions: {
+          where: { status: DesignVersionStatus.CURRENT },
+          orderBy: { versionNumber: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            versionNumber: true,
+            status: true,
+            name: true,
+            rawHtml: true,
+            htmlSize: true,
+            scanResult: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  }
+
   async listTemplates(userId: string) {
     const access = await this.templateAccess(userId);
     if (!access.viewAll && !access.viewOwn) {

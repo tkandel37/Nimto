@@ -30,6 +30,19 @@ export class TemplateDesignController {
     return this.templateDesign.listPublicCategories();
   }
 
+  @Get("public/designs")
+  listPublicDesigns(
+    @Query("categoryId") categoryId?: string,
+    @Query("subcategoryId") subcategoryId?: string,
+    @Query("search") search?: string,
+  ) {
+    return this.templateDesign.listPublicDesigns({
+      categoryId,
+      subcategoryId,
+      search,
+    });
+  }
+
   @Get("templates")
   @UseGuards(JwtAuthGuard)
   listTemplates(@Req() request: AuthenticatedRequest) {
