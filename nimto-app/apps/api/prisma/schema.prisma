@@ -51,6 +51,16 @@ enum TemplateStatus {
   UNPUBLISHED
 }
 
+enum DesignStatus {
+  ACTIVE
+  UNPUBLISHED
+}
+
+enum DesignVersionStatus {
+  CURRENT
+  SUPERSEDED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -75,6 +85,8 @@ model User {
   designCategories    DesignCategory[]     @relation("DesignCategoriesCreated")
   designSubcategories DesignSubcategory[]  @relation("DesignSubcategoriesCreated")
   invitationTemplates InvitationTemplate[] @relation("InvitationTemplatesCreated")
+  invitationDesigns   InvitationDesign[]   @relation("InvitationDesignsCreated")
+  designVersions      DesignVersion[]      @relation("DesignVersionsPublished")
 
   @@index([status])
   @@index([createdAt])
@@ -135,6 +147,7 @@ model DesignCategory {
   createdBy     User?                @relation("DesignCategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
   subcategories DesignSubcategory[]
   templates     InvitationTemplate[]
+  designs       InvitationDesign[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -154,6 +167,7 @@ model DesignSubcategory {
   createdById String?
   createdBy   User?                @relation("DesignSubcategoriesCreated", fields: [createdById], references: [id], onDelete: SetNull)
   templates   InvitationTemplate[]
+  designs     InvitationDesign[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
@@ -171,6 +185,8 @@ model InvitationTemplate {
   htmlSize       Int
   scanResult     Json?
   scannedAt      DateTime?
+  designId       String?
+  design         InvitationDesign?  @relation(fields: [designId], references: [id], onDelete: SetNull)
   categoryId     String?
   category       DesignCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   subcategoryId  String?
@@ -182,8 +198,53 @@ model InvitationTemplate {
 
   @@index([status, createdAt])
   @@index([createdById])
+  @@index([designId])
   @@index([categoryId])
   @@index([subcategoryId])
+}
+
+model InvitationDesign {
+  id            String               @id @default(cuid())
+  templateId    String?
+  name          String
+  slug          String               @unique
+  status        DesignStatus         @default(ACTIVE)
+  categoryId    String?
+  category      DesignCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subcategoryId String?
+  subcategory   DesignSubcategory?   @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  createdById   String?
+  createdBy     User?                @relation("InvitationDesignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  templates     InvitationTemplate[]
+  versions      DesignVersion[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([createdById])
+}
+
+model DesignVersion {
+  id            String              @id @default(cuid())
+  designId      String
+  design        InvitationDesign    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  templateId    String?
+  versionNumber Int
+  status        DesignVersionStatus @default(CURRENT)
+  name          String
+  rawHtml       String
+  htmlSize      Int
+  scanResult    Json?
+  publishedById String?
+  publishedBy   User?               @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime            @default(now())
+
+  @@unique([designId, versionNumber])
+  @@index([status, createdAt])
+  @@index([templateId])
+  @@index([publishedById])
 }
 
 model UserSession {

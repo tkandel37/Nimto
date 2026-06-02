@@ -115,6 +115,18 @@ type InvitationTemplate = {
     hasMap?: boolean;
   } | null;
   scannedAt?: string | null;
+  designId?: string | null;
+  design?: {
+    id: string;
+    slug: string;
+    status: "ACTIVE" | "UNPUBLISHED";
+    versions?: {
+      id: string;
+      versionNumber: number;
+      status: "CURRENT" | "SUPERSEDED";
+      createdAt?: string;
+    }[];
+  } | null;
   categoryId?: string | null;
   subcategoryId?: string | null;
   createdAt: string;
@@ -552,6 +564,8 @@ export default function DashboardPage() {
             canManageCategories={can(user, "category:manage")}
             canManageSubcategories={can(user, "subcategory:manage")}
             canCreateTemplates={can(user, "template:create")}
+            canPublishTemplates={can(user, "template:publish")}
+            canUnpublishTemplates={can(user, "template:unpublish")}
             canUpdateTemplates={canAny(user, [
               "template:update:own",
               "template:update:all",
@@ -870,6 +884,8 @@ function DesignSetupPanel({
   canManageCategories,
   canManageSubcategories,
   canCreateTemplates,
+  canPublishTemplates,
+  canUnpublishTemplates,
   canUpdateTemplates,
   categories,
   completeAction,
@@ -879,6 +895,8 @@ function DesignSetupPanel({
   canManageCategories: boolean;
   canManageSubcategories: boolean;
   canCreateTemplates: boolean;
+  canPublishTemplates: boolean;
+  canUnpublishTemplates: boolean;
   canUpdateTemplates: boolean;
   categories: DesignCategory[];
   completeAction: (
@@ -942,6 +960,38 @@ function DesignSetupPanel({
         setEditorFields(extractTemplateEditorFields({ ...template, rawHtml }));
       },
       "Template draft saved.",
+    );
+  }
+
+  async function publishTemplate(templateId: string) {
+    await completeAction(
+      () =>
+        request(`/template-design/templates/${templateId}/publish`, {
+          method: "POST",
+        }),
+      "Template published as current design.",
+    );
+    const template = await request<InvitationTemplate>(
+      `/template-design/templates/${templateId}`,
+    );
+    setSelectedTemplate((current) =>
+      current?.id === template.id ? template : current,
+    );
+  }
+
+  async function unpublishTemplate(templateId: string) {
+    await completeAction(
+      () =>
+        request(`/template-design/templates/${templateId}/unpublish`, {
+          method: "POST",
+        }),
+      "Design unpublished.",
+    );
+    const template = await request<InvitationTemplate>(
+      `/template-design/templates/${templateId}`,
+    );
+    setSelectedTemplate((current) =>
+      current?.id === template.id ? template : current,
     );
   }
 
@@ -1085,6 +1135,12 @@ function DesignSetupPanel({
                             paid name
                           </span>
                         ) : null}
+                        {template.design?.versions?.[0] ? (
+                          <span className="rounded-md bg-white px-2 py-1 text-leaf">
+                            v{template.design.versions[0].versionNumber}{" "}
+                            {template.design.versions[0].status.toLowerCase()}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <p className="text-sm font-black text-marigold">
@@ -1100,6 +1156,26 @@ function DesignSetupPanel({
                       Edit template
                     </button>
                   ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canPublishTemplates ? (
+                      <button
+                        className="rounded-lg bg-leaf px-4 py-2 text-sm font-bold text-white"
+                        onClick={() => publishTemplate(template.id)}
+                        type="button"
+                      >
+                        Publish
+                      </button>
+                    ) : null}
+                    {canUnpublishTemplates && template.designId ? (
+                      <button
+                        className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-2 text-sm font-bold text-rose"
+                        onClick={() => unpublishTemplate(template.id)}
+                        type="button"
+                      >
+                        Unpublish
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </div>
@@ -1128,6 +1204,26 @@ function DesignSetupPanel({
               >
                 Save draft
               </button>
+              <div className="flex flex-wrap gap-2">
+                {canPublishTemplates ? (
+                  <button
+                    className="rounded-lg bg-leaf px-4 py-3 font-bold text-white"
+                    onClick={() => publishTemplate(selectedTemplate.id)}
+                    type="button"
+                  >
+                    Publish
+                  </button>
+                ) : null}
+                {canUnpublishTemplates && selectedTemplate.designId ? (
+                  <button
+                    className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-3 font-bold text-rose"
+                    onClick={() => unpublishTemplate(selectedTemplate.id)}
+                    type="button"
+                  >
+                    Unpublish
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">

@@ -81,6 +81,32 @@ export class TemplateDesignController {
     );
   }
 
+  @Post("templates/:templateId/publish")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templatePublish)
+  publishTemplate(
+    @Param("templateId") templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.publishTemplate(
+      templateId,
+      this.context(request),
+    );
+  }
+
+  @Post("templates/:templateId/unpublish")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateUnpublish)
+  unpublishTemplate(
+    @Param("templateId") templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.unpublishTemplate(
+      templateId,
+      this.context(request),
+    );
+  }
+
   @Get("categories")
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.categoryView)

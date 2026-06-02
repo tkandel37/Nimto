@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DesignCatalogStatus, Prisma } from "@prisma/client";
+import {
+  DesignCatalogStatus,
+  DesignStatus,
+  DesignVersionStatus,
+  Prisma,
+  TemplateStatus,
+} from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from "../auth/permissions";
 import { PrismaService } from "../prisma/prisma.service";
@@ -93,6 +99,19 @@ export class TemplateDesignService {
         htmlSize: true,
         scanResult: true,
         scannedAt: true,
+        designId: true,
+        design: {
+          select: {
+            id: true,
+            slug: true,
+            status: true,
+            versions: {
+              where: { status: DesignVersionStatus.CURRENT },
+              select: { id: true, versionNumber: true, status: true },
+              take: 1,
+            },
+          },
+        },
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -110,6 +129,19 @@ export class TemplateDesignService {
       include: {
         category: true,
         subcategory: true,
+        design: {
+          include: {
+            versions: {
+              orderBy: { versionNumber: "desc" },
+              select: {
+                id: true,
+                versionNumber: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
@@ -153,6 +185,7 @@ export class TemplateDesignService {
         htmlSize: true,
         scanResult: true,
         scannedAt: true,
+        designId: true,
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -217,6 +250,7 @@ export class TemplateDesignService {
         htmlSize: true,
         scanResult: true,
         scannedAt: true,
+        designId: true,
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -229,6 +263,135 @@ export class TemplateDesignService {
       status: template.status,
     });
     return template;
+  }
+
+  async publishTemplate(templateId: string, context: ActorContext) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!template) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const scanResult = this.scanTemplateHtml(template.rawHtml);
+    const design = await this.prisma.$transaction(async (tx) => {
+      const existingDesign = template.designId
+        ? await tx.invitationDesign.findUnique({ where: { id: template.designId } })
+        : null;
+      const nextDesign =
+        existingDesign ??
+        (await tx.invitationDesign.create({
+          data: {
+            templateId: template.id,
+            name: template.name,
+            slug: await this.uniqueDesignSlug(tx, template.name),
+            categoryId: template.categoryId,
+            subcategoryId: template.subcategoryId,
+            createdById: context.actorId,
+          },
+        }));
+
+      const latestVersion = await tx.designVersion.findFirst({
+        where: { designId: nextDesign.id },
+        orderBy: { versionNumber: "desc" },
+      });
+      const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
+
+      await tx.invitationDesign.update({
+        where: { id: nextDesign.id },
+        data: {
+          name: template.name,
+          status: DesignStatus.ACTIVE,
+          categoryId: template.categoryId,
+          subcategoryId: template.subcategoryId,
+        },
+      });
+      await tx.designVersion.updateMany({
+        where: {
+          designId: nextDesign.id,
+          status: DesignVersionStatus.CURRENT,
+        },
+        data: { status: DesignVersionStatus.SUPERSEDED },
+      });
+      await tx.designVersion.create({
+        data: {
+          designId: nextDesign.id,
+          templateId: template.id,
+          versionNumber,
+          status: DesignVersionStatus.CURRENT,
+          name: template.name,
+          rawHtml: template.rawHtml,
+          htmlSize: template.htmlSize,
+          scanResult,
+          publishedById: context.actorId,
+        },
+      });
+      await tx.invitationTemplate.update({
+        where: { id: template.id },
+        data: {
+          status: TemplateStatus.PUBLISHED,
+          designId: nextDesign.id,
+          scanResult,
+          scannedAt: new Date(),
+        },
+      });
+
+      return tx.invitationDesign.findUniqueOrThrow({
+        where: { id: nextDesign.id },
+        include: {
+          versions: {
+            orderBy: { versionNumber: "desc" },
+            select: {
+              id: true,
+              versionNumber: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+    });
+
+    await this.record(context, "invitationDesign.published", design.id, {
+      templateId,
+      versionNumber: design.versions[0]?.versionNumber,
+    });
+    return design;
+  }
+
+  async unpublishTemplate(templateId: string, context: ActorContext) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!template) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const updatedTemplate = await this.prisma.$transaction(async (tx) => {
+      if (template.designId) {
+        await tx.invitationDesign.update({
+          where: { id: template.designId },
+          data: { status: DesignStatus.UNPUBLISHED },
+        });
+      }
+
+      return tx.invitationTemplate.update({
+        where: { id: template.id },
+        data: { status: TemplateStatus.UNPUBLISHED },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          designId: true,
+          updatedAt: true,
+        },
+      });
+    });
+
+    await this.record(context, "invitationDesign.unpublished", templateId, {
+      designId: template.designId,
+    });
+    return updatedTemplate;
   }
 
   async rescanTemplate(templateId: string, context: ActorContext) {
@@ -673,6 +836,20 @@ export class TemplateDesignService {
       .replace(/^-+|-+$/g, "");
 
     return slug || `category-${Date.now()}`;
+  }
+
+  private async uniqueDesignSlug(
+    tx: Prisma.TransactionClient,
+    name: string,
+  ) {
+    const base = this.slugify(name);
+    let slug = base;
+    let suffix = 2;
+    while (await tx.invitationDesign.findUnique({ where: { slug } })) {
+      slug = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return slug;
   }
 
   private labelize(value: string) {
