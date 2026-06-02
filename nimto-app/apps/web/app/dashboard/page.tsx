@@ -97,6 +97,23 @@ type InvitationTemplate = {
   status: "DRAFT" | "PUBLISHED" | "UNPUBLISHED";
   sourceFileName?: string | null;
   htmlSize: number;
+  scanResult?: {
+    sections?: { key: string; label: string }[];
+    fields?: {
+      key: string;
+      label: string;
+      type: string;
+      required: boolean;
+      paid: boolean;
+      locked: boolean;
+    }[];
+    countdownFieldKey?: string;
+    customNameFieldKeys?: string[];
+    hasGallery?: boolean;
+    hasMusic?: boolean;
+    hasMap?: boolean;
+  } | null;
+  scannedAt?: string | null;
   categoryId?: string | null;
   subcategoryId?: string | null;
   createdAt: string;
@@ -966,6 +983,24 @@ function DesignSetupPanel({
                           .filter(Boolean)
                           .join(" / ") || "Uncategorized"}
                       </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-ink/55">
+                        <span className="rounded-md bg-white px-2 py-1">
+                          {template.scanResult?.fields?.length ?? 0} fields
+                        </span>
+                        <span className="rounded-md bg-white px-2 py-1">
+                          {template.scanResult?.sections?.length ?? 0} sections
+                        </span>
+                        {template.scanResult?.countdownFieldKey ? (
+                          <span className="rounded-md bg-white px-2 py-1">
+                            countdown
+                          </span>
+                        ) : null}
+                        {template.scanResult?.customNameFieldKeys?.length ? (
+                          <span className="rounded-md bg-white px-2 py-1 text-marigold">
+                            paid name
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="text-sm font-black text-marigold">
                       {template.status}

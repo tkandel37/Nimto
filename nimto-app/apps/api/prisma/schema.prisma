@@ -169,6 +169,8 @@ model InvitationTemplate {
   rawHtml        String
   sourceFileName String?
   htmlSize       Int
+  scanResult     Json?
+  scannedAt      DateTime?
   categoryId     String?
   category       DesignCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   subcategoryId  String?

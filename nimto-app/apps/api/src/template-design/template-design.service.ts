@@ -21,6 +21,29 @@ type ActorContext = {
   userAgent?: string;
 };
 
+type TemplateField = {
+  key: string;
+  label: string;
+  type: string;
+  sectionKey?: string;
+  required: boolean;
+  paid: boolean;
+  locked: boolean;
+};
+
+type TemplateScanResult = {
+  version: 1;
+  title?: string;
+  categoryHint?: string;
+  sections: { key: string; label: string }[];
+  fields: TemplateField[];
+  countdownFieldKey?: string;
+  customNameFieldKeys: string[];
+  hasGallery: boolean;
+  hasMusic: boolean;
+  hasMap: boolean;
+};
+
 @Injectable()
 export class TemplateDesignService {
   constructor(
@@ -68,6 +91,8 @@ export class TemplateDesignService {
         status: true,
         sourceFileName: true,
         htmlSize: true,
+        scanResult: true,
+        scannedAt: true,
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -105,6 +130,7 @@ export class TemplateDesignService {
     context: ActorContext,
   ) {
     this.assertNimtoHtml(dto.rawHtml);
+    const scanResult = this.scanTemplateHtml(dto.rawHtml);
     await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
 
     const template = await this.prisma.invitationTemplate.create({
@@ -113,6 +139,8 @@ export class TemplateDesignService {
         rawHtml: dto.rawHtml,
         sourceFileName: dto.sourceFileName?.trim() || null,
         htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
+        scanResult,
+        scannedAt: new Date(),
         categoryId: dto.categoryId || null,
         subcategoryId: dto.subcategoryId || null,
         createdById: context.actorId,
@@ -123,6 +151,8 @@ export class TemplateDesignService {
         status: true,
         sourceFileName: true,
         htmlSize: true,
+        scanResult: true,
+        scannedAt: true,
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -157,6 +187,7 @@ export class TemplateDesignService {
       throw new ForbiddenException("You cannot update this template.");
     }
 
+    const scanResult = dto.rawHtml ? this.scanTemplateHtml(dto.rawHtml) : undefined;
     if (dto.rawHtml) {
       this.assertNimtoHtml(dto.rawHtml);
     }
@@ -172,6 +203,8 @@ export class TemplateDesignService {
             ? dto.sourceFileName.trim() || null
             : undefined,
         htmlSize: dto.rawHtml ? Buffer.byteLength(dto.rawHtml, "utf8") : undefined,
+        scanResult,
+        scannedAt: dto.rawHtml ? new Date() : undefined,
         categoryId: dto.categoryId,
         subcategoryId: dto.subcategoryId,
         status: dto.status,
@@ -182,6 +215,8 @@ export class TemplateDesignService {
         status: true,
         sourceFileName: true,
         htmlSize: true,
+        scanResult: true,
+        scannedAt: true,
         categoryId: true,
         subcategoryId: true,
         createdAt: true,
@@ -192,6 +227,47 @@ export class TemplateDesignService {
     await this.record(context, "invitationTemplate.updated", template.id, {
       name: template.name,
       status: template.status,
+    });
+    return template;
+  }
+
+  async rescanTemplate(templateId: string, context: ActorContext) {
+    const existing = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!existing) {
+      throw new NotFoundException("Template not found.");
+    }
+
+    const access = await this.templateAccess(context.actorId);
+    const canUpdate =
+      access.updateAll || (access.updateOwn && existing.createdById === context.actorId);
+    if (!canUpdate) {
+      throw new ForbiddenException("You cannot rescan this template.");
+    }
+
+    const scanResult = this.scanTemplateHtml(existing.rawHtml);
+    const template = await this.prisma.invitationTemplate.update({
+      where: { id: templateId },
+      data: { scanResult, scannedAt: new Date() },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        sourceFileName: true,
+        htmlSize: true,
+        scanResult: true,
+        scannedAt: true,
+        categoryId: true,
+        subcategoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.record(context, "invitationTemplate.rescanned", template.id, {
+      fields: scanResult.fields.length,
+      sections: scanResult.sections.length,
     });
     return template;
   }
@@ -388,6 +464,139 @@ export class TemplateDesignService {
     }
   }
 
+  private scanTemplateHtml(rawHtml: string): TemplateScanResult {
+    this.assertNimtoHtml(rawHtml);
+    const meta = this.templateMeta(rawHtml);
+    const sections = this.scanSections(rawHtml);
+    const fields = this.scanFields(rawHtml, sections);
+    if (!fields.length) {
+      throw new BadRequestException(
+        "Template must include at least one data-nimto-field marker.",
+      );
+    }
+
+    const countdownFieldKey =
+      this.firstAttribute(rawHtml, "data-nimto-countdown-for") ??
+      this.stringMeta(meta, "countdownFieldKey");
+
+    if (
+      countdownFieldKey &&
+      !fields.some((field) => field.key === countdownFieldKey)
+    ) {
+      throw new BadRequestException(
+        "Countdown field must match a data-nimto-field key.",
+      );
+    }
+
+    return {
+      version: 1,
+      title: this.stringMeta(meta, "title"),
+      categoryHint: this.stringMeta(meta, "categoryHint"),
+      sections,
+      fields,
+      countdownFieldKey,
+      customNameFieldKeys: fields
+        .filter((field) => field.type === "custom_name" || field.paid)
+        .map((field) => field.key),
+      hasGallery: /data-nimto-gallery/i.test(rawHtml),
+      hasMusic: /data-nimto-music/i.test(rawHtml),
+      hasMap: /data-nimto-map/i.test(rawHtml),
+    };
+  }
+
+  private scanSections(rawHtml: string) {
+    const sections = new Map<string, { key: string; label: string }>();
+    for (const tag of rawHtml.matchAll(/<[^>]*data-nimto-section=(["'])(.*?)\1[^>]*>/gis)) {
+      const attrs = this.attributes(tag[0]);
+      const key = attrs["data-nimto-section"];
+      if (!key) continue;
+      this.assertFieldKey(key, "section");
+      sections.set(key, {
+        key,
+        label: attrs["data-nimto-section-label"] ?? this.labelize(key),
+      });
+    }
+    return [...sections.values()];
+  }
+
+  private scanFields(rawHtml: string, sections: { key: string; label: string }[]) {
+    const seen = new Set<string>();
+    const sectionKeys = new Set(sections.map((section) => section.key));
+    const fields: TemplateField[] = [];
+
+    for (const tag of rawHtml.matchAll(/<[^>]*data-nimto-field=(["'])(.*?)\1[^>]*>/gis)) {
+      const attrs = this.attributes(tag[0]);
+      const key = attrs["data-nimto-field"];
+      if (!key) continue;
+      this.assertFieldKey(key, "field");
+      if (seen.has(key)) {
+        throw new BadRequestException(`Duplicate field key: ${key}.`);
+      }
+      seen.add(key);
+
+      const sectionKey = attrs["data-nimto-section-ref"];
+      if (sectionKey && !sectionKeys.has(sectionKey)) {
+        throw new BadRequestException(`Unknown section for field ${key}.`);
+      }
+
+      fields.push({
+        key,
+        label: attrs["data-nimto-label"] ?? this.labelize(key),
+        type: attrs["data-nimto-type"] ?? "text",
+        sectionKey,
+        required: this.booleanAttribute(attrs["data-nimto-required"]),
+        paid: this.booleanAttribute(attrs["data-nimto-paid"]),
+        locked: this.booleanAttribute(attrs["data-nimto-locked"]),
+      });
+    }
+
+    return fields;
+  }
+
+  private templateMeta(rawHtml: string) {
+    const match = rawHtml.match(
+      /<script[^>]*id=(["'])nimto-template-meta\1[^>]*>(.*?)<\/script>/is,
+    );
+    if (!match) return {};
+
+    try {
+      return JSON.parse(match[2].trim()) as Record<string, unknown>;
+    } catch {
+      throw new BadRequestException("nimto-template-meta must be valid JSON.");
+    }
+  }
+
+  private attributes(tag: string) {
+    const attrs: Record<string, string> = {};
+    for (const match of tag.matchAll(/([\w:-]+)=(["'])(.*?)\2/gis)) {
+      attrs[match[1].toLowerCase()] = match[3].trim();
+    }
+    return attrs;
+  }
+
+  private firstAttribute(rawHtml: string, attribute: string) {
+    const match = rawHtml.match(
+      new RegExp(`${attribute}=(["'])(.*?)\\1`, "i"),
+    );
+    return match?.[2];
+  }
+
+  private assertFieldKey(key: string, label: string) {
+    if (!/^[a-z][a-z0-9_]*$/.test(key)) {
+      throw new BadRequestException(
+        `Nimto ${label} keys must use lowercase snake_case.`,
+      );
+    }
+  }
+
+  private booleanAttribute(value?: string) {
+    return value === "true" || value === "1" || value === "";
+  }
+
+  private stringMeta(meta: Record<string, unknown>, key: string) {
+    return typeof meta[key] === "string" ? String(meta[key]) : undefined;
+  }
+
   private async templateAccess(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -464,5 +673,13 @@ export class TemplateDesignService {
       .replace(/^-+|-+$/g, "");
 
     return slug || `category-${Date.now()}`;
+  }
+
+  private labelize(value: string) {
+    return value
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
   }
 }

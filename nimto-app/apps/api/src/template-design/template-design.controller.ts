@@ -69,6 +69,18 @@ export class TemplateDesignController {
     );
   }
 
+  @Post("templates/:templateId/rescan")
+  @UseGuards(JwtAuthGuard)
+  rescanTemplate(
+    @Param("templateId") templateId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.rescanTemplate(
+      templateId,
+      this.context(request),
+    );
+  }
+
   @Get("categories")
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.categoryView)
