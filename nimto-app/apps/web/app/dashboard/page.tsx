@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  Dispatch,
   FormEvent,
   ReactNode,
+  SetStateAction,
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +13,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { apiRequest, AuthUser } from "@/lib/api";
+import { ApiError, apiRequest, AuthUser } from "@/lib/api";
 
 type Permission = {
   id: string;
@@ -194,6 +196,7 @@ type TemplateEditorField = {
 type CompleteAction = (
   action: () => Promise<unknown>,
   message: string,
+  options?: { refresh?: boolean },
 ) => Promise<boolean>;
 
 type BlogPost = {
@@ -726,6 +729,12 @@ export default function DashboardPage() {
   }, [currentTab, isSidebarCollapsed, visibleTabs.length]);
 
   useEffect(() => {
+    function redirectIfMissingToken() {
+      if (!localStorage.getItem("nimto_token")) {
+        router.replace("/auth?mode=login");
+      }
+    }
+
     const savedToken = localStorage.getItem("nimto_token");
 
     if (!savedToken) {
@@ -742,12 +751,28 @@ export default function DashboardPage() {
         setUser(response.user);
         localStorage.setItem("nimto_user", JSON.stringify(response.user));
       })
-      .catch(() => {
-        localStorage.removeItem("nimto_token");
-        localStorage.removeItem("nimto_user");
-        router.replace("/auth?mode=login");
+      .catch((caughtError) => {
+        if (
+          caughtError instanceof ApiError &&
+          (caughtError.status === 401 || caughtError.status === 403)
+        ) {
+          localStorage.removeItem("nimto_token");
+          localStorage.removeItem("nimto_user");
+          router.replace("/auth?mode=login");
+          return;
+        }
+
+        showToast(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Could not verify your session.",
+          "error",
+        );
       })
       .finally(() => setIsLoading(false));
+
+    window.addEventListener("pageshow", redirectIfMissingToken);
+    return () => window.removeEventListener("pageshow", redirectIfMissingToken);
   }, [router]);
 
   const request = useCallback(
@@ -885,6 +910,7 @@ export default function DashboardPage() {
 
     localStorage.removeItem("nimto_token");
     localStorage.removeItem("nimto_user");
+    setUser(null);
     router.replace("/");
   }
 
@@ -912,7 +938,11 @@ export default function DashboardPage() {
     setToast(null);
   }
 
-  async function completeAction(action: () => Promise<unknown>, message: string) {
+  async function completeAction(
+    action: () => Promise<unknown>,
+    message: string,
+    options: { refresh?: boolean } = {},
+  ) {
     if (actionInFlightRef.current) {
       return false;
     }
@@ -922,7 +952,9 @@ export default function DashboardPage() {
 
     try {
       await action();
-      await refreshAdminData();
+      if (options.refresh !== false) {
+        await refreshAdminData();
+      }
       showToast(message, "success");
       return true;
     } catch (caughtError) {
@@ -1108,6 +1140,7 @@ export default function DashboardPage() {
             categories={designCategories}
             completeAction={completeAction}
             designs={designs}
+            onTemplatesChange={setTemplates}
             request={request}
             templates={templates}
           />
@@ -1592,6 +1625,7 @@ function DesignSetupPanel({
   categories,
   completeAction,
   designs,
+  onTemplatesChange,
   request,
   templates,
 }: {
@@ -1603,6 +1637,7 @@ function DesignSetupPanel({
   categories: DesignCategory[];
   completeAction: CompleteAction;
   designs: InvitationDesign[];
+  onTemplatesChange: Dispatch<SetStateAction<InvitationTemplate[]>>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   templates: InvitationTemplate[];
 }) {
@@ -1675,18 +1710,52 @@ function DesignSetupPanel({
     const form = new FormData(event.currentTarget);
 
     const completed = await completeAction(
-      async () =>
-        request("/template-design/templates", {
-          method: "POST",
-          body: JSON.stringify(await templatePayload(form)),
-        }),
+      async () => {
+        const template = await request<InvitationTemplate>(
+          "/template-design/templates",
+          {
+            method: "POST",
+            body: JSON.stringify(await templatePayload(form)),
+          },
+        );
+        upsertTemplateSummary(template);
+      },
       "Template uploaded as draft.",
+      { refresh: false },
     );
     if (completed) {
       event.currentTarget.reset();
       setCreatePreviewHtml("");
       setIsCreatingTemplate(false);
     }
+  }
+
+  function upsertTemplateSummary(
+    template: Partial<InvitationTemplate> & { id: string },
+  ) {
+    onTemplatesChange((currentTemplates) => {
+      const exists = currentTemplates.some((item) => item.id === template.id);
+      if (!exists) {
+        return [template as InvitationTemplate, ...currentTemplates];
+      }
+
+      return currentTemplates.map((item) =>
+        item.id === template.id ? { ...item, ...template } : item,
+      );
+    });
+  }
+
+  async function reloadSelectedTemplate(templateId: string) {
+    const template = await request<InvitationTemplate>(
+      `/template-design/templates/${templateId}`,
+    );
+    setSelectedTemplate((current) =>
+      current?.id === template.id ? template : current,
+    );
+    setEditorRawHtml(template.rawHtml ?? "");
+    setEditorFields(extractTemplateEditorFields(template));
+    upsertTemplateSummary(template);
+    return template;
   }
 
   async function openTemplateEditor(templateId: string) {
@@ -1713,11 +1782,14 @@ function DesignSetupPanel({
             body: JSON.stringify({ rawHtml }),
           },
         );
-        setSelectedTemplate({ ...template, rawHtml });
+        const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
+        setSelectedTemplate(nextTemplate);
         setEditorRawHtml(rawHtml);
-        setEditorFields(extractTemplateEditorFields({ ...template, rawHtml }));
+        setEditorFields(extractTemplateEditorFields(nextTemplate));
+        upsertTemplateSummary(template);
       },
       "Template draft saved.",
+      { refresh: false },
     );
   }
 
@@ -1728,16 +1800,11 @@ function DesignSetupPanel({
           method: "POST",
         }),
       "Template published as current design.",
+      { refresh: false },
     );
-    const template = await request<InvitationTemplate>(
-      `/template-design/templates/${templateId}`,
-    );
-    if (selectedTemplate?.id === template.id) {
-      setEditorRawHtml(template.rawHtml ?? "");
+    if (selectedTemplate?.id === templateId) {
+      await reloadSelectedTemplate(templateId);
     }
-    setSelectedTemplate((current) =>
-      current?.id === template.id ? template : current,
-    );
   }
 
   async function unpublishTemplate(templateId: string) {
@@ -1747,22 +1814,28 @@ function DesignSetupPanel({
           method: "POST",
         }),
       "Design unpublished.",
+      { refresh: false },
     );
-    const template = await request<InvitationTemplate>(
-      `/template-design/templates/${templateId}`,
-    );
-    setSelectedTemplate((current) =>
-      current?.id === template.id ? template : current,
-    );
+    if (selectedTemplate?.id === templateId) {
+      await reloadSelectedTemplate(templateId);
+    } else {
+      upsertTemplateSummary({ id: templateId, status: "UNPUBLISHED" });
+    }
   }
 
   async function duplicateTemplate(templateId: string) {
     await completeAction(
-      () =>
-        request(`/template-design/templates/${templateId}/duplicate`, {
-          method: "POST",
-        }),
+      async () => {
+        const template = await request<InvitationTemplate>(
+          `/template-design/templates/${templateId}/duplicate`,
+          {
+            method: "POST",
+          },
+        );
+        upsertTemplateSummary(template);
+      },
       "Template duplicated as draft.",
+      { refresh: false },
     );
   }
 

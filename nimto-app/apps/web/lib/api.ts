@@ -16,6 +16,16 @@ export type AuthResponse = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -35,7 +45,7 @@ export async function apiRequest<T>(
       typeof data.message === "string"
         ? data.message
         : "Something went wrong. Please try again.";
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return data as T;

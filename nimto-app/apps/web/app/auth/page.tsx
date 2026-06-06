@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
@@ -30,7 +30,24 @@ function AuthForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    function redirectIfAuthenticated() {
+      const savedToken = localStorage.getItem("nimto_token");
+      if (savedToken) {
+        router.replace("/dashboard");
+        return true;
+      }
+      setIsCheckingSession(false);
+      return false;
+    }
+
+    redirectIfAuthenticated();
+    window.addEventListener("pageshow", redirectIfAuthenticated);
+    return () => window.removeEventListener("pageshow", redirectIfAuthenticated);
+  }, [router]);
 
   const copy = useMemo(
     () =>
@@ -50,6 +67,14 @@ function AuthForm() {
     [mode],
   );
 
+  if (isCheckingSession) {
+    return (
+      <main className="grid min-h-screen place-items-center">
+        <p className="font-bold text-ink">Checking your session...</p>
+      </main>
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -67,7 +92,7 @@ function AuthForm() {
 
       localStorage.setItem("nimto_token", response.token);
       localStorage.setItem("nimto_user", JSON.stringify(response.user));
-      router.push("/dashboard");
+      router.replace("/dashboard");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
