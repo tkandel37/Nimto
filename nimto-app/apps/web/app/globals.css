@@ -309,6 +309,11 @@ a {
     linear-gradient(140deg, rgba(22, 116, 94, 0.08), transparent 34%),
     linear-gradient(310deg, rgba(200, 137, 24, 0.08), transparent 36%),
     #f7f8f5;
+  transition: grid-template-columns 180ms ease;
+}
+
+.dashboard-shell.sidebar-collapsed {
+  grid-template-columns: 92px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -323,6 +328,157 @@ a {
     var(--ink);
   color: white;
   padding: 28px;
+  transition: padding 180ms ease;
+}
+
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sidebar-logo {
+  color: var(--marigold);
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.sidebar-logo-mark {
+  display: none;
+  letter-spacing: 0;
+}
+
+.sidebar-collapse-button {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-collapse-button:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--marigold);
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar {
+  overflow: visible;
+  padding: 22px 16px;
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-brand-row {
+  flex-direction: column;
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-logo {
+  letter-spacing: 0;
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-logo-full,
+.dashboard-shell.sidebar-collapsed .sidebar-description,
+.dashboard-shell.sidebar-collapsed .sidebar-tab-label {
+  display: none;
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-logo-mark {
+  display: inline;
+}
+
+.dashboard-shell.sidebar-collapsed .dashboard-tab {
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px;
+}
+
+.dashboard-shell.sidebar-collapsed .dashboard-tab-active {
+  box-shadow: inset 0 -3px 0 var(--marigold);
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-footer {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-shell button[data-tooltip] {
+  position: relative;
+}
+
+.dashboard-shell button[data-tooltip]::before,
+.dashboard-shell button[data-tooltip]::after {
+  position: absolute;
+  left: 50%;
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -6px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.dashboard-shell button[data-tooltip]::before {
+  bottom: calc(100% + 9px);
+  max-width: 240px;
+  border-radius: 8px;
+  background: rgba(23, 32, 51, 0.96);
+  color: white;
+  content: attr(data-tooltip);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 7px 9px;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.18);
+}
+
+.dashboard-shell button[data-tooltip]::after {
+  bottom: calc(100% + 3px);
+  border: 6px solid transparent;
+  border-top-color: rgba(23, 32, 51, 0.96);
+  content: "";
+}
+
+.dashboard-shell button[data-tooltip]:hover::before,
+.dashboard-shell button[data-tooltip]:hover::after,
+.dashboard-shell button[data-tooltip]:focus-visible::before,
+.dashboard-shell button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::before,
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after {
+  bottom: auto;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translate(-6px, -50%);
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after {
+  border-color: transparent;
+  border-right-color: rgba(23, 32, 51, 0.96);
+  left: calc(100% + 4px);
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:hover::before,
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:hover::after,
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:focus-visible::before,
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:focus-visible::after {
+  transform: translate(0, -50%);
 }
 
 .dashboard-tab {
