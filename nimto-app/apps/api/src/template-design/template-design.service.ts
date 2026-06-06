@@ -50,6 +50,8 @@ type TemplateScanResult = {
   hasMap: boolean;
 };
 
+type ScannedSection = { key: string; label: string; index: number };
+
 @Injectable()
 export class TemplateDesignService {
   constructor(
@@ -756,7 +758,7 @@ export class TemplateDesignService {
       throw new BadRequestException("Template must be a complete HTML file.");
     }
 
-    if (!/id=(["'])nimto-template-meta\1/i.test(rawHtml)) {
+    if (!/<script\b[^>]*\bid\s*=\s*(["']?)nimto-template-meta\1[^>]*>/i.test(rawHtml)) {
       throw new BadRequestException(
         "Template must include nimto-template-meta metadata.",
       );
@@ -766,8 +768,9 @@ export class TemplateDesignService {
   private scanTemplateHtml(rawHtml: string): TemplateScanResult {
     this.assertNimtoHtml(rawHtml);
     const meta = this.templateMeta(rawHtml);
-    const sections = this.scanSections(rawHtml);
-    const fields = this.scanFields(rawHtml, sections);
+    const scannedSections = this.scanSections(rawHtml);
+    const sections = scannedSections.map(({ index: _index, ...section }) => section);
+    const fields = this.scanFields(rawHtml, scannedSections);
     if (!fields.length) {
       throw new BadRequestException(
         "Template must include at least one data-nimto-field marker.",
@@ -804,8 +807,8 @@ export class TemplateDesignService {
   }
 
   private scanSections(rawHtml: string) {
-    const sections = new Map<string, { key: string; label: string }>();
-    for (const tag of rawHtml.matchAll(/<[^>]*data-nimto-section=(["'])(.*?)\1[^>]*>/gis)) {
+    const sections = new Map<string, ScannedSection>();
+    for (const tag of rawHtml.matchAll(/<[^>]*\bdata-nimto-section(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis)) {
       const attrs = this.attributes(tag[0]);
       const key = attrs["data-nimto-section"];
       if (!key) continue;
@@ -813,17 +816,18 @@ export class TemplateDesignService {
       sections.set(key, {
         key,
         label: attrs["data-nimto-section-label"] ?? this.labelize(key),
+        index: tag.index ?? 0,
       });
     }
     return [...sections.values()];
   }
 
-  private scanFields(rawHtml: string, sections: { key: string; label: string }[]) {
+  private scanFields(rawHtml: string, sections: ScannedSection[]) {
     const seen = new Set<string>();
     const sectionKeys = new Set(sections.map((section) => section.key));
     const fields: TemplateField[] = [];
 
-    for (const tag of rawHtml.matchAll(/<[^>]*data-nimto-field=(["'])(.*?)\1[^>]*>/gis)) {
+    for (const tag of rawHtml.matchAll(/<[^>]*\bdata-nimto-field(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis)) {
       const attrs = this.attributes(tag[0]);
       const key = attrs["data-nimto-field"];
       if (!key) continue;
@@ -833,7 +837,9 @@ export class TemplateDesignService {
       }
       seen.add(key);
 
-      const sectionKey = attrs["data-nimto-section-ref"];
+      const sectionKey =
+        attrs["data-nimto-section-ref"] ??
+        this.nearestSectionKey(sections, tag.index ?? 0);
       if (sectionKey && !sectionKeys.has(sectionKey)) {
         throw new BadRequestException(`Unknown section for field ${key}.`);
       }
@@ -853,13 +859,18 @@ export class TemplateDesignService {
   }
 
   private templateMeta(rawHtml: string) {
-    const match = rawHtml.match(
-      /<script[^>]*id=(["'])nimto-template-meta\1[^>]*>(.*?)<\/script>/is,
-    );
-    if (!match) return {};
+    let content = "";
+    for (const match of rawHtml.matchAll(/<script\b([^>]*)>(.*?)<\/script>/gis)) {
+      const attrs = this.attributes(match[1]);
+      if (attrs.id === "nimto-template-meta") {
+        content = match[2].trim();
+        break;
+      }
+    }
+    if (!content) return {};
 
     try {
-      return JSON.parse(match[2].trim()) as Record<string, unknown>;
+      return JSON.parse(content) as Record<string, unknown>;
     } catch {
       throw new BadRequestException("nimto-template-meta must be valid JSON.");
     }
@@ -867,17 +878,28 @@ export class TemplateDesignService {
 
   private attributes(tag: string) {
     const attrs: Record<string, string> = {};
-    for (const match of tag.matchAll(/([\w:-]+)=(["'])(.*?)\2/gis)) {
-      attrs[match[1].toLowerCase()] = match[3].trim();
+    for (const match of tag.matchAll(/([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gis)) {
+      attrs[match[1].toLowerCase()] = (
+        match[2] ??
+        match[3] ??
+        match[4] ??
+        ""
+      ).trim();
     }
     return attrs;
   }
 
   private firstAttribute(rawHtml: string, attribute: string) {
     const match = rawHtml.match(
-      new RegExp(`${attribute}=(["'])(.*?)\\1`, "i"),
+      new RegExp(`${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"),
     );
-    return match?.[2];
+    return match?.[1] ?? match?.[2] ?? match?.[3];
+  }
+
+  private nearestSectionKey(sections: ScannedSection[], index: number) {
+    return sections
+      .filter((section) => section.index <= index)
+      .sort((left, right) => right.index - left.index)[0]?.key;
   }
 
   private assertFieldKey(key: string, label: string) {

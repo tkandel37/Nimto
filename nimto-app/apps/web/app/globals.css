@@ -316,6 +316,8 @@ a {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background:
     linear-gradient(180deg, rgba(22, 116, 94, 0.16), transparent 42%),
     var(--ink);
@@ -328,18 +330,23 @@ a {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: rgba(255, 255, 255, 0.64);
   text-align: left;
   transition:
     background 160ms ease,
     border-color 160ms ease,
-    color 160ms ease;
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .dashboard-tab:hover {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
   color: white;
+  transform: translateX(3px);
 }
 
 .dashboard-tab-active {
@@ -347,6 +354,41 @@ a {
   background: rgba(255, 255, 255, 0.12);
   color: white;
   box-shadow: inset 3px 0 0 var(--marigold);
+}
+
+.sidebar-icon-tab {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-icon-tab svg {
+  width: 26px;
+  height: 26px;
+  stroke-width: 2.8;
+}
+
+.sidebar-icon-tab:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--marigold);
+  transform: translateY(-2px);
+}
+
+.sidebar-icon-tab-active {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--marigold);
+  box-shadow: inset 0 -3px 0 var(--marigold);
 }
 
 .dashboard-hero,
@@ -395,6 +437,41 @@ a {
   padding: 11px 14px;
   color: var(--ink);
   font-weight: 800;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.dashboard-shell button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-shell button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.dashboard-button-secondary:not(:disabled):hover {
+  border-color: rgba(22, 116, 94, 0.38);
+  background: rgba(22, 116, 94, 0.08);
+  box-shadow: 0 10px 22px rgba(23, 32, 51, 0.08);
+}
+
+.dashboard-shell button:not(.dashboard-tab):not(.sidebar-icon-tab):not(:disabled):hover {
+  filter: brightness(0.97);
+  box-shadow: 0 10px 22px rgba(23, 32, 51, 0.1);
+}
+
+.dashboard-shell tbody tr {
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.dashboard-shell tbody tr.cursor-pointer:hover {
+  background: rgba(22, 116, 94, 0.08);
+  box-shadow: inset 3px 0 0 var(--leaf);
 }
 
 .dashboard-button-secondary:disabled {
