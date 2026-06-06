@@ -227,6 +227,12 @@ type TabKey =
   | "sessions"
   | "audit";
 
+type DashboardToast = {
+  id: number;
+  message: string;
+  tone: "success" | "error";
+};
+
 const tabs: {
   key: TabKey;
   label: string;
@@ -620,8 +626,8 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
   const actionInFlightRef = useRef(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toast, setToast] = useState<DashboardToast | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -770,7 +776,6 @@ export default function DashboardPage() {
       }
 
       setIsRefreshing(true);
-      setError("");
 
       try {
         const headers = { Authorization: `Bearer ${savedToken}` };
@@ -841,10 +846,11 @@ export default function DashboardPage() {
           await apiRequest<InvitationDesign[]>("/template-design/public/designs"),
         );
       } catch (caughtError) {
-        setError(
+        showToast(
           caughtError instanceof Error
             ? caughtError.message
             : "Could not load admin data.",
+          "error",
         );
       } finally {
         setIsRefreshing(false);
@@ -861,6 +867,15 @@ export default function DashboardPage() {
     void Promise.resolve().then(() => refreshAdminData(user));
   }, [refreshAdminData, user]);
 
+  useEffect(
+    () => () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   async function logout() {
     try {
       await request("/auth/logout", { method: "POST" });
@@ -873,6 +888,30 @@ export default function DashboardPage() {
     router.replace("/");
   }
 
+  function showToast(message: string, tone: DashboardToast["tone"]) {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    setToast({
+      id: Date.now(),
+      message,
+      tone,
+    });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 4200);
+  }
+
+  function dismissToast() {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast(null);
+  }
+
   async function completeAction(action: () => Promise<unknown>, message: string) {
     if (actionInFlightRef.current) {
       return false;
@@ -880,19 +919,18 @@ export default function DashboardPage() {
 
     actionInFlightRef.current = true;
     setIsActionPending(true);
-    setError("");
-    setNotice("");
 
     try {
       await action();
       await refreshAdminData();
-      setNotice(message);
+      showToast(message, "success");
       return true;
     } catch (caughtError) {
-      setError(
+      showToast(
         caughtError instanceof Error
           ? caughtError.message
           : "The action could not be completed.",
+        "error",
       );
       return false;
     } finally {
@@ -1038,17 +1076,6 @@ export default function DashboardPage() {
         </header>
         ) : null}
 
-        {notice ? (
-          <p className="mt-5 rounded-lg border border-leaf/20 bg-leaf/10 p-3 text-sm font-bold text-leaf">
-            {notice}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="mt-5 rounded-lg border border-rose/20 bg-rose/10 p-3 text-sm font-bold text-rose">
-            {error}
-          </p>
-        ) : null}
-
         {currentTab === "overview" ? (
           <OverviewPanel
             auditCount={auditLogs.length}
@@ -1146,7 +1173,45 @@ export default function DashboardPage() {
           <AuditPanel logs={auditLogs} />
         ) : null}
       </section>
+
+      <DashboardToastView onDismiss={dismissToast} toast={toast} />
     </main>
+  );
+}
+
+function DashboardToastView({
+  onDismiss,
+  toast,
+}: {
+  onDismiss: () => void;
+  toast: DashboardToast | null;
+}) {
+  if (!toast) {
+    return null;
+  }
+
+  return (
+    <div aria-live="polite" className="dashboard-toast-region">
+      <div
+        className={`dashboard-toast ${
+          toast.tone === "error" ? "dashboard-toast-error" : "dashboard-toast-success"
+        }`}
+        key={toast.id}
+        role="status"
+      >
+        <span className="dashboard-toast-dot" aria-hidden="true" />
+        <p>{toast.message}</p>
+        <button
+          aria-label="Dismiss notification"
+          className="dashboard-toast-close"
+          onClick={onDismiss}
+          title="Dismiss notification"
+          type="button"
+        >
+          x
+        </button>
+      </div>
+    </div>
   );
 }
 
