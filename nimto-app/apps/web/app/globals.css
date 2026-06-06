@@ -671,6 +671,35 @@ a {
   box-shadow: 0 12px 30px rgba(23, 32, 51, 0.05);
 }
 
+.template-editor-shell {
+  overflow: hidden;
+}
+
+.template-editor-toolbar {
+  min-height: 76px;
+}
+
+.template-editor-workspace {
+  align-items: start;
+  min-height: calc(100vh - 150px);
+}
+
+.template-editor-preview {
+  position: sticky;
+  top: 16px;
+}
+
+.template-editor-panel {
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+}
+
+.template-layer-list {
+  max-height: none;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 @media (max-width: 900px) {
   .auth-shell {
     grid-template-columns: 1fr;
@@ -718,6 +747,18 @@ a {
 
   .dashboard-hero {
     flex-direction: column;
+  }
+
+  .template-editor-panel {
+    max-height: none;
+  }
+
+  .template-editor-preview {
+    position: static;
+  }
+
+  .template-layer-list {
+    max-height: none;
   }
 }
 

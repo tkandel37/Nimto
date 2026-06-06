@@ -1543,6 +1543,7 @@ function DesignSetupPanel({
 }) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<InvitationTemplate | null>(null);
+  const [editorRawHtml, setEditorRawHtml] = useState("");
   const [editorFields, setEditorFields] = useState<TemplateEditorField[]>([]);
   const [selectedFieldKey, setSelectedFieldKey] = useState<string>("");
 
@@ -1628,17 +1629,15 @@ function DesignSetupPanel({
       `/template-design/templates/${templateId}`,
     );
     setSelectedTemplate(template);
+    setEditorRawHtml(template.rawHtml ?? "");
     const fields = extractTemplateEditorFields(template);
     setEditorFields(fields);
     setSelectedFieldKey(fields[0]?.key ?? "");
   }
 
   async function saveTemplateDraft() {
-    if (!selectedTemplate?.rawHtml) return;
-    const rawHtml = applyTemplateEditorFields(
-      selectedTemplate.rawHtml,
-      editorFields,
-    );
+    if (!selectedTemplate || !editorRawHtml) return;
+    const rawHtml = applyTemplateEditorFields(editorRawHtml, editorFields);
 
     await completeAction(
       async () => {
@@ -1650,6 +1649,7 @@ function DesignSetupPanel({
           },
         );
         setSelectedTemplate({ ...template, rawHtml });
+        setEditorRawHtml(rawHtml);
         setEditorFields(extractTemplateEditorFields({ ...template, rawHtml }));
       },
       "Template draft saved.",
@@ -1667,6 +1667,9 @@ function DesignSetupPanel({
     const template = await request<InvitationTemplate>(
       `/template-design/templates/${templateId}`,
     );
+    if (selectedTemplate?.id === template.id) {
+      setEditorRawHtml(template.rawHtml ?? "");
+    }
     setSelectedTemplate((current) =>
       current?.id === template.id ? template : current,
     );
@@ -1705,6 +1708,26 @@ function DesignSetupPanel({
     setEditorFields((fields) =>
       fields.map((field) => (field.key === key ? { ...field, ...patch } : field)),
     );
+  }
+
+  function updateEditorSource(rawHtml: string) {
+    setEditorRawHtml(rawHtml);
+    const templateForScan = selectedTemplate
+      ? { ...selectedTemplate, rawHtml }
+      : null;
+    if (!templateForScan) return;
+
+    setEditorFields((currentFields) => {
+      const nextFields = extractTemplateEditorFields(templateForScan);
+      const currentByKey = new Map(
+        currentFields.map((field) => [field.key, field]),
+      );
+      return nextFields.map((field) => ({
+        ...field,
+        ...currentByKey.get(field.key),
+        sectionKey: field.sectionKey,
+      }));
+    });
   }
 
   useEffect(() => {
@@ -1759,40 +1782,37 @@ function DesignSetupPanel({
 
   if (selectedTemplateSummary && libraryMode === "templates") {
     return (
-      <section className="mt-7 grid gap-5">
-        <button
-          className="w-fit rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
-          onClick={() => setSelectedTemplateId("")}
-          type="button"
-        >
-          Back to templates
-        </button>
-        <TemplateDetailPanel
-          canDuplicateTemplates={canDuplicateTemplates}
-          canPublishTemplates={canPublishTemplates}
-          canUnpublishTemplates={canUnpublishTemplates}
-          canUpdateTemplates={canUpdateTemplates}
-          onDuplicate={duplicateTemplate}
-          onEdit={openTemplateEditor}
-          onPublish={publishTemplate}
-          onUnpublish={unpublishTemplate}
-          template={selectedTemplateSummary}
-        />
+      <section className={selectedTemplate ? "mt-3" : "mt-7 grid gap-5"}>
         {selectedTemplate ? (
           <TemplateEditorPanel
             canPublishTemplates={canPublishTemplates}
             canUnpublishTemplates={canUnpublishTemplates}
+            editorRawHtml={editorRawHtml}
             editorFields={editorFields}
+            onBack={() => setSelectedTemplateId("")}
             onPublish={publishTemplate}
             onSave={saveTemplateDraft}
             onSelectField={setSelectedFieldKey}
             onUnpublish={unpublishTemplate}
             onUpdateField={updateEditorField}
+            onUpdateSource={updateEditorSource}
             selectedField={selectedField}
             selectedFieldKey={selectedFieldKey}
             selectedTemplate={selectedTemplate}
           />
-        ) : null}
+        ) : (
+          <TemplateDetailPanel
+            canDuplicateTemplates={canDuplicateTemplates}
+            canPublishTemplates={canPublishTemplates}
+            canUnpublishTemplates={canUnpublishTemplates}
+            canUpdateTemplates={canUpdateTemplates}
+            onDuplicate={duplicateTemplate}
+            onEdit={openTemplateEditor}
+            onPublish={publishTemplate}
+            onUnpublish={unpublishTemplate}
+            template={selectedTemplateSummary}
+          />
+        )}
       </section>
     );
   }
@@ -2059,12 +2079,15 @@ function DesignSetupPanel({
         <TemplateEditorPanel
           canPublishTemplates={canPublishTemplates}
           canUnpublishTemplates={canUnpublishTemplates}
+          editorRawHtml={editorRawHtml}
           editorFields={editorFields}
+          onBack={() => setSelectedTemplateId("")}
           onPublish={publishTemplate}
           onSave={saveTemplateDraft}
           onSelectField={setSelectedFieldKey}
           onUnpublish={unpublishTemplate}
           onUpdateField={updateEditorField}
+          onUpdateSource={updateEditorSource}
           selectedField={selectedField}
           selectedFieldKey={selectedFieldKey}
           selectedTemplate={selectedTemplate}
@@ -2463,42 +2486,104 @@ function TemplateDetailPanel({
 function TemplateEditorPanel({
   canPublishTemplates,
   canUnpublishTemplates,
+  editorRawHtml,
   editorFields,
+  onBack,
   onPublish,
   onSave,
   onSelectField,
   onUnpublish,
   onUpdateField,
+  onUpdateSource,
   selectedField,
   selectedFieldKey,
   selectedTemplate,
 }: {
   canPublishTemplates: boolean;
   canUnpublishTemplates: boolean;
+  editorRawHtml: string;
   editorFields: TemplateEditorField[];
+  onBack: () => void;
   onPublish: (templateId: string) => void;
   onSave: () => void;
   onSelectField: (fieldKey: string) => void;
   onUnpublish: (templateId: string) => void;
   onUpdateField: (key: string, patch: Partial<TemplateEditorField>) => void;
+  onUpdateSource: (rawHtml: string) => void;
   selectedField?: TemplateEditorField;
   selectedFieldKey: string;
   selectedTemplate: InvitationTemplate;
 }) {
+  const [isSourceMode, setIsSourceMode] = useState(false);
+  const previewRef = useRef<HTMLIFrameElement | null>(null);
+  const selectedFieldIndex = editorFields.findIndex(
+    (field) => field.key === selectedFieldKey,
+  );
+  const previewHtml = useMemo(
+    () => templateEditorPreviewHtml(editorRawHtml, editorFields, selectedFieldKey),
+    [editorRawHtml, selectedTemplate.id],
+  );
+
+  function moveSelection(direction: -1 | 1) {
+    if (!editorFields.length) return;
+    const currentIndex = selectedFieldIndex >= 0 ? selectedFieldIndex : 0;
+    const nextIndex =
+      (currentIndex + direction + editorFields.length) % editorFields.length;
+    onSelectField(editorFields[nextIndex].key);
+  }
+
+  const syncPreview = useCallback(() => {
+    previewRef.current?.contentWindow?.postMessage(
+      {
+        source: "nimto-template-editor",
+        type: "syncFields",
+        fields: editorFields,
+        selectedFieldKey,
+      },
+      "*",
+    );
+  }, [editorFields, selectedFieldKey]);
+
+  useEffect(() => {
+    syncPreview();
+  }, [syncPreview]);
+
   return (
-    <div className="border border-ink/10 bg-white p-5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-xl font-black text-ink">
-            {selectedTemplate.name}
-          </h2>
-          <p className="mt-1 text-sm text-ink/55">
-            Preview is the working surface. Side panel controls field rules.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="template-editor-shell border border-ink/10 bg-white">
+      <div className="template-editor-toolbar flex flex-col gap-3 border-b border-ink/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <button
-            className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
+            aria-label="Back to templates"
+            className="grid h-10 w-10 flex-none place-items-center rounded-lg border border-ink/15 bg-white text-ink"
+            onClick={onBack}
+            title="Back to templates"
+            type="button"
+          >
+            <BackIcon />
+          </button>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-black text-ink">
+              {selectedTemplate.name}
+            </h2>
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
+              {selectedTemplate.status} · {editorFields.length} editable fields
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            aria-label={isSourceMode ? "Show visual preview" : "Edit source code"}
+            className={`grid h-11 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink ${
+              isSourceMode ? "text-leaf" : ""
+            }`}
+            onClick={() => setIsSourceMode((value) => !value)}
+            title={isSourceMode ? "Show visual preview" : "Edit source code"}
+            type="button"
+          >
+            {isSourceMode ? <PreviewIcon /> : <CodeIcon />}
+          </button>
+          <button
+            className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white"
             onClick={onSave}
             type="button"
           >
@@ -2506,7 +2591,7 @@ function TemplateEditorPanel({
           </button>
           {canPublishTemplates ? (
             <button
-              className="rounded-lg bg-leaf px-4 py-3 font-bold text-white"
+              className="rounded-lg bg-leaf px-4 py-3 text-sm font-bold text-white"
               onClick={() => onPublish(selectedTemplate.id)}
               type="button"
             >
@@ -2515,7 +2600,7 @@ function TemplateEditorPanel({
           ) : null}
           {canUnpublishTemplates && selectedTemplate.designId ? (
             <button
-              className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-3 font-bold text-rose"
+              className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-3 text-sm font-bold text-rose"
               onClick={() => onUnpublish(selectedTemplate.id)}
               type="button"
             >
@@ -2525,57 +2610,75 @@ function TemplateEditorPanel({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <iframe
-          className="h-[640px] w-full border border-ink/10 bg-white"
-          sandbox="allow-scripts allow-same-origin"
-          srcDoc={templateEditorPreviewHtml(
-            selectedTemplate.rawHtml ?? "",
-            editorFields,
-            selectedFieldKey,
+      <div className="template-editor-workspace grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="template-editor-preview min-w-0">
+          {isSourceMode ? (
+            <textarea
+              className="min-h-[calc(100vh-150px)] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
+              onChange={(event) => onUpdateSource(event.target.value)}
+              value={editorRawHtml}
+            />
+          ) : (
+            <iframe
+              className="h-[calc(100vh-150px)] min-h-[620px] w-full border-0 bg-white"
+              onLoad={syncPreview}
+              ref={previewRef}
+              sandbox="allow-scripts allow-same-origin"
+              srcDoc={previewHtml}
+              title={`${selectedTemplate.name} preview`}
+            />
           )}
-          title={`${selectedTemplate.name} preview`}
-        />
+        </div>
 
-        <div className="border border-ink/10 bg-paper/70 p-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.16em] text-ink/55">
-            Layers
-          </h3>
-          <div className="mt-4 grid gap-2">
-            {groupTemplateFields(
-              editorFields,
-              selectedTemplate.scanResult?.sections ?? [],
-            ).map((group) => (
-              <div key={group.key}>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/40">
-                  {group.label}
-                </p>
-                <div className="mt-2 grid gap-2">
-                  {group.fields.map((field) => (
-                    <button
-                      className={`rounded-lg border px-3 py-2 text-left text-sm font-bold ${
-                        field.key === selectedFieldKey
-                          ? "border-leaf bg-leaf/10 text-leaf"
-                          : "border-ink/10 bg-white text-ink"
-                      }`}
-                      key={field.key}
-                      onClick={() => onSelectField(field.key)}
-                      type="button"
-                    >
-                      {field.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
+        <aside className="template-editor-panel border-t border-ink/10 bg-paper/70 p-4 xl:border-l xl:border-t-0">
           {selectedField ? (
-            <div className="mt-5 grid gap-3 border-t border-ink/10 pt-4">
-              <label className="field">
+            <div className="rounded-lg border border-leaf/20 bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-leaf">
+                    Selected
+                  </p>
+                  <h3 className="mt-1 break-words text-base font-black text-ink">
+                    {selectedField.label}
+                  </h3>
+                </div>
+                <span className="rounded-full bg-leaf/10 px-2 py-1 text-xs font-black text-leaf">
+                  {selectedField.locked
+                    ? "Locked field"
+                    : selectedField.required
+                      ? "Input field"
+                      : "Content field"}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+                <button
+                  aria-label="Previous field"
+                  className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
+                  disabled={editorFields.length < 2}
+                  onClick={() => moveSelection(-1)}
+                  title="Previous field"
+                  type="button"
+                >
+                  <BackIcon />
+                </button>
+                <p className="truncate text-center text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                  Field {selectedFieldIndex + 1} of {editorFields.length}
+                </p>
+                <button
+                  aria-label="Next field"
+                  className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
+                  disabled={editorFields.length < 2}
+                  onClick={() => moveSelection(1)}
+                  title="Next field"
+                  type="button"
+                >
+                  <CollapseIcon isCollapsed />
+                </button>
+              </div>
+              <label className="field mt-3">
                 <span className="text-sm font-bold text-ink">Value</span>
                 <textarea
-                  className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
                   value={selectedField.value}
                   onChange={(event) =>
                     onUpdateField(selectedField.key, {
@@ -2584,64 +2687,145 @@ function TemplateEditorPanel({
                   }
                 />
               </label>
-              <label className="field">
-                <span className="text-sm font-bold text-ink">Type</span>
-                <select
-                  className="rounded-lg border border-ink/20 bg-white px-3 py-3"
-                  value={selectedField.type}
-                  onChange={(event) =>
-                    onUpdateField(selectedField.key, {
-                      type: event.target.value,
-                    })
-                  }
-                >
-                  <option value="text">Text</option>
-                  <option value="long_text">Long text</option>
-                  <option value="date">Date</option>
-                  <option value="datetime">Date time</option>
-                  <option value="custom_name">Custom name</option>
-                  <option value="image">Image</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm font-bold text-ink">
-                <input
-                  checked={selectedField.required}
-                  onChange={(event) =>
-                    onUpdateField(selectedField.key, {
-                      required: event.target.checked,
-                    })
-                  }
-                  type="checkbox"
-                />
-                Required
-              </label>
-              <label className="flex items-center gap-2 text-sm font-bold text-ink">
-                <input
-                  checked={selectedField.locked}
-                  onChange={(event) =>
-                    onUpdateField(selectedField.key, {
-                      locked: event.target.checked,
-                    })
-                  }
-                  type="checkbox"
-                />
-                Locked
-              </label>
-              <label className="flex items-center gap-2 text-sm font-bold text-ink">
-                <input
-                  checked={selectedField.paid}
-                  onChange={(event) =>
-                    onUpdateField(selectedField.key, {
-                      paid: event.target.checked,
-                    })
-                  }
-                  type="checkbox"
-                />
-                Paid custom field
-              </label>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">Type</span>
+                  <select
+                    className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                    value={selectedField.type}
+                    onChange={(event) =>
+                      onUpdateField(selectedField.key, {
+                        type: event.target.value,
+                      })
+                    }
+                  >
+                    <option value="text">Text</option>
+                    <option value="long_text">Long text</option>
+                    <option value="date">Date</option>
+                    <option value="datetime">Date time</option>
+                    <option value="custom_name">Custom name</option>
+                    <option value="image">Image</option>
+                  </select>
+                </label>
+                <div className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                    Field role
+                  </p>
+                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                    <input
+                      checked={selectedField.required && !selectedField.locked}
+                      className="mt-1"
+                      name={`field-role-${selectedField.key}`}
+                      onChange={() =>
+                        onUpdateField(selectedField.key, {
+                          required: true,
+                          locked: false,
+                        })
+                      }
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block">Input field</span>
+                      <span className="block text-xs font-semibold leading-5 text-ink/50">
+                        User must enter this value.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                    <input
+                      checked={!selectedField.required && !selectedField.locked}
+                      className="mt-1"
+                      name={`field-role-${selectedField.key}`}
+                      onChange={() =>
+                        onUpdateField(selectedField.key, {
+                          required: false,
+                          locked: false,
+                        })
+                      }
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block">Content field</span>
+                      <span className="block text-xs font-semibold leading-5 text-ink/50">
+                        User may keep or edit this content.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                    <input
+                      checked={selectedField.locked}
+                      className="mt-1"
+                      name={`field-role-${selectedField.key}`}
+                      onChange={() =>
+                        onUpdateField(selectedField.key, {
+                          required: false,
+                          locked: true,
+                        })
+                      }
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block">Locked field</span>
+                      <span className="block text-xs font-semibold leading-5 text-ink/50">
+                        User cannot view or edit this field.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="mt-1 flex items-center gap-2 border-t border-ink/10 pt-3 text-sm font-bold text-ink">
+                    <input
+                      checked={selectedField.paid}
+                      onChange={(event) =>
+                        onUpdateField(selectedField.key, {
+                          paid: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    Paid custom field
+                  </label>
+                </div>
+              </div>
             </div>
-          ) : null}
-        </div>
+          ) : (
+            <div className="rounded-lg border border-ink/10 bg-white p-4 text-sm font-bold text-ink/55">
+              Select a layer or click editable text in the preview.
+            </div>
+          )}
+
+          <div className="mt-4">
+            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-ink/55">
+              Structured layers
+            </h3>
+            <div className="template-layer-list mt-3 grid gap-3">
+              {groupTemplateFields(
+                editorFields,
+                selectedTemplate.scanResult?.sections ?? [],
+              ).map((group) => (
+                <div key={group.key}>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/40">
+                    {group.label}
+                  </p>
+                  <div className="mt-2 grid gap-2">
+                    {group.fields.map((field) => (
+                      <button
+                        className={`rounded-lg border px-3 py-2 text-left text-sm font-bold ${
+                          field.key === selectedFieldKey
+                            ? "border-leaf bg-leaf/10 text-leaf"
+                            : "border-ink/10 bg-white text-ink"
+                        }`}
+                        key={field.key}
+                        onClick={() => onSelectField(field.key)}
+                        type="button"
+                      >
+                        {field.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -3104,6 +3288,10 @@ function templateEditorPreviewHtml(
   const state = JSON.stringify({
     fields: fields.map((field) => ({
       key: field.key,
+      value: field.value,
+      type: field.type,
+      required: field.required,
+      paid: field.paid,
       locked: field.locked,
     })),
     selectedFieldKey,
@@ -3120,25 +3308,57 @@ function templateEditorPreviewHtml(
       (() => {
         const state = ${state};
         const fields = new Map(state.fields.map((field) => [field.key, field]));
-        function selectField(key) {
+        function setBooleanMarker(element, attribute, enabled) {
+          if (enabled) {
+            element.setAttribute(attribute, "true");
+            return;
+          }
+          element.removeAttribute(attribute);
+        }
+        function applyField(field) {
+          const element = document.querySelector('[data-nimto-field="' + field.key + '"]');
+          if (!element) return;
+          if (element.textContent !== field.value) element.textContent = field.value || "";
+          element.setAttribute("data-nimto-type", field.type || "text");
+          setBooleanMarker(element, "data-nimto-required", field.required);
+          setBooleanMarker(element, "data-nimto-paid", field.paid);
+          setBooleanMarker(element, "data-nimto-locked", field.locked);
+          if (field.locked) {
+            element.removeAttribute("contenteditable");
+          } else {
+            element.setAttribute("contenteditable", "true");
+          }
+        }
+        function selectField(key, notify = true, shouldScroll = true) {
           document.querySelectorAll("[data-nimto-field]").forEach((element) => {
             element.removeAttribute("data-nimto-preview-selected");
           });
           const element = document.querySelector('[data-nimto-field="' + key + '"]');
-          element?.setAttribute("data-nimto-preview-selected", "true");
-          window.parent.postMessage({
-            source: "nimto-template-preview",
-            type: "selectField",
-            fieldKey: key
-          }, "*");
+          if (element) {
+            element.setAttribute("data-nimto-preview-selected", "true");
+            if (shouldScroll) {
+              element.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+                inline: "center"
+              });
+            }
+          }
+          if (notify) {
+            window.parent.postMessage({
+              source: "nimto-template-preview",
+              type: "selectField",
+              fieldKey: key
+            }, "*");
+          }
         }
         document.querySelectorAll("[data-nimto-field]").forEach((element) => {
           const key = element.getAttribute("data-nimto-field");
           const field = fields.get(key);
-          if (!field?.locked) element.setAttribute("contenteditable", "true");
+          if (field) applyField(field);
           element.addEventListener("click", (event) => {
             event.preventDefault();
-            selectField(key);
+            selectField(key, true, false);
           });
           element.addEventListener("input", () => {
             window.parent.postMessage({
@@ -3149,7 +3369,18 @@ function templateEditorPreviewHtml(
             }, "*");
           });
         });
-        if (state.selectedFieldKey) selectField(state.selectedFieldKey);
+        window.addEventListener("message", (event) => {
+          if (event.data?.source !== "nimto-template-editor") return;
+          if (event.data.type !== "syncFields") return;
+          event.data.fields?.forEach((field) => {
+            fields.set(field.key, field);
+            applyField(field);
+          });
+          if (event.data.selectedFieldKey) {
+            selectField(event.data.selectedFieldKey, false, true);
+          }
+        });
+        if (state.selectedFieldKey) selectField(state.selectedFieldKey, false, true);
       })();
     </script>
   `;
