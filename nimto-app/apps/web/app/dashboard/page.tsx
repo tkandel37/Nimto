@@ -236,6 +236,25 @@ type DashboardToast = {
   tone: "success" | "error";
 };
 
+type DashboardDataSnapshot = {
+  userId: string;
+  cachedAt: number;
+  events: InvitationEvent[];
+  permissions: Permission[];
+  roles: Role[];
+  staff: Staff[];
+  sessions: Session[];
+  auditLogs: AuditLog[];
+  designCategories: DesignCategory[];
+  templates: InvitationTemplate[];
+  designs: InvitationDesign[];
+  pages: PageContent[];
+  blogPosts: BlogPost[];
+  publicDesigns: InvitationDesign[];
+};
+
+const DASHBOARD_CACHE_PREFIX = "nimto_dashboard_cache:";
+
 const tabs: {
   key: TabKey;
   label: string;
@@ -693,6 +712,42 @@ export default function DashboardPage() {
       ? activeTab
       : "overview";
 
+  function applyDashboardSnapshot(snapshot: DashboardDataSnapshot) {
+    setEvents(snapshot.events);
+    setPermissions(snapshot.permissions);
+    setRoles(snapshot.roles);
+    setStaff(snapshot.staff);
+    setSessions(snapshot.sessions);
+    setAuditLogs(snapshot.auditLogs);
+    setDesignCategories(snapshot.designCategories);
+    setTemplates(snapshot.templates);
+    setDesigns(snapshot.designs);
+    setPages(snapshot.pages);
+    setBlogPosts(snapshot.blogPosts);
+    setPublicDesigns(snapshot.publicDesigns);
+  }
+
+  function hydrateDashboardCache(userId: string) {
+    try {
+      const cached = localStorage.getItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      if (!cached) return;
+      applyDashboardSnapshot(JSON.parse(cached) as DashboardDataSnapshot);
+    } catch {
+      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+    }
+  }
+
+  function storeDashboardCache(snapshot: DashboardDataSnapshot) {
+    try {
+      localStorage.setItem(
+        `${DASHBOARD_CACHE_PREFIX}${snapshot.userId}`,
+        JSON.stringify(snapshot),
+      );
+    } catch {
+      // Cache is only a speed layer; ignore storage pressure.
+    }
+  }
+
   useEffect(() => {
     const shell = document.querySelector(".dashboard-shell");
     if (!shell) {
@@ -742,13 +797,26 @@ export default function DashboardPage() {
       return;
     }
 
+    const savedUser = localStorage.getItem("nimto_user");
+    if (savedUser) {
+      try {
+        const cachedUser = JSON.parse(savedUser) as AuthUser;
+        setUser(cachedUser);
+        setIsLoading(false);
+        hydrateDashboardCache(cachedUser.id);
+      } catch {
+        localStorage.removeItem("nimto_user");
+      }
+    }
+
     apiRequest<{ user: AuthUser }>("/auth/me", {
       headers: {
         Authorization: `Bearer ${savedToken}`,
       },
-    })
+      })
       .then((response) => {
         setUser(response.user);
+        hydrateDashboardCache(response.user.id);
         localStorage.setItem("nimto_user", JSON.stringify(response.user));
       })
       .catch((caughtError) => {
@@ -854,6 +922,7 @@ export default function DashboardPage() {
           canAny(authUser, ["blog:manage:own", "blog:manage:all"])
             ? apiRequest<BlogPost[]>("/cms/admin/blog", { headers })
             : Promise.resolve([]),
+          apiRequest<InvitationDesign[]>("/template-design/public/designs"),
         ]);
 
         setEvents(results[0]);
@@ -867,9 +936,23 @@ export default function DashboardPage() {
         setDesigns(results[8]);
         setPages(results[9]);
         setBlogPosts(results[10]);
-        setPublicDesigns(
-          await apiRequest<InvitationDesign[]>("/template-design/public/designs"),
-        );
+        setPublicDesigns(results[11]);
+        storeDashboardCache({
+          userId: authUser.id,
+          cachedAt: Date.now(),
+          events: results[0],
+          permissions: results[1],
+          roles: results[2],
+          staff: results[3],
+          sessions: results[4],
+          auditLogs: results[5],
+          designCategories: results[6],
+          templates: results[7],
+          designs: results[8],
+          pages: results[9],
+          blogPosts: results[10],
+          publicDesigns: results[11],
+        });
       } catch (caughtError) {
         showToast(
           caughtError instanceof Error
@@ -910,6 +993,9 @@ export default function DashboardPage() {
 
     localStorage.removeItem("nimto_token");
     localStorage.removeItem("nimto_user");
+    if (user?.id) {
+      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${user.id}`);
+    }
     setUser(null);
     router.replace("/");
   }
