@@ -479,6 +479,12 @@ a {
   opacity: 0.62;
 }
 
+.dashboard-shell.action-pending button {
+  cursor: progress;
+  opacity: 0.68;
+  pointer-events: none;
+}
+
 .dashboard-shell form,
 .dashboard-shell article,
 .dashboard-shell table,

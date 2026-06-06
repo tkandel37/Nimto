@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest, AuthUser } from "@/lib/api";
@@ -182,6 +189,11 @@ type TemplateEditorField = {
   locked: boolean;
   value: string;
 };
+
+type CompleteAction = (
+  action: () => Promise<unknown>,
+  message: string,
+) => Promise<boolean>;
 
 type BlogPost = {
   id: string;
@@ -443,6 +455,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isActionPending, setIsActionPending] = useState(false);
+  const actionInFlightRef = useRef(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -661,10 +675,13 @@ export default function DashboardPage() {
     router.replace("/");
   }
 
-  async function completeAction(
-    action: () => Promise<unknown>,
-    message: string,
-  ) {
+  async function completeAction(action: () => Promise<unknown>, message: string) {
+    if (actionInFlightRef.current) {
+      return false;
+    }
+
+    actionInFlightRef.current = true;
+    setIsActionPending(true);
     setError("");
     setNotice("");
 
@@ -672,12 +689,17 @@ export default function DashboardPage() {
       await action();
       await refreshAdminData();
       setNotice(message);
+      return true;
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : "The action could not be completed.",
       );
+      return false;
+    } finally {
+      actionInFlightRef.current = false;
+      setIsActionPending(false);
     }
   }
 
@@ -690,7 +712,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="dashboard-shell">
+    <main
+      aria-busy={isActionPending}
+      className={`dashboard-shell ${isActionPending ? "action-pending" : ""}`}
+    >
       <aside className="sidebar">
         <div>
           <Link
@@ -973,10 +998,7 @@ function EventsPanel({
   events,
   request,
 }: {
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   designs: InvitationDesign[];
   events: InvitationEvent[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -990,7 +1012,7 @@ function EventsPanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
 
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request("/events", {
           method: "POST",
@@ -998,7 +1020,7 @@ function EventsPanel({
         }),
       "Event created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updateEvent(
@@ -1019,11 +1041,11 @@ function EventsPanel({
   }
 
   async function deleteEvent(invitationEvent: InvitationEvent) {
-    await completeAction(
+    const completed = await completeAction(
       () => request(`/events/${invitationEvent.id}`, { method: "DELETE" }),
       "Event deleted.",
     );
-    setSelectedEventId("");
+    if (completed) setSelectedEventId("");
   }
 
   if (selectedEvent) {
@@ -1298,10 +1320,7 @@ function DesignSetupPanel({
   canUnpublishTemplates: boolean;
   canUpdateTemplates: boolean;
   categories: DesignCategory[];
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   designs: InvitationDesign[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   templates: InvitationTemplate[];
@@ -1373,7 +1392,7 @@ function DesignSetupPanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
 
-    await completeAction(
+    const completed = await completeAction(
       async () =>
         request("/template-design/templates", {
           method: "POST",
@@ -1381,9 +1400,11 @@ function DesignSetupPanel({
         }),
       "Template uploaded as draft.",
     );
-    event.currentTarget.reset();
-    setCreatePreviewHtml("");
-    setIsCreatingTemplate(false);
+    if (completed) {
+      event.currentTarget.reset();
+      setCreatePreviewHtml("");
+      setIsCreatingTemplate(false);
+    }
   }
 
   async function openTemplateEditor(templateId: string) {
@@ -2493,16 +2514,13 @@ function SettingsPanel({
   canManageCategories: boolean;
   canManageSubcategories: boolean;
   categories: DesignCategory[];
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
 }) {
   async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request("/template-design/categories", {
           method: "POST",
@@ -2510,7 +2528,7 @@ function SettingsPanel({
         }),
       "Category created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updateCategory(
@@ -2533,7 +2551,7 @@ function SettingsPanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const categoryId = String(form.get("categoryId") ?? "");
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request(`/template-design/categories/${categoryId}/subcategories`, {
           method: "POST",
@@ -2541,7 +2559,7 @@ function SettingsPanel({
         }),
       "Subcategory created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updateSubcategory(
@@ -2960,10 +2978,7 @@ function WebsitePanel({
 }: {
   canManageBlog: boolean;
   canManageContent: boolean;
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   pages: PageContent[];
   posts: BlogPost[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -2990,7 +3005,7 @@ function WebsitePanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
 
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request("/cms/admin/blog", {
           method: "POST",
@@ -2998,7 +3013,7 @@ function WebsitePanel({
         }),
       "Blog post created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updatePost(event: FormEvent<HTMLFormElement>, postId: string) {
@@ -3228,10 +3243,7 @@ function RolesPanel({
   roles,
 }: {
   canManage: boolean;
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   permissions: Permission[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
@@ -3245,7 +3257,7 @@ function RolesPanel({
     const form = new FormData(event.currentTarget);
     const permissionKeys = form.getAll("permissionKeys").map(String);
 
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request("/admin/roles", {
           method: "POST",
@@ -3257,7 +3269,7 @@ function RolesPanel({
         }),
       "Role created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updateRole(event: FormEvent<HTMLFormElement>) {
@@ -3284,11 +3296,11 @@ function RolesPanel({
   }
 
   async function deleteRole(role: Role) {
-    await completeAction(
+    const completed = await completeAction(
       () => request(`/admin/roles/${role.id}`, { method: "DELETE" }),
       "Role deleted.",
     );
-    setEditingRoleId("");
+    if (completed) setEditingRoleId("");
   }
 
   if (editingRole) {
@@ -3470,10 +3482,7 @@ function PermissionsPanel({
   roles,
 }: {
   canManage: boolean;
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   permissions: Permission[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
@@ -3537,10 +3546,7 @@ function StaffPanel({
   staff,
 }: {
   canManage: boolean;
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
   staff: Staff[];
@@ -3553,7 +3559,7 @@ function StaffPanel({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
 
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request("/admin/staff", {
           method: "POST",
@@ -3566,7 +3572,7 @@ function StaffPanel({
         }),
       "Staff account created.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   async function updateStaff(
@@ -3577,7 +3583,7 @@ function StaffPanel({
     const form = new FormData(event.currentTarget);
     const password = String(form.get("password") ?? "");
 
-    await completeAction(
+    const completed = await completeAction(
       () =>
         request(`/admin/staff/${userId}`, {
           method: "PATCH",
@@ -3590,7 +3596,7 @@ function StaffPanel({
         }),
       "Staff account updated.",
     );
-    event.currentTarget.reset();
+    if (completed) event.currentTarget.reset();
   }
 
   if (selectedStaff) {
@@ -3789,10 +3795,7 @@ function SessionsPanel({
   sessions,
 }: {
   canManage: boolean;
-  completeAction: (
-    action: () => Promise<unknown>,
-    message: string,
-  ) => Promise<void>;
+  completeAction: CompleteAction;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   sessions: Session[];
 }) {

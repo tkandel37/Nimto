@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sangeeta & Roshan – Wedding Reception</title>
+  <script type="application/json" id="nimto-template-meta">
+  {
+    "title": "Nepali Wedding Invitation",
+    "categoryHint": "Wedding",
+    "subcategoryHint": "Reception",
+    "version": "1.0.0",
+    "supportedModes": ["generic"],
+    "countdownFieldKey": "event_date",
+    "sections": [
+      { "key": "cover", "label": "Cover Page", "order": 1 },
+      { "key": "invitation", "label": "Invitation Details", "order": 2 },
+      { "key": "schedule", "label": "Date and Time", "order": 3 },
+      { "key": "venue", "label": "Venue", "order": 4 },
+      { "key": "countdown", "label": "Countdown", "order": 5 },
+      { "key": "closing", "label": "Closing", "order": 6 }
+    ],
+    "features": ["countdown", "animation"]
+  }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;700&family=Yeseva+One&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Great+Vibes&family=Josefin+Sans:wght@200;300;400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --saffron:   #e8751a;
+      --saffron2:  #f4a229;
+      --sindoor:   #c0392b;
+      --gold:      #d4a017;
+      --gold-lt:   #f0d27a;
+      --gold-dk:   #a87708;
+      --maroon:    #6b1a1a;
+      --cream:     #fdf6ec;
+      --ivory:     #fffdf7;
+      --text-dk:   #3a1e0a;
+      --text-md:   #6b4226;
+      --text-lt:   #9e7a56;
+      --marigold:  #f5a623;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      min-height: 100vh;
+      background: var(--maroon);
+      background-image:
+        radial-gradient(ellipse 80% 60% at 50% 0%, #8b1a1a 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 50% 100%, #4a0e0e 0%, transparent 70%);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 30px 16px 60px;
+      font-family: 'Cormorant Garamond', serif;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Background rangoli pattern ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(232,117,26,.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(212,160,23,.08) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(192,57,43,.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Floating marigold petals ── */
+    .petal-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .petal {
+      position: absolute;
+      border-radius: 50% 50% 50% 0 / 60% 60% 40% 40%;
+      opacity: 0;
+      animation: petalFloat linear infinite;
+    }
+    @keyframes petalFloat {
+      0%   { transform: translateY(110vh) rotate(0deg) scale(.4); opacity:0; }
+      5%   { opacity: .9; }
+      80%  { opacity: .4; }
+      100% { transform: translateY(-12vh) rotate(540deg) scale(1.2); opacity:0; }
+    }
+    .diya-spark {
+      position: absolute;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #f5c842;
+      box-shadow: 0 0 8px 4px rgba(245,200,66,.6);
+      opacity: 0;
+      animation: sparkFloat linear infinite;
+    }
+    @keyframes sparkFloat {
+      0%   { transform: translateY(110vh) scale(.3); opacity:0; }
+      8%   { opacity:1; }
+      90%  { opacity:.2; }
+      100% { transform: translateY(-8vh) scale(1); opacity:0; }
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      z-index: 1;
+      max-width: 700px;
+      width: 100%;
+      background: var(--ivory);
+      border-radius: 2px;
+      box-shadow:
+        0 0 0 1px rgba(212,160,23,.3),
+        0 0 0 6px rgba(212,160,23,.12),
+        0 0 0 7px rgba(212,160,23,.2),
+        0 30px 80px rgba(0,0,0,.45),
+        0 10px 30px rgba(0,0,0,.25);
+      animation: cardRise 1.4s cubic-bezier(.16,1,.3,1) forwards;
+      opacity: 0;
+      overflow: hidden;
+    }
+    @keyframes cardRise {
+      from { opacity:0; transform: translateY(40px) scale(.97); }
+      to   { opacity:1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── Header band ── */
+    .header-band {
+      background: linear-gradient(135deg, var(--maroon) 0%, #8b1a1a 40%, var(--sindoor) 100%);
+      padding: 36px 40px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .header-band::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1.5' fill='rgba(244,162,41,.25)'/%3E%3Ccircle cx='0' cy='0' r='1' fill='rgba(244,162,41,.15)'/%3E%3Ccircle cx='60' cy='60' r='1' fill='rgba(244,162,41,.15)'/%3E%3C/svg%3E");
+      opacity: .8;
+    }
+    .header-band::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, var(--gold-lt) 20%, var(--gold) 50%, var(--gold-lt) 80%, transparent);
+    }
+
+    /* OM symbol */
+    .om-symbol {
+      font-size: 2.8rem;
+      color: var(--gold-lt);
+      margin-bottom: 10px;
+      display: block;
+      opacity: 0;
+      animation: fadeUp .8s .5s ease forwards;
+      text-shadow: 0 0 20px rgba(240,210,122,.5);
+      position: relative;
+    }
+
+    .reception-label {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      font-size: .72rem;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      color: var(--gold-lt);
+      margin-bottom: 18px;
+      display: block;
+      opacity: 0;
+      animation: fadeUp .8s .7s ease forwards;
+      position: relative;
+    }
+
+    .couple-names {
+      font-family: 'Great Vibes', cursive;
+      font-size: 5rem;
+      color: #fff;
+      line-height: 1.15;
+      text-shadow: 0 2px 20px rgba(0,0,0,.3), 0 0 40px rgba(212,160,23,.3);
+      opacity: 0;
+      animation: fadeUp .9s .9s ease forwards;
+      position: relative;
+    }
+    .couple-amp {
+      display: block;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 2rem;
+      color: var(--gold-lt);
+      font-weight: 300;
+      margin: 4px 0;
+    }
+
+    @media(max-width:520px) {
+      .couple-names { font-size: 3.6rem; }
+    }
+
+    /* ── Marigold garland SVG divider ── */
+    .garland {
+      width: 100%;
+      height: 28px;
+      display: block;
+      margin: 0;
+    }
+
+    /* ── Body content ── */
+    .body-content {
+      padding: 38px 48px 44px;
+      text-align: center;
+      background: var(--ivory);
+      position: relative;
+    }
+    @media(max-width:520px) {
+      .body-content { padding: 28px 22px 38px; }
+    }
+
+    /* Corner rangoli decorations */
+    .corner {
+      position: absolute;
+      width: 80px; height: 80px;
+      opacity: .18;
+      pointer-events: none;
+    }
+    .corner-tl { top:0; left:0; }
+    .corner-tr { top:0; right:0; transform: scaleX(-1); }
+    .corner-bl { bottom:0; left:0; transform: scaleY(-1); }
+    .corner-br { bottom:0; right:0; transform: scale(-1); }
+
+    /* ── Devanagari blessing ── */
+    .blessing {
+      font-family: 'Noto Serif Devanagari', serif;
+      font-size: 1.05rem;
+      color: var(--sindoor);
+      letter-spacing: 3px;
+      margin-bottom: 6px;
+      opacity: 0;
+      animation: fadeUp .8s 1.2s ease forwards;
+    }
+    .sub-blessing {
+      font-size: .9rem;
+      color: var(--text-lt);
+      font-style: italic;
+      margin-bottom: 28px;
+      opacity: 0;
+      animation: fadeUp .8s 1.35s ease forwards;
+    }
+
+    /* ── Gold rule ── */
+    .gold-rule {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 22px 0;
+      opacity: 0;
+      animation: fadeUp .8s 1.5s ease forwards;
+    }
+    .gold-rule::before, .gold-rule::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold));
+    }
+    .gold-rule::after { background: linear-gradient(90deg, var(--gold), transparent); }
+    .rule-icon { color: var(--gold); font-size: 1.1rem; }
+
+    /* ── Request line ── */
+    .request-line {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 300;
+      font-size: .78rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--text-md);
+      margin-bottom: 26px;
+      opacity: 0;
+      animation: fadeUp .8s 1.6s ease forwards;
+    }
+
+    /* ── Date block ── */
+    .date-block {
+      background: linear-gradient(135deg, var(--maroon), #7a1414);
+      border-radius: 3px;
+      padding: 26px 32px 22px;
+      margin: 0 0 28px;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      animation: fadeUp .8s 1.75s ease forwards;
+      box-shadow: 0 8px 24px rgba(107,26,26,.35);
+    }
+    .date-block::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(212,160,23,.3);
+      border-radius: 3px;
+      pointer-events: none;
+    }
+    .date-block::after {
+      content: '';
+      position: absolute;
+      top: 6px; left: 6px; right: 6px; bottom: 6px;
+      border: 1px solid rgba(212,160,23,.15);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .date-nepali {
+      font-family: 'Noto Serif Devanagari', serif;
+      font-size: .85rem;
+      color: var(--gold-lt);
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      opacity: .8;
+    }
+    .date-day {
+      font-family: 'Yeseva One', serif;
+      font-size: 2.4rem;
+      color: #fff;
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(212,160,23,.4);
+    }
+    .date-full {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem;
+      color: var(--gold-lt);
+      letter-spacing: 2px;
+      margin-top: 4px;
+    }
+    .date-time-line {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      font-size: .75rem;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: rgba(240,210,122,.7);
+      margin-top: 10px;
+    }
+    .date-separator {
+      width: 40px; height: 1px;
+      background: rgba(212,160,23,.4);
+      margin: 12px auto;
+    }
+
+    /* ── Venue block ── */
+    .venue-block {
+      margin: 0 0 28px;
+      opacity: 0;
+      animation: fadeUp .8s 1.9s ease forwards;
+    }
+    .venue-label {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      font-size: .65rem;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: var(--text-lt);
+      margin-bottom: 8px;
+    }
+    .venue-name {
+      font-family: 'Yeseva One', serif;
+      font-size: 1.55rem;
+      color: var(--text-dk);
+      line-height: 1.3;
+    }
+    .venue-address {
+      font-size: 1rem;
+      color: var(--text-md);
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    /* ── Reception note ── */
+    .reception-note {
+      font-size: 1.15rem;
+      color: var(--text-md);
+      font-style: italic;
+      margin: 0 0 30px;
+      opacity: 0;
+      animation: fadeUp .8s 2s ease forwards;
+    }
+
+    /* ── Countdown ── */
+    .countdown-wrap {
+      opacity: 0;
+      animation: fadeUp .8s 2.1s ease forwards;
+      margin-bottom: 32px;
+    }
+    .countdown-label-top {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 300;
+      font-size: .65rem;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--text-lt);
+      margin-bottom: 14px;
+    }
+    .countdown {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+    }
+    .cd-item {
+      text-align: center;
+      padding: 0 18px;
+      position: relative;
+    }
+    .cd-item:not(:last-child)::after {
+      content: ':';
+      position: absolute;
+      right: -2px; top: 4px;
+      font-size: 2rem;
+      color: var(--gold);
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      line-height: 1;
+    }
+    .cd-num {
+      font-family: 'Yeseva One', serif;
+      font-size: 2.6rem;
+      color: var(--maroon);
+      line-height: 1;
+      transition: transform .2s ease;
+    }
+    .cd-num.tick {
+      transform: scale(1.12);
+    }
+    .cd-unit {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      font-size: .6rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-lt);
+      margin-top: 4px;
+    }
+    @media(max-width:380px) {
+      .cd-item { padding: 0 10px; }
+      .cd-num { font-size: 2rem; }
+    }
+
+    /* ── Diyo row ── */
+    .diyo-row {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin: 8px 0 28px;
+      opacity: 0;
+      animation: fadeUp .8s 2.2s ease forwards;
+    }
+    .diyo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .diyo-flame {
+      width: 10px; height: 16px;
+      background: radial-gradient(ellipse at 50% 80%, #f5c842 0%, #e8751a 60%, transparent 100%);
+      border-radius: 50% 50% 30% 30%;
+      animation: flicker 1.5s ease-in-out infinite alternate;
+      position: relative;
+    }
+    .diyo-flame::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 50%;
+      transform: translateX(-50%);
+      width: 4px; height: 8px;
+      background: rgba(255,255,200,.7);
+      border-radius: 50%;
+    }
+    .diyo-body {
+      width: 22px; height: 8px;
+      background: linear-gradient(180deg, #c08020, #7a5010);
+      border-radius: 0 0 50% 50%;
+      box-shadow: 0 3px 8px rgba(0,0,0,.2);
+    }
+    @keyframes flicker {
+      0%  { transform: scaleX(1)   scaleY(1)    rotate(-2deg); opacity:.9; }
+      30% { transform: scaleX(.9)  scaleY(1.05) rotate(1deg);  opacity:1; }
+      60% { transform: scaleX(1.1) scaleY(.95)  rotate(-1deg); opacity:.85; }
+      100%{ transform: scaleX(.95) scaleY(1.08) rotate(2deg);  opacity:.95; }
+    }
+
+    /* ── Footer quote ── */
+    .footer-quote {
+      font-size: 1.08rem;
+      color: var(--text-lt);
+      font-style: italic;
+      margin-top: 10px;
+      opacity: 0;
+      animation: fadeUp .8s 2.35s ease forwards;
+      line-height: 1.6;
+    }
+    .footer-names-nepali {
+      font-family: 'Noto Serif Devanagari', serif;
+      font-size: .9rem;
+      color: var(--sindoor);
+      margin-top: 14px;
+      display: block;
+      opacity: 0;
+      animation: fadeUp .8s 2.5s ease forwards;
+    }
+
+    /* ── Footer gold band ── */
+    .footer-band {
+      background: linear-gradient(135deg, var(--maroon), #8b1a1a);
+      padding: 18px 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      border-top: 1px solid rgba(212,160,23,.3);
+    }
+    .footer-band-text {
+      font-family: 'Josefin Sans', sans-serif;
+      font-weight: 200;
+      font-size: .65rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: rgba(240,210,122,.6);
+    }
+    .footer-dot {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--gold);
+      opacity: .5;
+    }
+
+    @keyframes fadeUp {
+      from { opacity:0; transform: translateY(16px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating petals + sparks -->
+  <div class="petal-layer" id="petalLayer"></div>
+
+  <div class="card">
+
+    <!-- Header -->
+    <div class="header-band" data-nimto-section="cover" data-nimto-section-label="Cover Page">
+      <span class="om-symbol" data-nimto-field="sacred_symbol" data-nimto-label="Sacred Symbol" data-nimto-type="text">ॐ</span>
+      <span class="reception-label" data-nimto-field="invitation_label" data-nimto-label="Invitation Label" data-nimto-type="text" data-nimto-required="true">Wedding Reception Invitation</span>
+      <h1 class="couple-names">
+        <span data-nimto-field="bride_name" data-nimto-label="Bride Name" data-nimto-type="text" data-nimto-required="true">Sangeeta</span>
+        <span class="couple-amp">&amp;</span>
+        <span data-nimto-field="groom_name" data-nimto-label="Groom Name" data-nimto-type="text" data-nimto-required="true">Roshan</span>
+      </h1>
+    </div>
+
+    <!-- SVG marigold garland divider -->
+    <svg class="garland" viewBox="0 0 700 28" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="700" height="28" fill="#6b1a1a"/>
+      <!-- garland rope -->
+      <path d="M0 14 Q87.5 4 175 14 Q262.5 24 350 14 Q437.5 4 525 14 Q612.5 24 700 14"
+            fill="none" stroke="#d4a017" stroke-width="1.5" opacity=".6"/>
+      <!-- marigold blossoms -->
+      <g fill="#f5a623">
+        <circle cx="87" cy="6" r="5"/><circle cx="87" cy="6" r="3" fill="#f0d27a"/>
+        <circle cx="175" cy="14" r="6"/><circle cx="175" cy="14" r="3.5" fill="#f0d27a"/>
+        <circle cx="263" cy="6" r="5"/><circle cx="263" cy="6" r="3" fill="#f0d27a"/>
+        <circle cx="350" cy="14" r="7"/><circle cx="350" cy="14" r="4" fill="#f0d27a"/>
+        <circle cx="437" cy="6" r="5"/><circle cx="437" cy="6" r="3" fill="#f0d27a"/>
+        <circle cx="525" cy="14" r="6"/><circle cx="525" cy="14" r="3.5" fill="#f0d27a"/>
+        <circle cx="613" cy="6" r="5"/><circle cx="613" cy="6" r="3" fill="#f0d27a"/>
+      </g>
+      <!-- petals on blossoms -->
+      <g fill="#e8751a" opacity=".7">
+        <ellipse cx="87" cy="1" rx="2" ry="3" transform="rotate(0,87,6)"/>
+        <ellipse cx="87" cy="11" rx="2" ry="3" transform="rotate(180,87,6)"/>
+        <ellipse cx="82" cy="6" rx="2" ry="3" transform="rotate(90,87,6)"/>
+        <ellipse cx="92" cy="6" rx="2" ry="3" transform="rotate(270,87,6)"/>
+      </g>
+    </svg>
+
+    <!-- Body -->
+    <div class="body-content" data-nimto-section="invitation" data-nimto-section-label="Invitation Details">
+
+      <!-- Corner SVG decorations -->
+      <svg class="corner corner-tl" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 80 Q0 0 80 0" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        <circle cx="8" cy="8" r="4" fill="#f5a623"/>
+        <circle cx="20" cy="4" r="2.5" fill="#d4a017"/>
+        <circle cx="4" cy="20" r="2.5" fill="#d4a017"/>
+        <path d="M12 0 Q16 12 0 12" fill="none" stroke="#d4a017" stroke-width="1" opacity=".5"/>
+      </svg>
+      <svg class="corner corner-tr" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 80 Q0 0 80 0" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        <circle cx="8" cy="8" r="4" fill="#f5a623"/>
+        <circle cx="20" cy="4" r="2.5" fill="#d4a017"/>
+        <circle cx="4" cy="20" r="2.5" fill="#d4a017"/>
+      </svg>
+      <svg class="corner corner-bl" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 80 Q0 0 80 0" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        <circle cx="8" cy="8" r="4" fill="#f5a623"/>
+        <circle cx="20" cy="4" r="2.5" fill="#d4a017"/>
+        <circle cx="4" cy="20" r="2.5" fill="#d4a017"/>
+      </svg>
+      <svg class="corner corner-br" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 80 Q0 0 80 0" fill="none" stroke="#d4a017" stroke-width="1.5"/>
+        <circle cx="8" cy="8" r="4" fill="#f5a623"/>
+        <circle cx="20" cy="4" r="2.5" fill="#d4a017"/>
+        <circle cx="4" cy="20" r="2.5" fill="#d4a017"/>
+      </svg>
+
+      <!-- Devanagari blessing -->
+      <div class="blessing" data-nimto-field="blessing_title" data-nimto-label="Blessing Title" data-nimto-type="text">शुभ विवाह</div>
+      <div class="sub-blessing" data-nimto-field="blessing_subtitle" data-nimto-label="Blessing Subtitle" data-nimto-type="text">Auspicious Blessings upon this Sacred Union</div>
+
+      <div class="gold-rule"><span class="rule-icon">✦</span></div>
+
+      <p class="request-line" data-nimto-field="invitation_message" data-nimto-label="Invitation Message" data-nimto-type="text" data-nimto-required="true">cordially invite you to celebrate the reception of</p>
+
+      <!-- Date block -->
+      <div class="date-block" data-nimto-section="schedule" data-nimto-section-label="Date and Time">
+        <div class="date-nepali" data-nimto-field="event_date_nepali" data-nimto-label="Nepali Date" data-nimto-type="text">बैशाख २४, २०८३ · Baisakh 24, 2083</div>
+        <div class="date-day" data-nimto-field="event_date" data-nimto-label="Event Date" data-nimto-type="date" data-nimto-required="true">Thursday, 7th May 2026</div>
+        <div class="date-separator"></div>
+        <div class="date-full" data-nimto-field="event_year_text" data-nimto-label="Event Year Text" data-nimto-type="text">Two Thousand and Twenty Six</div>
+        <div class="date-time-line" data-nimto-field="event_time" data-nimto-label="Event Time" data-nimto-type="text" data-nimto-required="true">Two O'Clock in the Afternoon · 2:00 PM NST</div>
+      </div>
+
+      <!-- Venue -->
+      <div class="venue-block" data-nimto-section="venue" data-nimto-section-label="Venue">
+        <div class="venue-label" data-nimto-field="venue_label" data-nimto-label="Venue Label" data-nimto-type="text">Venue</div>
+        <div class="venue-name" data-nimto-field="venue_name" data-nimto-label="Venue Name" data-nimto-type="text" data-nimto-required="true">Farm House</div>
+        <div class="venue-address" data-nimto-field="venue_address" data-nimto-label="Venue Address" data-nimto-type="long_text" data-nimto-required="true">7 Bhusal Lane, Gorkha</div>
+      </div>
+
+      <div class="gold-rule"><span class="rule-icon">❧</span></div>
+
+      <!-- Reception note -->
+      <div class="reception-note" data-nimto-field="reception_note" data-nimto-label="Reception Note" data-nimto-type="text">An evening of dinner, music &amp; dancing to follow</div>
+
+      <!-- Diyo lamps -->
+      <div class="diyo-row">
+        <div class="diyo">
+          <div class="diyo-flame"></div>
+          <div class="diyo-body"></div>
+        </div>
+        <div class="diyo">
+          <div class="diyo-flame" style="animation-delay:.4s"></div>
+          <div class="diyo-body"></div>
+        </div>
+        <div class="diyo">
+          <div class="diyo-flame" style="animation-delay:.8s"></div>
+          <div class="diyo-body"></div>
+        </div>
+        <div class="diyo">
+          <div class="diyo-flame" style="animation-delay:1.2s"></div>
+          <div class="diyo-body"></div>
+        </div>
+        <div class="diyo">
+          <div class="diyo-flame" style="animation-delay:.6s"></div>
+          <div class="diyo-body"></div>
+        </div>
+      </div>
+
+      <!-- Countdown -->
+      <div class="countdown-wrap" data-nimto-section="countdown" data-nimto-section-label="Countdown" data-nimto-countdown-for="event_date">
+        <div class="countdown-label-top" data-nimto-field="countdown_label" data-nimto-label="Countdown Label" data-nimto-type="text">Counting down to the celebration</div>
+        <div class="countdown">
+          <div class="cd-item">
+            <div class="cd-num" id="cd-days">00</div>
+            <div class="cd-unit">Days</div>
+          </div>
+          <div class="cd-item">
+            <div class="cd-num" id="cd-hours">00</div>
+            <div class="cd-unit">Hours</div>
+          </div>
+          <div class="cd-item">
+            <div class="cd-num" id="cd-mins">00</div>
+            <div class="cd-unit">Minutes</div>
+          </div>
+          <div class="cd-item">
+            <div class="cd-num" id="cd-secs">00</div>
+            <div class="cd-unit">Seconds</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer-quote" data-nimto-section="closing" data-nimto-section-label="Closing" data-nimto-field="footer_quote" data-nimto-label="Footer Quote" data-nimto-type="long_text">
+        "जहाँ प्रेम छ, त्यहाँ जीवन छ" — Where there is love, there is life.
+      </div>
+      <span class="footer-names-nepali" data-nimto-field="footer_names_nepali" data-nimto-label="Footer Names Nepali" data-nimto-type="text">संगीता र रोशन</span>
+
+    </div>
+
+    <!-- Footer band -->
+    <div class="footer-band">
+      <div class="footer-dot"></div>
+      <div class="footer-band-text" data-nimto-field="family_blessing_text" data-nimto-label="Family Blessing Text" data-nimto-type="text">With Joy &amp; Blessings from Both Families</div>
+      <div class="footer-dot"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Floating petals & sparks ──────────────────────────
+    const layer = document.getElementById('petalLayer');
+    const petalColors = ['#f5a623','#e8751a','#f4a229','#ffd166','#c0392b','#e07020'];
+
+    function spawnPetal() {
+      const el = document.createElement('div');
+      el.className = 'petal';
+      el.style.cssText = `
+        left:${Math.random()*100}%;
+        width:${Math.random()*10+8}px;
+        height:${Math.random()*14+10}px;
+        background:${petalColors[Math.floor(Math.random()*petalColors.length)]};
+        animation-duration:${Math.random()*10+8}s;
+        animation-delay:${Math.random()*6}s;
+      `;
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 18000);
+    }
+
+    function spawnSpark() {
+      const el = document.createElement('div');
+      el.className = 'diya-spark';
+      el.style.cssText = `
+        left:${Math.random()*100}%;
+        animation-duration:${Math.random()*6+6}s;
+        animation-delay:${Math.random()*4}s;
+      `;
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 12000);
+    }
+
+    for (let i = 0; i < 22; i++) spawnPetal();
+    for (let i = 0; i < 12; i++) spawnSpark();
+    setInterval(() => { spawnPetal(); if(Math.random()>.5) spawnSpark(); }, 1800);
+
+    // ── Countdown — KTM time (UTC +5:45) ─────────────────
+    // Wedding: 7 May 2026, 14:00 NST = 7 May 2026 08:15:00 UTC
+    // NST = UTC + 5 hours 45 minutes
+    // So 14:00 NST = 14:00 - 5:45 = 08:15 UTC
+    var WEDDING_UTC_MS = 1778141700000; // 2026-05-07T08:15:00Z = 14:00 NST (UTC+5:45)
+
+    var cdDays  = document.getElementById('cd-days');
+    var cdHours = document.getElementById('cd-hours');
+    var cdMins  = document.getElementById('cd-mins');
+    var cdSecs  = document.getElementById('cd-secs');
+
+    function pad2(n) {
+      var s = String(Math.floor(n));
+      return s.length < 2 ? '0' + s : s;
+    }
+
+    function setEl(el, val) {
+      var str = pad2(val);
+      if (el.textContent !== str) {
+        el.textContent = str;
+        el.classList.remove('tick');
+        // force reflow so animation restarts
+        var _ = el.offsetWidth;
+        el.classList.add('tick');
+      }
+    }
+
+    function updateClock() {
+      var now  = (new Date()).getTime();
+      var diff = WEDDING_UTC_MS - now;
+      if (diff <= 0) {
+        setEl(cdDays, 0); setEl(cdHours, 0);
+        setEl(cdMins, 0); setEl(cdSecs, 0);
+        return;
+      }
+      var totalSecs = Math.floor(diff / 1000);
+      var s = totalSecs % 60;
+      var m = Math.floor(totalSecs / 60) % 60;
+      var h = Math.floor(totalSecs / 3600) % 24;
+      var d = Math.floor(totalSecs / 86400);
+      setEl(cdDays, d);
+      setEl(cdHours, h);
+      setEl(cdMins, m);
+      setEl(cdSecs, s);
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Re-sync when tab becomes visible again (WhatsApp in-app browser fix)
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) updateClock();
+    });
+    window.addEventListener('focus', updateClock);
+    window.addEventListener('pageshow', updateClock);
+  </script>
+</body>
+</html>
