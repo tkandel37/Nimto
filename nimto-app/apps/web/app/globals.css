@@ -62,6 +62,13 @@ a {
   animation: page-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+.page-transition:has(.dashboard-shell) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  animation: none;
+}
+
 @keyframes page-enter {
   from {
     opacity: 0.82;
@@ -302,9 +309,12 @@ a {
 }
 
 .dashboard-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
+  overflow-x: visible;
+  overflow-y: hidden;
   background:
     linear-gradient(140deg, rgba(22, 116, 94, 0.08), transparent 34%),
     linear-gradient(310deg, rgba(200, 137, 24, 0.08), transparent 36%),
@@ -316,10 +326,15 @@ a {
   grid-template-columns: 92px minmax(0, 1fr);
 }
 
+.dashboard-shell-loading {
+  grid-template-columns: 288px minmax(0, 1fr);
+}
+
 .sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  position: relative;
+  z-index: 30;
+  min-height: 0;
+  height: 100dvh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -329,6 +344,33 @@ a {
   color: white;
   padding: 28px;
   transition: padding 180ms ease;
+}
+
+.dashboard-main {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+.dashboard-page-surface {
+  min-height: calc(100dvh - 32px);
+}
+
+@media (min-width: 768px) {
+  .dashboard-main {
+    padding: 32px;
+  }
+
+  .dashboard-page-surface {
+    min-height: calc(100dvh - 64px);
+  }
 }
 
 .sidebar-brand-row {
@@ -378,6 +420,7 @@ a {
 .dashboard-shell.sidebar-collapsed .sidebar {
   overflow: visible;
   padding: 22px 16px;
+  z-index: 100;
 }
 
 .dashboard-shell.sidebar-collapsed .sidebar-brand-row {
@@ -412,15 +455,18 @@ a {
   grid-template-columns: 1fr;
 }
 
-.dashboard-shell button[data-tooltip] {
+.dashboard-shell button[data-tooltip],
+.dashboard-shell a[data-tooltip] {
   position: relative;
 }
 
 .dashboard-shell button[data-tooltip]::before,
-.dashboard-shell button[data-tooltip]::after {
+.dashboard-shell button[data-tooltip]::after,
+.dashboard-shell a[data-tooltip]::before,
+.dashboard-shell a[data-tooltip]::after {
   position: absolute;
   left: 50%;
-  z-index: 60;
+  z-index: 1000;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, -6px);
@@ -429,11 +475,19 @@ a {
     transform 140ms ease;
 }
 
-.dashboard-shell button[data-tooltip]::before {
+.dashboard-shell:not(.sidebar-collapsed) .sidebar button[data-tooltip]::before,
+.dashboard-shell:not(.sidebar-collapsed) .sidebar button[data-tooltip]::after,
+.dashboard-shell:not(.sidebar-collapsed) .sidebar a[data-tooltip]::before,
+.dashboard-shell:not(.sidebar-collapsed) .sidebar a[data-tooltip]::after {
+  display: none;
+}
+
+.dashboard-shell button[data-tooltip]::before,
+.dashboard-shell a[data-tooltip]::before {
   bottom: calc(100% + 9px);
   max-width: 240px;
   border-radius: 8px;
-  background: rgba(23, 32, 51, 0.96);
+  background: rgba(23, 32, 51, 0.98);
   color: white;
   content: attr(data-tooltip);
   font-size: 0.75rem;
@@ -442,10 +496,11 @@ a {
   padding: 7px 9px;
   text-align: center;
   white-space: nowrap;
-  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.18);
+  box-shadow: 0 16px 34px rgba(23, 32, 51, 0.26);
 }
 
-.dashboard-shell button[data-tooltip]::after {
+.dashboard-shell button[data-tooltip]::after,
+.dashboard-shell a[data-tooltip]::after {
   bottom: calc(100% + 3px);
   border: 6px solid transparent;
   border-top-color: rgba(23, 32, 51, 0.96);
@@ -455,20 +510,27 @@ a {
 .dashboard-shell button[data-tooltip]:hover::before,
 .dashboard-shell button[data-tooltip]:hover::after,
 .dashboard-shell button[data-tooltip]:focus-visible::before,
-.dashboard-shell button[data-tooltip]:focus-visible::after {
+.dashboard-shell button[data-tooltip]:focus-visible::after,
+.dashboard-shell a[data-tooltip]:hover::before,
+.dashboard-shell a[data-tooltip]:hover::after,
+.dashboard-shell a[data-tooltip]:focus-visible::before,
+.dashboard-shell a[data-tooltip]:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
 }
 
 .dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::before,
-.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after {
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]::before,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]::after {
   bottom: auto;
   left: calc(100% + 10px);
   top: 50%;
   transform: translate(-6px, -50%);
 }
 
-.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after {
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]::after,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]::after {
   border-color: transparent;
   border-right-color: rgba(23, 32, 51, 0.96);
   left: calc(100% + 4px);
@@ -477,7 +539,11 @@ a {
 .dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:hover::before,
 .dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:hover::after,
 .dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:focus-visible::before,
-.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:focus-visible::after {
+.dashboard-shell.sidebar-collapsed .sidebar button[data-tooltip]:focus-visible::after,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]:hover::before,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]:hover::after,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]:focus-visible::before,
+.dashboard-shell.sidebar-collapsed .sidebar a[data-tooltip]:focus-visible::after {
   transform: translate(0, -50%);
 }
 
@@ -704,7 +770,8 @@ a {
   }
 }
 
-.dashboard-shell.action-pending button {
+.dashboard-shell.action-pending button,
+.dashboard-page-surface.action-pending button {
   cursor: progress;
   opacity: 0.68;
   pointer-events: none;
@@ -786,6 +853,7 @@ a {
 
   .dashboard-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .sidebar {
@@ -808,10 +876,14 @@ a {
     display: none;
   }
 
-  .sidebar nav button {
+  .sidebar nav .dashboard-tab {
     flex: 0 0 auto;
     white-space: nowrap;
     width: auto;
+  }
+
+  .dashboard-main {
+    height: auto;
   }
 
   .dashboard-hero {

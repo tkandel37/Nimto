@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -79,6 +79,7 @@ export class AuthService {
       where: {
         email: normalizedEmail,
       },
+      include: this.userAccessInclude(),
     });
 
     if (!user?.passwordHash) {
@@ -95,16 +96,24 @@ export class AuthService {
 
     this.assertUserCanAuthenticate(user);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    this.runAfterResponse(
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      }),
+      "last-login update",
+    );
 
-    await this.record(user.id, "auth.login", "UserSession", undefined, {
-      provider: "email",
+    return await this.buildAuthResponse(user.id, user, {
+      afterSessionCreated: (sessionId) => {
+        this.runAfterResponse(
+          this.record(user.id, "auth.login", "UserSession", sessionId, {
+            provider: "email",
+          }),
+          "login audit",
+        );
+      },
     });
-
-    return await this.buildAuthResponse(user.id);
   }
 
   async me(userId: string) {
@@ -285,11 +294,14 @@ export class AuthService {
     });
   }
 
-  private async buildAuthResponse(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userAccessInclude(),
-    });
+  private async buildAuthResponse(
+    userId: string,
+    loadedUser?: NonNullable<
+      Awaited<ReturnType<AuthService["findUserWithAccess"]>>
+    >,
+    options: { afterSessionCreated?: (sessionId: string) => void } = {},
+  ) {
+    const user = loadedUser ?? (await this.findUserWithAccess(userId));
 
     if (!user) {
       throw new UnauthorizedException("User not found.");
@@ -328,11 +340,25 @@ export class AuthService {
         expiresAt,
       },
     });
+    options.afterSessionCreated?.(sessionId);
 
     return {
       token,
       user: this.toPublicUser(user),
     };
+  }
+
+  private findUserWithAccess(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: this.userAccessInclude(),
+    });
+  }
+
+  private runAfterResponse(work: Promise<unknown>, label: string) {
+    void work.catch((error) => {
+      console.error(`Failed to complete ${label}`, error);
+    });
   }
 
   private toPublicUser(user: {

@@ -217,7 +217,7 @@ type BlogPost = {
   author?: Pick<AuthUser, "id" | "name" | "email">;
 };
 
-type TabKey =
+export type TabKey =
   | "overview"
   | "events"
   | "designSetup"
@@ -264,38 +264,6 @@ type DashboardDataSnapshot = {
 
 const DASHBOARD_CACHE_PREFIX = "nimto_dashboard_cache:";
 
-const tabs: {
-  key: TabKey;
-  label: string;
-  icon: TabIconName;
-  permission: string | null;
-}[] = [
-  { key: "overview", label: "Dashboard", icon: "dashboard", permission: null },
-  { key: "events", label: "Events", icon: "events", permission: null },
-  {
-    key: "designSetup",
-    label: "Design Setup",
-    icon: "design",
-    permission: null,
-  },
-  { key: "website", label: "Website", icon: "website", permission: null },
-  { key: "roles", label: "Roles", icon: "roles", permission: "roles:view" },
-  {
-    key: "permissions",
-    label: "Permissions",
-    icon: "permissions",
-    permission: "permissions:view",
-  },
-  { key: "staff", label: "Staff", icon: "staff", permission: "staff:view" },
-  {
-    key: "sessions",
-    label: "Sessions",
-    icon: "sessions",
-    permission: "sessions:view",
-  },
-  { key: "audit", label: "Audit Logs", icon: "audit", permission: "audit:view" },
-];
-
 const statuses: Staff["status"][] = [
   "ACTIVE",
   "BLOCKED",
@@ -332,199 +300,6 @@ function displayDate(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-type TabIconName =
-  | "dashboard"
-  | "events"
-  | "design"
-  | "website"
-  | "roles"
-  | "permissions"
-  | "staff"
-  | "sessions"
-  | "audit";
-
-function DashboardSvgIcon({
-  children,
-  className = "h-5 w-5",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      {children}
-    </svg>
-  );
-}
-
-function TabIcon({ icon }: { icon: TabIconName }) {
-  switch (icon) {
-    case "dashboard":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "events":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "design":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M5 4h14v16H5V4Zm4 0v16M5 9h14M5 15h14"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "website":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3 12h18M12 3c2.4 2.5 3.5 5.5 3.5 9S14.4 18.5 12 21c-2.4-2.5-3.5-5.5-3.5-9S9.6 5.5 12 3Z"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "roles":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8.5 1.5a3.5 3.5 0 1 0 0-7M2.5 21a6.5 6.5 0 0 1 13 0M14 21a5 5 0 0 1 7.5-4.3"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "permissions":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M12 3 5 6v5c0 4.5 2.9 7.9 7 10 4.1-2.1 7-5.5 7-10V6l-7-3Zm-3 9 2 2 4-5"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "staff":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M18 8h4M20 6v4"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "sessions":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm4 20h6M12 17v7"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-    case "audit":
-      return (
-        <DashboardSvgIcon>
-          <path
-            d="M7 4h10a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2-3-2V6a2 2 0 0 1 2-2Zm2 5h6M9 13h6M9 17h4"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.3"
-          />
-        </DashboardSvgIcon>
-      );
-  }
-}
-
-function ProfileIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-      <path
-        d="M4 20a8 8 0 0 1 16 0"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-      <path
-        d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 0 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 0 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 0 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
 }
 
 function BackIcon() {
@@ -648,11 +423,14 @@ function PreviewIcon() {
   );
 }
 
-export default function DashboardPage() {
+export function DashboardClient({
+  initialTab = "overview",
+}: {
+  initialTab?: TabKey;
+}) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
@@ -692,53 +470,13 @@ export default function DashboardPage() {
     summary: undefined,
     templates: [],
   });
+  const hasDashboardDataRef = useRef(false);
 
-  const visibleTabs = useMemo(
-    () =>
-      tabs.filter((tab) => {
-        if (tab.key === "designSetup") {
-          return canAny(user, [
-            "template:view:own",
-            "template:view:all",
-            "template:create",
-            "template:update:own",
-            "template:update:all",
-            "template:duplicate",
-            "design:view:own",
-            "design:view:all",
-          ]);
-        }
-        if (tab.key === "settings") {
-          return canAny(user, [
-            "category:view",
-            "category:manage",
-            "subcategory:view",
-            "subcategory:manage",
-          ]);
-        }
+  const currentTab = activeTab;
 
-        return tab.key === "website"
-          ? canAny(user, [
-              "content:manage",
-              "blog:manage:own",
-              "blog:manage:all",
-            ])
-          : can(user, tab.permission);
-      }),
-    [user],
-  );
-  const currentTab =
-    activeTab === "profile" ||
-    (activeTab === "settings" &&
-      canAny(user, [
-        "category:view",
-        "category:manage",
-        "subcategory:view",
-        "subcategory:manage",
-      ])) ||
-    visibleTabs.some((tab) => tab.key === activeTab)
-      ? activeTab
-      : "overview";
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   function applyDashboardSnapshot(snapshot: DashboardDataSnapshot) {
     setDashboardSummary(snapshot.summary ?? null);
@@ -793,6 +531,21 @@ export default function DashboardPage() {
       summary: dashboardSummary ?? undefined,
       templates,
     };
+    hasDashboardDataRef.current = Boolean(
+      dashboardSummary ||
+        auditLogs.length ||
+        blogPosts.length ||
+        designCategories.length ||
+        designs.length ||
+        events.length ||
+        pages.length ||
+        permissions.length ||
+        publicDesigns.length ||
+        roles.length ||
+        sessions.length ||
+        staff.length ||
+        templates.length,
+    );
   }, [
     auditLogs,
     blogPosts,
@@ -808,41 +561,6 @@ export default function DashboardPage() {
     staff,
     templates,
   ]);
-
-  useEffect(() => {
-    const shell = document.querySelector(".dashboard-shell");
-    if (!shell) {
-      return;
-    }
-
-    const syncButtonTooltips = () => {
-      shell.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-        const label =
-          button.getAttribute("aria-label") ||
-          button.getAttribute("title") ||
-          button.textContent?.replace(/\s+/g, " ").trim() ||
-          "Action";
-
-        if (button.title !== label) {
-          button.title = label;
-        }
-        if (button.dataset.tooltip !== label) {
-          button.dataset.tooltip = label;
-        }
-      });
-    };
-
-    syncButtonTooltips();
-    const observer = new MutationObserver(syncButtonTooltips);
-    observer.observe(shell, {
-      attributeFilter: ["aria-label", "title"],
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-
-    return () => observer.disconnect();
-  }, [currentTab, isSidebarCollapsed, visibleTabs.length]);
 
   useEffect(() => {
     function redirectIfMissingToken() {
@@ -863,12 +581,13 @@ export default function DashboardPage() {
       try {
         const cachedUser = JSON.parse(savedUser) as AuthUser;
         setUser(cachedUser);
-        setIsLoading(false);
         hydrateDashboardCache(cachedUser.id);
       } catch {
         localStorage.removeItem("nimto_user");
       }
     }
+
+    setIsLoading(false);
 
     apiRequest<{ user: AuthUser }>("/auth/me", {
       headers: {
@@ -897,8 +616,7 @@ export default function DashboardPage() {
             : "Could not verify your session.",
           "error",
         );
-      })
-      .finally(() => setIsLoading(false));
+      });
 
     window.addEventListener("pageshow", redirectIfMissingToken);
     return () => window.removeEventListener("pageshow", redirectIfMissingToken);
@@ -952,11 +670,15 @@ export default function DashboardPage() {
           templates: latest.templates,
         };
 
-        const summary = await apiRequest<DashboardSummary>("/admin/summary", {
-          headers,
-        });
-        setDashboardSummary(summary);
-        nextSnapshot.summary = summary;
+        try {
+          const summary = await apiRequest<DashboardSummary>("/admin/summary", {
+            headers,
+          });
+          setDashboardSummary(summary);
+          nextSnapshot.summary = summary;
+        } catch {
+          // Summary is a speed layer. Page-specific data can still load without it.
+        }
 
         if (currentTab === "events") {
           const [nextEvents, nextPublicDesigns] = await Promise.all([
@@ -1089,12 +811,14 @@ export default function DashboardPage() {
 
         storeDashboardCache(nextSnapshot);
       } catch (caughtError) {
-        showToast(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Could not load admin data.",
-          "error",
-        );
+        if (!hasDashboardDataRef.current) {
+          showToast(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load admin data.",
+            "error",
+          );
+        }
       } finally {
         setIsRefreshing(false);
       }
@@ -1206,101 +930,20 @@ export default function DashboardPage() {
 
   if (isLoading && !user) {
     return (
-      <main className="grid min-h-screen place-items-center">
+      <div className="dashboard-page-surface grid place-items-center">
         <p className="font-bold text-ink">Checking your session...</p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main
+    <div
       aria-busy={isActionPending}
-      className={`dashboard-shell ${
-        isSidebarCollapsed ? "sidebar-collapsed" : ""
-      } ${isActionPending ? "action-pending" : ""}`}
+      className={`dashboard-page-surface ${
+        isActionPending ? "action-pending" : ""
+      }`}
     >
-      <aside className="sidebar">
-        <div>
-          <div className="sidebar-brand-row">
-            <Link href="/" className="sidebar-logo">
-              <span className="sidebar-logo-full">Nimto</span>
-              <span className="sidebar-logo-mark" aria-hidden="true">
-                N
-              </span>
-            </Link>
-            <button
-              aria-label={
-                isSidebarCollapsed ? "Expand navigation" : "Minimize navigation"
-              }
-              className="sidebar-collapse-button"
-              onClick={() =>
-                setIsSidebarCollapsed((isCollapsed) => !isCollapsed)
-              }
-              type="button"
-            >
-              <CollapseIcon isCollapsed={isSidebarCollapsed} />
-            </button>
-          </div>
-          <p className="sidebar-description mt-3 text-sm leading-6 text-white/68">
-            Invitation workspace for events, content, staff, and roles.
-          </p>
-        </div>
-        <nav className="mt-10 grid gap-2 text-sm font-bold">
-          {visibleTabs.map((tab) => (
-            <button
-              aria-label={tab.label}
-              className={
-                currentTab === tab.key
-                  ? "dashboard-tab dashboard-tab-active"
-                  : "dashboard-tab"
-              }
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              type="button"
-            >
-              <TabIcon icon={tab.icon} />
-              <span className="sidebar-tab-label">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-footer mt-auto grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
-          {canAny(user, [
-            "category:view",
-            "category:manage",
-            "subcategory:view",
-            "subcategory:manage",
-          ]) ? (
-            <button
-              className={
-                currentTab === "settings"
-                  ? "sidebar-icon-tab sidebar-icon-tab-active"
-                  : "sidebar-icon-tab"
-              }
-              aria-label="Settings"
-              onClick={() => setActiveTab("settings")}
-              title="Settings"
-              type="button"
-            >
-              <SettingsIcon />
-            </button>
-          ) : null}
-          <button
-            className={
-              currentTab === "profile"
-                ? "sidebar-icon-tab sidebar-icon-tab-active"
-                : "sidebar-icon-tab"
-            }
-            aria-label="Profile"
-            onClick={() => setActiveTab("profile")}
-            title="Profile"
-            type="button"
-          >
-            <ProfileIcon />
-          </button>
-        </div>
-      </aside>
 
-      <section className="min-w-0 p-4 md:p-8">
         {currentTab === "settings" ? (
         <header className="dashboard-hero">
           <div>
@@ -1439,11 +1082,15 @@ export default function DashboardPage() {
         {currentTab === "audit" && can(user, "audit:view") ? (
           <AuditPanel logs={auditLogs} />
         ) : null}
-      </section>
+        
 
       <DashboardToastView onDismiss={dismissToast} toast={toast} />
-    </main>
+    </div>
   );
+}
+
+export default function DashboardPage() {
+  return <DashboardClient initialTab="overview" />;
 }
 
 function DashboardToastView({
