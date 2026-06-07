@@ -24,6 +24,11 @@ import { UpdateStaffDto } from "./dto/update-staff.dto";
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get("summary")
+  summary(@Req() request: AuthenticatedRequest) {
+    return this.adminService.dashboardSummary(request.user!.sub);
+  }
+
   @Get("permissions")
   @RequirePermissions(PERMISSIONS.permissionsView)
   listPermissions() {

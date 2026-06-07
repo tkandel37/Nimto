@@ -55,6 +55,25 @@ export class AdminService {
     return this.prisma.permission.findMany({ orderBy: { key: "asc" } });
   }
 
+  async dashboardSummary(userId: string) {
+    const [eventCount, roleCount, staffCount, activeSessionCount, auditCount] =
+      await this.prisma.$transaction([
+        this.prisma.event.count({ where: { userId } }),
+        this.prisma.role.count(),
+        this.prisma.user.count(),
+        this.prisma.userSession.count({ where: { revokedAt: null } }),
+        this.prisma.auditLog.count(),
+      ]);
+
+    return {
+      auditCount,
+      eventCount,
+      roleCount,
+      sessionCount: activeSessionCount,
+      staffCount,
+    };
+  }
+
   listRoles() {
     return this.prisma.role.findMany({
       orderBy: { name: "asc" },

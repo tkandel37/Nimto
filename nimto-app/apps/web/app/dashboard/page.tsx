@@ -236,9 +236,18 @@ type DashboardToast = {
   tone: "success" | "error";
 };
 
+type DashboardSummary = {
+  auditCount: number;
+  eventCount: number;
+  roleCount: number;
+  sessionCount: number;
+  staffCount: number;
+};
+
 type DashboardDataSnapshot = {
   userId: string;
   cachedAt: number;
+  summary?: DashboardSummary;
   events: InvitationEvent[];
   permissions: Permission[];
   roles: Role[];
@@ -650,6 +659,8 @@ export default function DashboardPage() {
   const actionInFlightRef = useRef(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<DashboardToast | null>(null);
+  const [dashboardSummary, setDashboardSummary] =
+    useState<DashboardSummary | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -664,6 +675,23 @@ export default function DashboardPage() {
   const [publicDesigns, setPublicDesigns] = useState<InvitationDesign[]>([]);
   const [pages, setPages] = useState<PageContent[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const latestDashboardDataRef = useRef<
+    Omit<DashboardDataSnapshot, "userId" | "cachedAt">
+  >({
+    auditLogs: [],
+    blogPosts: [],
+    designCategories: [],
+    designs: [],
+    events: [],
+    pages: [],
+    permissions: [],
+    publicDesigns: [],
+    roles: [],
+    sessions: [],
+    staff: [],
+    summary: undefined,
+    templates: [],
+  });
 
   const visibleTabs = useMemo(
     () =>
@@ -713,6 +741,7 @@ export default function DashboardPage() {
       : "overview";
 
   function applyDashboardSnapshot(snapshot: DashboardDataSnapshot) {
+    setDashboardSummary(snapshot.summary ?? null);
     setEvents(snapshot.events);
     setPermissions(snapshot.permissions);
     setRoles(snapshot.roles);
@@ -747,6 +776,38 @@ export default function DashboardPage() {
       // Cache is only a speed layer; ignore storage pressure.
     }
   }
+
+  useEffect(() => {
+    latestDashboardDataRef.current = {
+      auditLogs,
+      blogPosts,
+      designCategories,
+      designs,
+      events,
+      pages,
+      permissions,
+      publicDesigns,
+      roles,
+      sessions,
+      staff,
+      summary: dashboardSummary ?? undefined,
+      templates,
+    };
+  }, [
+    auditLogs,
+    blogPosts,
+    dashboardSummary,
+    designCategories,
+    designs,
+    events,
+    pages,
+    permissions,
+    publicDesigns,
+    roles,
+    sessions,
+    staff,
+    templates,
+  ]);
 
   useEffect(() => {
     const shell = document.querySelector(".dashboard-shell");
@@ -872,87 +933,161 @@ export default function DashboardPage() {
 
       try {
         const headers = { Authorization: `Bearer ${savedToken}` };
-        const results = await Promise.all([
-          apiRequest<InvitationEvent[]>("/events", { headers }),
-          can(authUser, "permissions:view")
-            ? apiRequest<Permission[]>("/admin/permissions", { headers })
-            : Promise.resolve([]),
-          can(authUser, "roles:view")
-            ? apiRequest<Role[]>("/admin/roles", { headers })
-            : Promise.resolve([]),
-          can(authUser, "staff:view")
-            ? apiRequest<Staff[]>("/admin/staff", { headers })
-            : Promise.resolve([]),
-          can(authUser, "sessions:view")
-            ? apiRequest<Session[]>("/admin/sessions", { headers })
-            : Promise.resolve([]),
-          can(authUser, "audit:view")
-            ? apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
-            : Promise.resolve([]),
-          canAny(authUser, [
+        const latest = latestDashboardDataRef.current;
+        const nextSnapshot: DashboardDataSnapshot = {
+          userId: authUser.id,
+          cachedAt: Date.now(),
+          auditLogs: latest.auditLogs,
+          blogPosts: latest.blogPosts,
+          designCategories: latest.designCategories,
+          designs: latest.designs,
+          events: latest.events,
+          pages: latest.pages,
+          permissions: latest.permissions,
+          publicDesigns: latest.publicDesigns,
+          roles: latest.roles,
+          sessions: latest.sessions,
+          staff: latest.staff,
+          summary: latest.summary,
+          templates: latest.templates,
+        };
+
+        const summary = await apiRequest<DashboardSummary>("/admin/summary", {
+          headers,
+        });
+        setDashboardSummary(summary);
+        nextSnapshot.summary = summary;
+
+        if (currentTab === "events") {
+          const [nextEvents, nextPublicDesigns] = await Promise.all([
+            apiRequest<InvitationEvent[]>("/events", { headers }),
+            apiRequest<InvitationDesign[]>("/template-design/public/designs"),
+          ]);
+          setEvents(nextEvents);
+          setPublicDesigns(nextPublicDesigns);
+          nextSnapshot.events = nextEvents;
+          nextSnapshot.publicDesigns = nextPublicDesigns;
+        }
+
+        if (currentTab === "designSetup") {
+          const [nextCategories, nextTemplates, nextDesigns, nextPublicDesigns] =
+            await Promise.all([
+              canAny(authUser, [
+                "category:view",
+                "category:manage",
+                "subcategory:view",
+                "subcategory:manage",
+              ])
+                ? apiRequest<DesignCategory[]>("/template-design/categories", {
+                    headers,
+                  })
+                : Promise.resolve([]),
+              canAny(authUser, [
+                "template:view:own",
+                "template:view:all",
+                "template:create",
+                "template:update:own",
+                "template:update:all",
+                "template:duplicate",
+              ])
+                ? apiRequest<InvitationTemplate[]>("/template-design/templates", {
+                    headers,
+                  })
+                : Promise.resolve([]),
+              canAny(authUser, ["design:view:own", "design:view:all"])
+                ? apiRequest<InvitationDesign[]>("/template-design/designs", {
+                    headers,
+                  })
+                : Promise.resolve([]),
+              apiRequest<InvitationDesign[]>("/template-design/public/designs"),
+            ]);
+          setDesignCategories(nextCategories);
+          setTemplates(nextTemplates);
+          setDesigns(nextDesigns);
+          setPublicDesigns(nextPublicDesigns);
+          nextSnapshot.designCategories = nextCategories;
+          nextSnapshot.templates = nextTemplates;
+          nextSnapshot.designs = nextDesigns;
+          nextSnapshot.publicDesigns = nextPublicDesigns;
+        }
+
+        if (currentTab === "settings") {
+          const nextCategories = canAny(authUser, [
             "category:view",
             "category:manage",
             "subcategory:view",
             "subcategory:manage",
           ])
-            ? apiRequest<DesignCategory[]>("/template-design/categories", {
+            ? await apiRequest<DesignCategory[]>("/template-design/categories", {
                 headers,
               })
-            : Promise.resolve([]),
-          canAny(authUser, [
-            "template:view:own",
-            "template:view:all",
-            "template:create",
-            "template:update:own",
-            "template:update:all",
-            "template:duplicate",
-          ])
-            ? apiRequest<InvitationTemplate[]>("/template-design/templates", {
-                headers,
-              })
-            : Promise.resolve([]),
-          canAny(authUser, ["design:view:own", "design:view:all"])
-            ? apiRequest<InvitationDesign[]>("/template-design/designs", {
-                headers,
-              })
-            : Promise.resolve([]),
-          can(authUser, "content:manage")
-            ? apiRequest<PageContent[]>("/cms/admin/pages", { headers })
-            : Promise.resolve([]),
-          canAny(authUser, ["blog:manage:own", "blog:manage:all"])
-            ? apiRequest<BlogPost[]>("/cms/admin/blog", { headers })
-            : Promise.resolve([]),
-          apiRequest<InvitationDesign[]>("/template-design/public/designs"),
-        ]);
+            : [];
+          setDesignCategories(nextCategories);
+          nextSnapshot.designCategories = nextCategories;
+        }
 
-        setEvents(results[0]);
-        setPermissions(results[1]);
-        setRoles(results[2]);
-        setStaff(results[3]);
-        setSessions(results[4]);
-        setAuditLogs(results[5]);
-        setDesignCategories(results[6]);
-        setTemplates(results[7]);
-        setDesigns(results[8]);
-        setPages(results[9]);
-        setBlogPosts(results[10]);
-        setPublicDesigns(results[11]);
-        storeDashboardCache({
-          userId: authUser.id,
-          cachedAt: Date.now(),
-          events: results[0],
-          permissions: results[1],
-          roles: results[2],
-          staff: results[3],
-          sessions: results[4],
-          auditLogs: results[5],
-          designCategories: results[6],
-          templates: results[7],
-          designs: results[8],
-          pages: results[9],
-          blogPosts: results[10],
-          publicDesigns: results[11],
-        });
+        if (currentTab === "website") {
+          const [nextPages, nextBlogPosts] = await Promise.all([
+            can(authUser, "content:manage")
+              ? apiRequest<PageContent[]>("/cms/admin/pages", { headers })
+              : Promise.resolve([]),
+            canAny(authUser, ["blog:manage:own", "blog:manage:all"])
+              ? apiRequest<BlogPost[]>("/cms/admin/blog", { headers })
+              : Promise.resolve([]),
+          ]);
+          setPages(nextPages);
+          setBlogPosts(nextBlogPosts);
+          nextSnapshot.pages = nextPages;
+          nextSnapshot.blogPosts = nextBlogPosts;
+        }
+
+        if (currentTab === "roles" || currentTab === "permissions") {
+          const [nextPermissions, nextRoles] = await Promise.all([
+            can(authUser, "permissions:view")
+              ? apiRequest<Permission[]>("/admin/permissions", { headers })
+              : Promise.resolve([]),
+            can(authUser, "roles:view")
+              ? apiRequest<Role[]>("/admin/roles", { headers })
+              : Promise.resolve([]),
+          ]);
+          setPermissions(nextPermissions);
+          setRoles(nextRoles);
+          nextSnapshot.permissions = nextPermissions;
+          nextSnapshot.roles = nextRoles;
+        }
+
+        if (currentTab === "staff") {
+          const [nextRoles, nextStaff] = await Promise.all([
+            can(authUser, "roles:view")
+              ? apiRequest<Role[]>("/admin/roles", { headers })
+              : Promise.resolve([]),
+            can(authUser, "staff:view")
+              ? apiRequest<Staff[]>("/admin/staff", { headers })
+              : Promise.resolve([]),
+          ]);
+          setRoles(nextRoles);
+          setStaff(nextStaff);
+          nextSnapshot.roles = nextRoles;
+          nextSnapshot.staff = nextStaff;
+        }
+
+        if (currentTab === "sessions") {
+          const nextSessions = can(authUser, "sessions:view")
+            ? await apiRequest<Session[]>("/admin/sessions", { headers })
+            : [];
+          setSessions(nextSessions);
+          nextSnapshot.sessions = nextSessions;
+        }
+
+        if (currentTab === "audit") {
+          const nextAuditLogs = can(authUser, "audit:view")
+            ? await apiRequest<AuditLog[]>("/admin/audit-logs", { headers })
+            : [];
+          setAuditLogs(nextAuditLogs);
+          nextSnapshot.auditLogs = nextAuditLogs;
+        }
+
+        storeDashboardCache(nextSnapshot);
       } catch (caughtError) {
         showToast(
           caughtError instanceof Error
@@ -964,7 +1099,7 @@ export default function DashboardPage() {
         setIsRefreshing(false);
       }
     },
-    [user],
+    [currentTab, user],
   );
 
   useEffect(() => {
@@ -1208,13 +1343,14 @@ export default function DashboardPage() {
 
         {currentTab === "overview" ? (
           <OverviewPanel
-            auditCount={auditLogs.length}
-            eventCount={events.length}
-            roleCount={roles.length}
+            auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
+            eventCount={dashboardSummary?.eventCount ?? events.length}
+            roleCount={dashboardSummary?.roleCount ?? roles.length}
             sessionCount={
+              dashboardSummary?.sessionCount ??
               sessions.filter((session) => !session.revokedAt).length
             }
-            staffCount={staff.length}
+            staffCount={dashboardSummary?.staffCount ?? staff.length}
           />
         ) : null}
         {currentTab === "events" ? (
