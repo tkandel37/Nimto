@@ -985,19 +985,31 @@ export default function DashboardPage() {
   );
 
   async function logout() {
-    try {
-      await request("/auth/logout", { method: "POST" });
-    } catch (caughtError) {
-      console.error("Logout failed on server", caughtError);
-    }
+    const savedToken = localStorage.getItem("nimto_token");
+    const userId = user?.id;
 
     localStorage.removeItem("nimto_token");
     localStorage.removeItem("nimto_user");
-    if (user?.id) {
-      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${user.id}`);
+    if (userId) {
+      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
     }
     setUser(null);
     router.replace("/");
+
+    if (!savedToken) {
+      return;
+    }
+
+    try {
+      await apiRequest("/auth/logout", {
+        headers: {
+          Authorization: `Bearer ${savedToken}`,
+        },
+        method: "POST",
+      });
+    } catch {
+      // Local logout is already complete. Expired server sessions are safe to ignore.
+    }
   }
 
   function showToast(message: string, tone: DashboardToast["tone"]) {
