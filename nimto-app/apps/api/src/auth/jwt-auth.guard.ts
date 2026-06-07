@@ -18,6 +18,12 @@ export type AuthenticatedRequest = Request & {
 
 import { PrismaService } from "../prisma/prisma.service";
 
+const SESSION_AUTH_CACHE_MS = 30_000;
+const sessionAuthCache = new Map<
+  string,
+  { expiresAt: number; sessionExpiresAt: Date; userStatus: string }
+>();
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -46,10 +52,22 @@ export class JwtAuthGuard implements CanActivate {
       };
 
       if (payload.sessionId) {
-        const session = await this.prisma.userSession.findUnique({
-          where: { id: payload.sessionId },
-          include: { user: true },
-        });
+        const cached = sessionAuthCache.get(payload.sessionId);
+        const session =
+          cached && cached.expiresAt > Date.now()
+            ? {
+                expiresAt: cached.sessionExpiresAt,
+                revokedAt: null,
+                user: { status: cached.userStatus },
+              }
+            : await this.prisma.userSession.findUnique({
+                where: { id: payload.sessionId },
+                select: {
+                  expiresAt: true,
+                  revokedAt: true,
+                  user: { select: { status: true } },
+                },
+              });
 
         if (!session || session.revokedAt || session.expiresAt < new Date()) {
           throw new UnauthorizedException("Session revoked or invalid.");
@@ -57,6 +75,14 @@ export class JwtAuthGuard implements CanActivate {
 
         if (session.user.status !== "ACTIVE") {
           throw new UnauthorizedException("This account is not active.");
+        }
+
+        if (!cached || cached.expiresAt <= Date.now()) {
+          sessionAuthCache.set(payload.sessionId, {
+            expiresAt: Date.now() + SESSION_AUTH_CACHE_MS,
+            sessionExpiresAt: session.expiresAt,
+            userStatus: session.user.status,
+          });
         }
       }
 

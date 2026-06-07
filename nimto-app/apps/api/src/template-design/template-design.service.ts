@@ -52,6 +52,36 @@ type TemplateScanResult = {
 
 type ScannedSection = { key: string; label: string; index: number };
 
+const TEMPLATE_ACCESS_CACHE_MS = 30_000;
+const TEMPLATE_DETAIL_CACHE_MS = 60_000;
+
+type TemplateAccess = {
+  updateAll: boolean;
+  updateOwn: boolean;
+  viewAll: boolean;
+  viewOwn: boolean;
+};
+
+type DesignAccess = {
+  viewAll: boolean;
+  viewOwn: boolean;
+};
+
+const templateAccessCache = new Map<
+  string,
+  { expiresAt: number; value: TemplateAccess }
+>();
+const designAccessCache = new Map<
+  string,
+  { expiresAt: number; value: DesignAccess }
+>();
+const templateDetailCache = new Map<
+  string,
+  { expiresAt: number; value: unknown }
+>();
+const templateListCache = new Map<string, { expiresAt: number; value: unknown }>();
+const designListCache = new Map<string, { expiresAt: number; value: unknown }>();
+
 @Injectable()
 export class TemplateDesignService {
   constructor(
@@ -147,12 +177,17 @@ export class TemplateDesignService {
   }
 
   async listTemplates(userId: string) {
+    const cached = templateListCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const access = await this.templateAccess(userId);
     if (!access.viewAll && !access.viewOwn) {
       throw new ForbiddenException("You cannot view templates.");
     }
 
-    return this.prisma.invitationTemplate.findMany({
+    const templates = await this.prisma.invitationTemplate.findMany({
       where: access.viewAll ? undefined : { createdById: userId },
       orderBy: { createdAt: "desc" },
       select: {
@@ -185,9 +220,20 @@ export class TemplateDesignService {
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
+    templateListCache.set(userId, {
+      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
+      value: templates,
+    });
+    return templates;
   }
 
   async getTemplate(templateId: string, userId: string) {
+    const cacheKey = `${userId}:${templateId}`;
+    const cached = templateDetailCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const template = await this.prisma.invitationTemplate.findUnique({
       where: { id: templateId },
       include: {
@@ -218,16 +264,25 @@ export class TemplateDesignService {
       throw new ForbiddenException("You cannot view this template.");
     }
 
+    templateDetailCache.set(cacheKey, {
+      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
+      value: template,
+    });
     return template;
   }
 
   async listDesigns(userId: string) {
+    const cached = designListCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const access = await this.designAccess(userId);
     if (!access.viewAll && !access.viewOwn) {
       throw new ForbiddenException("You cannot view designs.");
     }
 
-    return this.prisma.invitationDesign.findMany({
+    const designs = await this.prisma.invitationDesign.findMany({
       where: access.viewAll ? undefined : { createdById: userId },
       orderBy: { updatedAt: "desc" },
       include: {
@@ -246,6 +301,11 @@ export class TemplateDesignService {
         },
       },
     });
+    designListCache.set(userId, {
+      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
+      value: designs,
+    });
+    return designs;
   }
 
   async createTemplate(
@@ -289,6 +349,7 @@ export class TemplateDesignService {
       sourceFileName: template.sourceFileName,
       htmlSize: template.htmlSize,
     });
+    this.clearTemplateListCaches();
     return template;
   }
 
@@ -336,6 +397,7 @@ export class TemplateDesignService {
     await this.record(context, "invitationTemplate.duplicated", copy.id, {
       sourceTemplateId: template.id,
     });
+    this.clearTemplateListCaches();
     return copy;
   }
 
@@ -400,6 +462,8 @@ export class TemplateDesignService {
       name: template.name,
       status: template.status,
     });
+    this.clearTemplateDetailCache(template.id);
+    this.clearTemplateListCaches();
     return template;
   }
 
@@ -494,6 +558,8 @@ export class TemplateDesignService {
       templateId,
       versionNumber: design.versions[0]?.versionNumber,
     });
+    this.clearTemplateDetailCache(templateId);
+    this.clearTemplateListCaches();
     return design;
   }
 
@@ -529,6 +595,8 @@ export class TemplateDesignService {
     await this.record(context, "invitationDesign.unpublished", templateId, {
       designId: template.designId,
     });
+    this.clearTemplateDetailCache(templateId);
+    this.clearTemplateListCaches();
     return updatedTemplate;
   }
 
@@ -570,6 +638,8 @@ export class TemplateDesignService {
       fields: scanResult.fields.length,
       sections: scanResult.sections.length,
     });
+    this.clearTemplateDetailCache(template.id);
+    this.clearTemplateListCaches();
     return template;
   }
 
@@ -918,15 +988,23 @@ export class TemplateDesignService {
     return typeof meta[key] === "string" ? String(meta[key]) : undefined;
   }
 
-  private async templateAccess(userId: string) {
+  private async templateAccess(userId: string): Promise<TemplateAccess> {
+    const cached = templateAccessCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
         roles: {
-          include: {
+          select: {
             role: {
-              include: {
-                permissions: { include: { permission: true } },
+              select: {
+                name: true,
+                permissions: {
+                  select: { permission: { select: { key: true } } },
+                },
               },
             },
           },
@@ -936,12 +1014,17 @@ export class TemplateDesignService {
 
     const roleNames = user?.roles.map((userRole) => userRole.role.name) ?? [];
     if (roleNames.includes(SUPER_ADMIN_ROLE)) {
-      return {
+      const value = {
         viewOwn: true,
         viewAll: true,
         updateOwn: true,
         updateAll: true,
       };
+      templateAccessCache.set(userId, {
+        expiresAt: Date.now() + TEMPLATE_ACCESS_CACHE_MS,
+        value,
+      });
+      return value;
     }
 
     const permissions = new Set(
@@ -952,23 +1035,36 @@ export class TemplateDesignService {
       ) ?? [],
     );
 
-    return {
+    const value = {
       viewOwn: permissions.has(PERMISSIONS.templateViewOwn),
       viewAll: permissions.has(PERMISSIONS.templateViewAll),
       updateOwn: permissions.has(PERMISSIONS.templateUpdateOwn),
       updateAll: permissions.has(PERMISSIONS.templateUpdateAll),
     };
+    templateAccessCache.set(userId, {
+      expiresAt: Date.now() + TEMPLATE_ACCESS_CACHE_MS,
+      value,
+    });
+    return value;
   }
 
-  private async designAccess(userId: string) {
+  private async designAccess(userId: string): Promise<DesignAccess> {
+    const cached = designAccessCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
         roles: {
-          include: {
+          select: {
             role: {
-              include: {
-                permissions: { include: { permission: true } },
+              select: {
+                name: true,
+                permissions: {
+                  select: { permission: { select: { key: true } } },
+                },
               },
             },
           },
@@ -978,7 +1074,12 @@ export class TemplateDesignService {
 
     const roleNames = user?.roles.map((userRole) => userRole.role.name) ?? [];
     if (roleNames.includes(SUPER_ADMIN_ROLE)) {
-      return { viewOwn: true, viewAll: true };
+      const value = { viewOwn: true, viewAll: true };
+      designAccessCache.set(userId, {
+        expiresAt: Date.now() + TEMPLATE_ACCESS_CACHE_MS,
+        value,
+      });
+      return value;
     }
 
     const permissions = new Set(
@@ -989,10 +1090,28 @@ export class TemplateDesignService {
       ) ?? [],
     );
 
-    return {
+    const value = {
       viewOwn: permissions.has(PERMISSIONS.designViewOwn),
       viewAll: permissions.has(PERMISSIONS.designViewAll),
     };
+    designAccessCache.set(userId, {
+      expiresAt: Date.now() + TEMPLATE_ACCESS_CACHE_MS,
+      value,
+    });
+    return value;
+  }
+
+  private clearTemplateDetailCache(templateId: string) {
+    for (const key of templateDetailCache.keys()) {
+      if (key.endsWith(`:${templateId}`)) {
+        templateDetailCache.delete(key);
+      }
+    }
+  }
+
+  private clearTemplateListCaches() {
+    templateListCache.clear();
+    designListCache.clear();
   }
 
   private async record(
@@ -1001,7 +1120,7 @@ export class TemplateDesignService {
     entityId: string,
     metadata: Prisma.InputJsonObject,
   ) {
-    await this.audit.record({
+    void this.audit.record({
       actorId: context.actorId,
       action,
       entityType: "TemplateDesign",

@@ -262,6 +262,7 @@ model UserSession {
   user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([expiresAt])
   @@index([revokedAt])
 }

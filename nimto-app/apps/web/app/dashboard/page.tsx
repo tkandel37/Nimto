@@ -276,6 +276,25 @@ type DashboardDataSnapshot = {
 const DASHBOARD_CACHE_PREFIX = "nimto_dashboard_cache:";
 const ACCOUNT_LIST_CACHE_MS = 45_000;
 const ACCESS_CATALOG_CACHE_MS = 60_000;
+const ACCOUNT_ACTIVITY_CACHE_MS = 60_000;
+const DESIGN_SETUP_CACHE_MS = 60_000;
+
+const accountActivityCache = new Map<
+  string,
+  {
+    auditLogs: AuditLog[];
+    auditLoaded: boolean;
+    auditNextSkip: number | null;
+    cachedAt: number;
+    sessions: Session[];
+    sessionsLoaded: boolean;
+    sessionsNextSkip: number | null;
+  }
+>();
+const templateDetailCache = new Map<
+  string,
+  { cachedAt: number; template: InvitationTemplate }
+>();
 
 const statuses: Staff["status"][] = [
   "ACTIVE",
@@ -492,6 +511,7 @@ export function DashboardClient({
   const hasDashboardDataRef = useRef(false);
   const accountListLoadedAtRef = useRef({ staff: 0, users: 0 });
   const accessCatalogLoadedAtRef = useRef(0);
+  const designSetupLoadedAtRef = useRef(0);
 
   const currentTab = activeTab;
 
@@ -726,45 +746,63 @@ export function DashboardClient({
         }
 
         if (currentTab === "designSetup") {
-          const [nextCategories, nextTemplates, nextDesigns, nextPublicDesigns] =
-            await Promise.all([
-              canAny(authUser, [
-                "category:view",
-                "category:manage",
-                "subcategory:view",
-                "subcategory:manage",
-              ])
-                ? apiRequest<DesignCategory[]>("/template-design/categories", {
-                    headers,
-                  })
-                : Promise.resolve([]),
-              canAny(authUser, [
-                "template:view:own",
-                "template:view:all",
-                "template:create",
-                "template:update:own",
-                "template:update:all",
-                "template:duplicate",
-              ])
-                ? apiRequest<InvitationTemplate[]>("/template-design/templates", {
-                    headers,
-                  })
-                : Promise.resolve([]),
-              canAny(authUser, ["design:view:own", "design:view:all"])
-                ? apiRequest<InvitationDesign[]>("/template-design/designs", {
-                    headers,
-                  })
-                : Promise.resolve([]),
-              apiRequest<InvitationDesign[]>("/template-design/public/designs"),
-            ]);
-          setDesignCategories(nextCategories);
-          setTemplates(nextTemplates);
-          setDesigns(nextDesigns);
-          setPublicDesigns(nextPublicDesigns);
-          nextSnapshot.designCategories = nextCategories;
-          nextSnapshot.templates = nextTemplates;
-          nextSnapshot.designs = nextDesigns;
-          nextSnapshot.publicDesigns = nextPublicDesigns;
+          const canUseCachedDesignSetup =
+            !options.force &&
+            latest.designCategories.length > 0 &&
+            (latest.templates.length > 0 || latest.designs.length > 0) &&
+            Date.now() - designSetupLoadedAtRef.current < DESIGN_SETUP_CACHE_MS;
+          if (canUseCachedDesignSetup) {
+            nextSnapshot.designCategories = latest.designCategories;
+            nextSnapshot.templates = latest.templates;
+            nextSnapshot.designs = latest.designs;
+            nextSnapshot.publicDesigns = latest.publicDesigns;
+          } else {
+            const [
+              nextCategories,
+              nextTemplates,
+              nextDesigns,
+              nextPublicDesigns,
+            ] = await Promise.all([
+                canAny(authUser, [
+                  "category:view",
+                  "category:manage",
+                  "subcategory:view",
+                  "subcategory:manage",
+                ])
+                  ? apiRequest<DesignCategory[]>("/template-design/categories", {
+                      headers,
+                    })
+                  : Promise.resolve([]),
+                canAny(authUser, [
+                  "template:view:own",
+                  "template:view:all",
+                  "template:create",
+                  "template:update:own",
+                  "template:update:all",
+                  "template:duplicate",
+                ])
+                  ? apiRequest<InvitationTemplate[]>(
+                      "/template-design/templates",
+                      { headers },
+                    )
+                  : Promise.resolve([]),
+                canAny(authUser, ["design:view:own", "design:view:all"])
+                  ? apiRequest<InvitationDesign[]>("/template-design/designs", {
+                      headers,
+                    })
+                  : Promise.resolve([]),
+                apiRequest<InvitationDesign[]>("/template-design/public/designs"),
+              ]);
+            setDesignCategories(nextCategories);
+            setTemplates(nextTemplates);
+            setDesigns(nextDesigns);
+            setPublicDesigns(nextPublicDesigns);
+            nextSnapshot.designCategories = nextCategories;
+            nextSnapshot.templates = nextTemplates;
+            nextSnapshot.designs = nextDesigns;
+            nextSnapshot.publicDesigns = nextPublicDesigns;
+            designSetupLoadedAtRef.current = Date.now();
+          }
         }
 
         if (currentTab === "settings") {
@@ -1224,6 +1262,7 @@ export function DashboardClient({
             isLoadingMore={isRefreshing}
             loadAccessCatalog={loadAccessCatalog}
             loadMore={() => loadMoreAccounts("staff")}
+            onRolesChange={setRoles}
             permissions={permissions}
             request={request}
             roles={roles}
@@ -1806,6 +1845,7 @@ function DesignSetupPanel({
     const template = await request<InvitationTemplate>(
       `/template-design/templates/${templateId}`,
     );
+    templateDetailCache.set(templateId, { cachedAt: Date.now(), template });
     setSelectedTemplate((current) =>
       current?.id === template.id ? template : current,
     );
@@ -1816,9 +1856,21 @@ function DesignSetupPanel({
   }
 
   async function openTemplateEditor(templateId: string) {
+    const cached = templateDetailCache.get(templateId);
+    if (cached && Date.now() - cached.cachedAt < 60_000) {
+      const template = cached.template;
+      setSelectedTemplate(template);
+      setEditorRawHtml(template.rawHtml ?? "");
+      const fields = extractTemplateEditorFields(template);
+      setEditorFields(fields);
+      setSelectedFieldKey(fields[0]?.key ?? "");
+      return;
+    }
+
     const template = await request<InvitationTemplate>(
       `/template-design/templates/${templateId}`,
     );
+    templateDetailCache.set(templateId, { cachedAt: Date.now(), template });
     setSelectedTemplate(template);
     setEditorRawHtml(template.rawHtml ?? "");
     const fields = extractTemplateEditorFields(template);
@@ -1840,6 +1892,10 @@ function DesignSetupPanel({
           },
         );
         const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
+        templateDetailCache.set(selectedTemplate.id, {
+          cachedAt: Date.now(),
+          template: nextTemplate,
+        });
         setSelectedTemplate(nextTemplate);
         setEditorRawHtml(rawHtml);
         setEditorFields(extractTemplateEditorFields(nextTemplate));
@@ -3895,6 +3951,7 @@ function StaffAccessPanel({
   isLoadingMore,
   loadAccessCatalog,
   loadMore,
+  onRolesChange,
   permissions,
   request,
   roles,
@@ -3915,6 +3972,7 @@ function StaffAccessPanel({
   isLoadingMore: boolean;
   loadAccessCatalog: (force?: boolean) => Promise<void>;
   loadMore: () => void;
+  onRolesChange: Dispatch<SetStateAction<Role[]>>;
   permissions: Permission[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
@@ -3984,6 +4042,7 @@ function StaffAccessPanel({
         <RolesPanel
           canManage={canManageRoles}
           completeAction={completeAction}
+          onRolesChange={onRolesChange}
           permissions={permissions}
           request={request}
           roles={roles}
@@ -4005,12 +4064,14 @@ function StaffAccessPanel({
 function RolesPanel({
   canManage,
   completeAction,
+  onRolesChange,
   permissions,
   request,
   roles,
 }: {
   canManage: boolean;
   completeAction: CompleteAction;
+  onRolesChange: Dispatch<SetStateAction<Role[]>>;
   permissions: Permission[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
@@ -4026,16 +4087,22 @@ function RolesPanel({
     const permissionKeys = form.getAll("permissionKeys").map(String);
 
     const completed = await completeAction(
-      () =>
-        request("/admin/roles", {
+      async () => {
+        const role = await request<Role>("/admin/roles", {
           method: "POST",
           body: JSON.stringify({
             name: form.get("name"),
             description: form.get("description"),
             permissionKeys,
           }),
-        }),
+        });
+        onRolesChange((current) => [
+          { ...role, _count: role._count ?? { users: 0 } },
+          ...current,
+        ]);
+      },
       "Role created.",
+      { refresh: false },
     );
     if (completed) event.currentTarget.reset();
     if (completed) setIsCreatingRole(false);
@@ -4051,23 +4118,36 @@ function RolesPanel({
     const permissionKeys = form.getAll("permissionKeys").map(String);
 
     await completeAction(
-      () =>
-        request(`/admin/roles/${editingRole.id}`, {
+      async () => {
+        const role = await request<Role>(`/admin/roles/${editingRole.id}`, {
           method: "PATCH",
           body: JSON.stringify({
             name: form.get("name"),
             description: form.get("description"),
             permissionKeys,
           }),
-        }),
+        });
+        onRolesChange((current) =>
+          current.map((item) =>
+            item.id === role.id
+              ? { ...item, ...role, _count: item._count }
+              : item,
+          ),
+        );
+      },
       "Role updated.",
+      { refresh: false },
     );
   }
 
   async function deleteRole(role: Role) {
     const completed = await completeAction(
-      () => request(`/admin/roles/${role.id}`, { method: "DELETE" }),
+      async () => {
+        await request(`/admin/roles/${role.id}`, { method: "DELETE" });
+        onRolesChange((current) => current.filter((item) => item.id !== role.id));
+      },
       "Role deleted.",
+      { refresh: false },
     );
     if (completed) setEditingRoleId("");
   }
@@ -5115,69 +5195,124 @@ function AccountActivity({
   const [sessionsNextSkip, setSessionsNextSkip] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditNextSkip, setAuditNextSkip] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const loadedActivityRef = useRef({ audit: false, sessions: false });
 
   useEffect(() => {
+    const cached = accountActivityCache.get(accountId);
     setActiveTab(canViewSessions ? "sessions" : "audit");
+    if (cached && Date.now() - cached.cachedAt < ACCOUNT_ACTIVITY_CACHE_MS) {
+      setSessions(cached.sessions);
+      setSessionsNextSkip(cached.sessionsNextSkip);
+      setAuditLogs(cached.auditLogs);
+      setAuditNextSkip(cached.auditNextSkip);
+      loadedActivityRef.current = {
+        audit: cached.auditLoaded,
+        sessions: cached.sessionsLoaded,
+      };
+      return;
+    }
+
     setSessions([]);
     setSessionsNextSkip(null);
     setAuditLogs([]);
     setAuditNextSkip(null);
+    loadedActivityRef.current = { audit: false, sessions: false };
   }, [accountId, canViewSessions]);
+
+  function rememberActivityCache(patch: {
+    auditLogs?: AuditLog[];
+    auditNextSkip?: number | null;
+    sessions?: Session[];
+    sessionsNextSkip?: number | null;
+  }) {
+    const current = accountActivityCache.get(accountId);
+    accountActivityCache.set(accountId, {
+      auditLogs: patch.auditLogs ?? current?.auditLogs ?? auditLogs,
+      auditLoaded: patch.auditLogs ? true : (current?.auditLoaded ?? false),
+      auditNextSkip:
+        patch.auditNextSkip !== undefined
+          ? patch.auditNextSkip
+          : (current?.auditNextSkip ?? auditNextSkip),
+      cachedAt: Date.now(),
+      sessions: patch.sessions ?? current?.sessions ?? sessions,
+      sessionsLoaded: patch.sessions ? true : (current?.sessionsLoaded ?? false),
+      sessionsNextSkip:
+        patch.sessionsNextSkip !== undefined
+          ? patch.sessionsNextSkip
+          : (current?.sessionsNextSkip ?? sessionsNextSkip),
+    });
+  }
 
   const loadAccountSessions = useCallback(
     async (skip = 0) => {
       if (!canViewSessions) return;
-      setIsLoading(true);
+      setIsLoadingSessions(true);
       try {
         const page = await request<PaginatedResponse<Session>>(
           `/admin/accounts/${accountId}/sessions?skip=${skip}&take=30`,
         );
-        setSessions((current) =>
-          skip === 0 ? page.items : [...current, ...page.items],
-        );
+        const nextSessions = skip === 0 ? page.items : [...sessions, ...page.items];
+        setSessions(nextSessions);
         setSessionsNextSkip(page.nextSkip);
+        rememberActivityCache({
+          sessions: nextSessions,
+          sessionsNextSkip: page.nextSkip,
+        });
+        loadedActivityRef.current.sessions = true;
       } finally {
-        setIsLoading(false);
+        setIsLoadingSessions(false);
       }
     },
-    [accountId, canViewSessions, request],
+    [accountId, canViewSessions, request, sessions],
   );
 
   const loadAccountAuditLogs = useCallback(
     async (skip = 0) => {
       if (!canViewAudit) return;
-      setIsLoading(true);
+      setIsLoadingAudit(true);
       try {
         const page = await request<PaginatedResponse<AuditLog>>(
           `/admin/accounts/${accountId}/audit-logs?skip=${skip}&take=30`,
         );
-        setAuditLogs((current) =>
-          skip === 0 ? page.items : [...current, ...page.items],
-        );
+        const nextAuditLogs =
+          skip === 0 ? page.items : [...auditLogs, ...page.items];
+        setAuditLogs(nextAuditLogs);
         setAuditNextSkip(page.nextSkip);
+        rememberActivityCache({
+          auditLogs: nextAuditLogs,
+          auditNextSkip: page.nextSkip,
+        });
+        loadedActivityRef.current.audit = true;
       } finally {
-        setIsLoading(false);
+        setIsLoadingAudit(false);
       }
     },
-    [accountId, canViewAudit, request],
+    [accountId, auditLogs, canViewAudit, request],
   );
 
   useEffect(() => {
-    if (activeTab === "sessions" && canViewSessions && !sessions.length) {
+    if (
+      activeTab === "sessions" &&
+      canViewSessions &&
+      !loadedActivityRef.current.sessions
+    ) {
       void loadAccountSessions();
     }
-    if (activeTab === "audit" && canViewAudit && !auditLogs.length) {
+    if (
+      activeTab === "audit" &&
+      canViewAudit &&
+      !loadedActivityRef.current.audit
+    ) {
       void loadAccountAuditLogs();
     }
   }, [
     activeTab,
-    auditLogs.length,
     canViewAudit,
     canViewSessions,
     loadAccountAuditLogs,
     loadAccountSessions,
-    sessions.length,
   ]);
 
   async function forceLogout(session: Session) {
@@ -5234,16 +5369,17 @@ function AccountActivity({
           <AccountSessionsTable
             canManage={canManageSessions}
             forceLogout={forceLogout}
+            isLoading={isLoadingSessions}
             sessions={sessions}
           />
           {sessionsNextSkip !== null ? (
             <button
               className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
-              disabled={isLoading}
+              disabled={isLoadingSessions}
               onClick={() => loadAccountSessions(sessionsNextSkip)}
               type="button"
             >
-              {isLoading ? "Loading..." : "Load more sessions"}
+              {isLoadingSessions ? "Loading..." : "Load more sessions"}
             </button>
           ) : null}
         </div>
@@ -5251,15 +5387,15 @@ function AccountActivity({
 
       {activeTab === "audit" && canViewAudit ? (
         <div className="grid gap-3">
-          <AccountAuditLogList logs={auditLogs} />
+          <AccountAuditLogList isLoading={isLoadingAudit} logs={auditLogs} />
           {auditNextSkip !== null ? (
             <button
               className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
-              disabled={isLoading}
+              disabled={isLoadingAudit}
               onClick={() => loadAccountAuditLogs(auditNextSkip)}
               type="button"
             >
-              {isLoading ? "Loading..." : "Load more audit logs"}
+              {isLoadingAudit ? "Loading..." : "Load more audit logs"}
             </button>
           ) : null}
         </div>
@@ -5271,12 +5407,22 @@ function AccountActivity({
 function AccountSessionsTable({
   canManage,
   forceLogout,
+  isLoading,
   sessions,
 }: {
   canManage: boolean;
   forceLogout: (session: Session) => void;
+  isLoading: boolean;
   sessions: Session[];
 }) {
+  if (isLoading && !sessions.length) {
+    return (
+      <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
+        Loading sessions...
+      </div>
+    );
+  }
+
   if (!sessions.length) {
     return (
       <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
@@ -5329,7 +5475,21 @@ function AccountSessionsTable({
   );
 }
 
-function AccountAuditLogList({ logs }: { logs: AuditLog[] }) {
+function AccountAuditLogList({
+  isLoading,
+  logs,
+}: {
+  isLoading: boolean;
+  logs: AuditLog[];
+}) {
+  if (isLoading && !logs.length) {
+    return (
+      <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
+        Loading audit logs...
+      </div>
+    );
+  }
+
   if (!logs.length) {
     return (
       <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">

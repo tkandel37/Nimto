@@ -25,6 +25,27 @@ type PageOptions = {
   take?: number;
 };
 
+type PageResult<T> = {
+  items: T[];
+  nextSkip: number | null;
+  total: number;
+};
+
+type AccountSessionListItem = {
+  createdAt: Date;
+  expiresAt: Date;
+  id: string;
+  revokedAt: Date | null;
+  revocationReason: string | null;
+  userAgent: string | null;
+};
+
+const ACCOUNT_SESSION_CACHE_MS = 30_000;
+const accountSessionCache = new Map<
+  string,
+  { expiresAt: number; value: PageResult<AccountSessionListItem> }
+>();
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -101,7 +122,6 @@ export class AdminService {
   }
 
   async createRole(dto: CreateRoleDto, context: ActorContext) {
-    await this.assertPermissionsExist(dto.permissionKeys ?? []);
     const name = this.normalizeRoleName(dto.name);
 
     try {
@@ -123,6 +143,7 @@ export class AdminService {
       });
       return role;
     } catch (error) {
+      this.throwIfMissingRelation(error, "One or more permissions do not exist.");
       this.throwIfUniqueConstraint(error, `Role "${name}" already exists.`);
       throw error;
     }
@@ -134,7 +155,6 @@ export class AdminService {
       throw new ForbiddenException("SUPER_ADMIN role cannot be changed.");
     }
 
-    await this.assertPermissionsExist(dto.permissionKeys ?? []);
     try {
       const role = await this.prisma.$transaction(async (tx) => {
         if (dto.permissionKeys) {
@@ -166,6 +186,7 @@ export class AdminService {
       });
       return role;
     } catch (error) {
+      this.throwIfMissingRelation(error, "One or more permissions do not exist.");
       this.throwIfUniqueConstraint(
         error,
         "A role with this name already exists.",
@@ -412,29 +433,32 @@ export class AdminService {
     return this.prisma.userSession.findMany({
       orderBy: { createdAt: "desc" },
       take: 30,
-      include: {
-        user: { select: { id: true, name: true, email: true, status: true } },
-      },
+      select: this.sessionSelect(),
     });
   }
 
   async listAccountSessions(userId: string, options: PageOptions = {}) {
-    await this.assertUserExists(userId);
     const page = this.pageOptions(options);
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.userSession.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: { select: { id: true, name: true, email: true, status: true } },
-        },
-        skip: page.skip,
-        take: page.take,
-      }),
-      this.prisma.userSession.count({ where: { userId } }),
-    ]);
+    const cacheKey = `${userId}:${page.skip}:${page.take}`;
+    const cached = accountSessionCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
 
-    return this.pageResult(items, total, page);
+    const items = await this.prisma.userSession.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: this.accountSessionSelect(),
+      skip: page.skip,
+      take: page.take + 1,
+    });
+
+    const value = this.cursorPageResult(items, page);
+    accountSessionCache.set(cacheKey, {
+      expiresAt: Date.now() + ACCOUNT_SESSION_CACHE_MS,
+      value,
+    });
+    return value;
   }
 
   async forceLogout(sessionId: string, context: ActorContext) {
@@ -454,6 +478,7 @@ export class AdminService {
             revocationReason: "ADMIN_FORCE_LOGOUT",
           },
         });
+    this.clearAccountSessionCache(session.userId);
 
     await this.record(
       context,
@@ -465,6 +490,14 @@ export class AdminService {
       },
     );
     return { success: true };
+  }
+
+  private clearAccountSessionCache(userId: string) {
+    for (const key of accountSessionCache.keys()) {
+      if (key.startsWith(`${userId}:`)) {
+        accountSessionCache.delete(key);
+      }
+    }
   }
 
   listAuditLogs() {
@@ -539,6 +572,41 @@ export class AdminService {
       nextSkip: nextSkip < total ? nextSkip : null,
       total,
     };
+  }
+
+  private cursorPageResult<T>(items: T[], page: { skip: number; take: number }) {
+    const visibleItems = items.slice(0, page.take);
+    const nextSkip =
+      items.length > page.take ? page.skip + visibleItems.length : null;
+
+    return {
+      items: visibleItems,
+      nextSkip,
+      total: page.skip + visibleItems.length,
+    };
+  }
+
+  private sessionSelect() {
+    return {
+      id: true,
+      createdAt: true,
+      expiresAt: true,
+      revokedAt: true,
+      revocationReason: true,
+      userAgent: true,
+      user: { select: { id: true, name: true, email: true, status: true } },
+    } as const;
+  }
+
+  private accountSessionSelect() {
+    return {
+      id: true,
+      createdAt: true,
+      expiresAt: true,
+      revokedAt: true,
+      revocationReason: true,
+      userAgent: true,
+    } as const;
   }
 
   private async assertPermissionsExist(keys: string[]) {
@@ -617,6 +685,15 @@ export class AdminService {
     }
   }
 
+  private throwIfMissingRelation(error: unknown, message: string): never | void {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      throw new BadRequestException(message);
+    }
+  }
+
   private staffSelect() {
     return {
       id: true,
@@ -653,7 +730,7 @@ export class AdminService {
     entityId?: string,
     metadata?: Prisma.InputJsonValue,
   ) {
-    return this.audit.record({
+    void this.audit.record({
       actorId: context.actorId,
       action,
       entityType,
@@ -662,5 +739,6 @@ export class AdminService {
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
     });
+    return Promise.resolve(null);
   }
 }

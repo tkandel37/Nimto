@@ -17,16 +17,21 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: AuditInput) {
-    return this.prisma.auditLog.create({
-      data: {
-        actorId: input.actorId,
-        action: input.action,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        metadata: input.metadata,
-        ipAddress: input.ipAddress,
-        userAgent: input.userAgent,
-      },
-    });
+    try {
+      return await this.prisma.auditLog.create({
+        data: {
+          actorId: input.actorId,
+          action: input.action,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          metadata: input.metadata,
+          ipAddress: input.ipAddress,
+          userAgent: input.userAgent,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to record audit log", error);
+      return null;
+    }
   }
 }

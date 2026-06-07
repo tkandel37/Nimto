@@ -10,6 +10,12 @@ import { REQUIRED_PERMISSIONS_KEY } from "../decorators/require-permissions.deco
 import { AuthenticatedRequest } from "../jwt-auth.guard";
 import { SUPER_ADMIN_ROLE } from "../permissions";
 
+const PERMISSION_CACHE_MS = 30_000;
+const permissionCache = new Map<
+  string,
+  { expiresAt: number; permissions: Set<string>; roleNames: string[] }
+>();
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
@@ -33,39 +39,54 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException("Missing authenticated user.");
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        roles: {
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: {
-                    permission: true,
+    const cached = permissionCache.get(userId);
+    const access =
+      cached && cached.expiresAt > Date.now()
+        ? cached
+        : await this.prisma.user
+            .findUnique({
+              where: { id: userId },
+              select: {
+                roles: {
+                  select: {
+                    role: {
+                      select: {
+                        name: true,
+                        permissions: {
+                          select: {
+                            permission: { select: { key: true } },
+                          },
+                        },
+                      },
+                    },
                   },
                 },
               },
-            },
-          },
-        },
-      },
-    });
+            })
+            .then((user) => {
+              const roleNames =
+                user?.roles.map((userRole) => userRole.role.name) ?? [];
+              const permissions = new Set(
+                user?.roles.flatMap((userRole) =>
+                  userRole.role.permissions.map(
+                    (rolePermission) => rolePermission.permission.key,
+                  ),
+                ) ?? [],
+              );
+              const next = {
+                expiresAt: Date.now() + PERMISSION_CACHE_MS,
+                permissions,
+                roleNames,
+              };
+              permissionCache.set(userId, next);
+              return next;
+            });
 
-    const roleNames = user?.roles.map((userRole) => userRole.role.name) ?? [];
-    if (roleNames.includes(SUPER_ADMIN_ROLE)) {
+    if (access.roleNames.includes(SUPER_ADMIN_ROLE)) {
       return true;
     }
 
-    const granted = new Set(
-      user?.roles.flatMap((userRole) =>
-        userRole.role.permissions.map(
-          (rolePermission) => rolePermission.permission.key,
-        ),
-      ) ?? [],
-    );
-
-    if (required.every((permission) => granted.has(permission))) {
+    if (required.every((permission) => access.permissions.has(permission))) {
       return true;
     }
 
