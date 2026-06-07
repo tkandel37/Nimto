@@ -275,6 +275,7 @@ type DashboardDataSnapshot = {
 
 const DASHBOARD_CACHE_PREFIX = "nimto_dashboard_cache:";
 const ACCOUNT_LIST_CACHE_MS = 45_000;
+const ACCESS_CATALOG_CACHE_MS = 60_000;
 
 const statuses: Staff["status"][] = [
   "ACTIVE",
@@ -490,6 +491,7 @@ export function DashboardClient({
   });
   const hasDashboardDataRef = useRef(false);
   const accountListLoadedAtRef = useRef({ staff: 0, users: 0 });
+  const accessCatalogLoadedAtRef = useRef(0);
 
   const currentTab = activeTab;
 
@@ -822,24 +824,35 @@ export function DashboardClient({
             nextSnapshot.staffNextSkip = latest.staffNextSkip;
             nextSnapshot.roles = latest.roles;
           } else {
-            const [nextRoles, nextStaffPage] = await Promise.all([
-              can(authUser, "roles:view")
-                ? apiRequest<Role[]>("/admin/roles", { headers })
-                : Promise.resolve([]),
-              can(authUser, "staff:view")
-                ? apiRequest<PaginatedResponse<Staff>>(
-                    "/admin/staff?skip=0&take=30",
-                    { headers },
-                  )
-                : Promise.resolve({ items: [], nextSkip: null, total: 0 }),
-            ]);
+            const [nextRoles, nextStaffPage, nextPermissions] =
+              await Promise.all([
+                can(authUser, "roles:view")
+                  ? apiRequest<Role[]>("/admin/roles", { headers })
+                  : Promise.resolve([]),
+                can(authUser, "staff:view")
+                  ? apiRequest<PaginatedResponse<Staff>>(
+                      "/admin/staff?skip=0&take=30",
+                      { headers },
+                    )
+                  : Promise.resolve({ items: [], nextSkip: null, total: 0 }),
+                latest.permissions.length > 0 || options.force
+                  ? can(authUser, "permissions:view")
+                    ? apiRequest<Permission[]>("/admin/permissions", { headers })
+                    : Promise.resolve(latest.permissions)
+                  : Promise.resolve(latest.permissions),
+              ]);
             setRoles(nextRoles);
             setStaff(nextStaffPage.items);
             setStaffNextSkip(nextStaffPage.nextSkip);
+            setPermissions(nextPermissions);
             nextSnapshot.roles = nextRoles;
             nextSnapshot.staff = nextStaffPage.items;
             nextSnapshot.staffNextSkip = nextStaffPage.nextSkip;
+            nextSnapshot.permissions = nextPermissions;
             accountListLoadedAtRef.current.staff = Date.now();
+            if (nextPermissions.length) {
+              accessCatalogLoadedAtRef.current = Date.now();
+            }
           }
         }
 
@@ -1033,6 +1046,43 @@ export function DashboardClient({
     }
   }
 
+  async function loadAccessCatalog(force = false) {
+    const savedToken = localStorage.getItem("nimto_token");
+    if (!savedToken || !user) return;
+
+    const canUseCache =
+      !force &&
+      roles.length > 0 &&
+      permissions.length > 0 &&
+      Date.now() - accessCatalogLoadedAtRef.current < ACCESS_CATALOG_CACHE_MS;
+    if (canUseCache) return;
+
+    setIsRefreshing(true);
+    try {
+      const headers = { Authorization: `Bearer ${savedToken}` };
+      const [nextRoles, nextPermissions] = await Promise.all([
+        can(user, "roles:view")
+          ? apiRequest<Role[]>("/admin/roles", { headers })
+          : Promise.resolve(roles),
+        can(user, "permissions:view")
+          ? apiRequest<Permission[]>("/admin/permissions", { headers })
+          : Promise.resolve(permissions),
+      ]);
+      setRoles(nextRoles);
+      setPermissions(nextPermissions);
+      accessCatalogLoadedAtRef.current = Date.now();
+    } catch (caughtError) {
+      showToast(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load access data.",
+        "error",
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
   if (isLoading && !user) {
     return (
       <div className="dashboard-page-surface grid place-items-center">
@@ -1150,34 +1200,31 @@ export function DashboardClient({
             request={request}
           />
         ) : null}
-        {currentTab === "roles" && can(user, "roles:view") ? (
-          <RolesPanel
-            canManage={can(user, "roles:manage")}
-            completeAction={completeAction}
-            permissions={permissions}
-            request={request}
-            roles={roles}
-          />
-        ) : null}
-        {currentTab === "permissions" && can(user, "permissions:view") ? (
-          <PermissionsPanel
-            canManage={can(user, "permissions:manage")}
-            completeAction={completeAction}
-            permissions={permissions}
-            request={request}
-            roles={roles}
-          />
-        ) : null}
-        {currentTab === "staff" && can(user, "staff:view") ? (
-          <StaffPanel
+        {["staff", "roles", "permissions"].includes(currentTab) &&
+        canAny(user, ["staff:view", "roles:view", "permissions:view"]) ? (
+          <StaffAccessPanel
             canViewAudit={can(user, "audit:view")}
             canViewSessions={can(user, "sessions:view")}
-            canManage={can(user, "staff:manage")}
+            canManagePermissions={can(user, "permissions:manage")}
+            canManageRoles={can(user, "roles:manage")}
+            canManageStaff={can(user, "staff:manage")}
             canManageSessions={can(user, "sessions:manage")}
+            canViewPermissions={can(user, "permissions:view")}
+            canViewRoles={can(user, "roles:view")}
+            canViewStaff={can(user, "staff:view")}
             completeAction={completeAction}
             hasMore={staffNextSkip !== null}
+            initialSection={
+              currentTab === "permissions"
+                ? "permissions"
+                : currentTab === "roles"
+                  ? "roles"
+                  : "staff"
+            }
             isLoadingMore={isRefreshing}
+            loadAccessCatalog={loadAccessCatalog}
             loadMore={() => loadMoreAccounts("staff")}
+            permissions={permissions}
             request={request}
             roles={roles}
             staff={staff}
@@ -3830,6 +3877,131 @@ function formatSources(items?: { label: string; url: string }[] | null) {
   return items?.map((item) => `${item.label} | ${item.url}`).join("\n") ?? "";
 }
 
+type StaffAccessSection = "staff" | "roles" | "permissions";
+
+function StaffAccessPanel({
+  canManagePermissions,
+  canManageRoles,
+  canManageSessions,
+  canManageStaff,
+  canViewAudit,
+  canViewPermissions,
+  canViewRoles,
+  canViewSessions,
+  canViewStaff,
+  completeAction,
+  hasMore,
+  initialSection,
+  isLoadingMore,
+  loadAccessCatalog,
+  loadMore,
+  permissions,
+  request,
+  roles,
+  staff,
+}: {
+  canManagePermissions: boolean;
+  canManageRoles: boolean;
+  canManageSessions: boolean;
+  canManageStaff: boolean;
+  canViewAudit: boolean;
+  canViewPermissions: boolean;
+  canViewRoles: boolean;
+  canViewSessions: boolean;
+  canViewStaff: boolean;
+  completeAction: CompleteAction;
+  hasMore: boolean;
+  initialSection: StaffAccessSection;
+  isLoadingMore: boolean;
+  loadAccessCatalog: (force?: boolean) => Promise<void>;
+  loadMore: () => void;
+  permissions: Permission[];
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+  roles: Role[];
+  staff: Staff[];
+}) {
+  const [activeSection, setActiveSection] =
+    useState<StaffAccessSection>(initialSection);
+
+  useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (activeSection === "roles" || activeSection === "permissions") {
+      void loadAccessCatalog();
+    }
+  }, [activeSection, loadAccessCatalog]);
+
+  const sections = [
+    canViewStaff ? { key: "staff" as const, label: "Staff" } : null,
+    canViewRoles ? { key: "roles" as const, label: "Roles" } : null,
+    canViewPermissions
+      ? { key: "permissions" as const, label: "Permissions" }
+      : null,
+  ].filter(Boolean) as { key: StaffAccessSection; label: string }[];
+
+  return (
+    <section className="mt-7 grid gap-5">
+      <div
+        className="grid w-full overflow-hidden rounded-lg border border-ink/10 bg-white"
+        style={{
+          gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {sections.map((section) => (
+          <button
+            className={`min-h-12 border-r border-ink/10 px-4 py-3 text-sm font-black last:border-r-0 ${
+              activeSection === section.key
+                ? "bg-ink text-white"
+                : "bg-white text-ink hover:bg-paper"
+            }`}
+            key={section.key}
+            onClick={() => setActiveSection(section.key)}
+            type="button"
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+
+      {activeSection === "staff" && canViewStaff ? (
+        <StaffPanel
+          canManage={canManageStaff}
+          canManageSessions={canManageSessions}
+          canViewAudit={canViewAudit}
+          canViewSessions={canViewSessions}
+          completeAction={completeAction}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          loadMore={loadMore}
+          request={request}
+          roles={roles}
+          staff={staff}
+        />
+      ) : null}
+      {activeSection === "roles" && canViewRoles ? (
+        <RolesPanel
+          canManage={canManageRoles}
+          completeAction={completeAction}
+          permissions={permissions}
+          request={request}
+          roles={roles}
+        />
+      ) : null}
+      {activeSection === "permissions" && canViewPermissions ? (
+        <PermissionsPanel
+          canManage={canManagePermissions}
+          completeAction={completeAction}
+          permissions={permissions}
+          request={request}
+          roles={roles}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 function RolesPanel({
   canManage,
   completeAction,
@@ -3844,6 +4016,7 @@ function RolesPanel({
   roles: Role[];
 }) {
   const [editingRoleId, setEditingRoleId] = useState("");
+  const [isCreatingRole, setIsCreatingRole] = useState(false);
   const editingRole =
     roles.find((role) => role.id === editingRoleId) ?? null;
 
@@ -3865,6 +4038,7 @@ function RolesPanel({
       "Role created.",
     );
     if (completed) event.currentTarget.reset();
+    if (completed) setIsCreatingRole(false);
   }
 
   async function updateRole(event: FormEvent<HTMLFormElement>) {
@@ -3900,7 +4074,7 @@ function RolesPanel({
 
   if (editingRole) {
     return (
-      <section className="mt-7 grid gap-5">
+      <section className="grid gap-5">
         <button
           className="w-fit rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
           onClick={() => setEditingRoleId("")}
@@ -3944,7 +4118,35 @@ function RolesPanel({
   }
 
   return (
-    <section className="mt-7 grid gap-5">
+    <section className="grid gap-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-ink">Roles</h2>
+          <p className="mt-1 text-sm text-ink/55">
+            {roles.length} roles configured
+          </p>
+        </div>
+        {canManage ? (
+          <button
+            aria-label="Create role"
+            className="h-12 w-12 rounded-lg bg-ink text-2xl font-black leading-none text-white"
+            onClick={() => setIsCreatingRole((value) => !value)}
+            title="Create role"
+            type="button"
+          >
+            +
+          </button>
+        ) : null}
+      </div>
+
+      {isCreatingRole && canManage ? (
+        <RoleForm
+          onSubmit={createRole}
+          permissions={permissions}
+          title="Create role"
+        />
+      ) : null}
+
       <div className="overflow-x-auto border border-ink/10 bg-white">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
@@ -3982,18 +4184,39 @@ function RolesPanel({
           </tbody>
         </table>
       </div>
-
-      {canManage ? (
-        <div className="grid gap-5">
-          <RoleForm
-            onSubmit={createRole}
-            permissions={permissions}
-            title="Create role"
-          />
-        </div>
-      ) : null}
     </section>
   );
+}
+
+function permissionGroupLabel(key: string) {
+  const [group] = key.split(":");
+  return group
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function groupPermissions(permissions: Permission[]) {
+  const grouped = permissions.reduce(
+    (groups, permission) => {
+      const label = permissionGroupLabel(permission.key);
+      const existing = groups.get(label) ?? [];
+      existing.push(permission);
+      groups.set(label, existing);
+      return groups;
+    },
+    new Map<string, Permission[]>(),
+  );
+
+  return Array.from(grouped.entries())
+    .map(([label, items]) => ({
+      label,
+      permissions: items.sort((first, second) =>
+        first.key.localeCompare(second.key),
+      ),
+    }))
+    .sort((first, second) => first.label.localeCompare(second.label));
 }
 
 function RoleForm({
@@ -4013,6 +4236,7 @@ function RoleForm({
     role?.permissions.map((rolePermission) => rolePermission.permission.key) ??
       [],
   );
+  const permissionGroups = groupPermissions(permissions);
 
   return (
     <form
@@ -4037,25 +4261,41 @@ function RoleForm({
           name="description"
         />
       </label>
-      <div className="mt-4 grid max-h-64 gap-2 overflow-auto pr-1">
-        {permissions.map((permission) => (
-          <label
-            className="flex items-start gap-3 rounded-md border border-ink/10 p-3 text-sm"
-            key={permission.key}
+      <div className="mt-4 grid max-h-[28rem] gap-4 overflow-auto pr-1 md:grid-cols-2">
+        {permissionGroups.map((group) => (
+          <fieldset
+            className="rounded-lg border border-ink/10 bg-paper/50 p-3"
+            key={group.label}
           >
-            <input
-              className="mt-1"
-              defaultChecked={selected.has(permission.key)}
-              disabled={disabled}
-              name="permissionKeys"
-              type="checkbox"
-              value={permission.key}
-            />
-            <span>
-              <span className="block font-bold text-ink">{permission.key}</span>
-              <span className="text-ink/55">{permission.description}</span>
-            </span>
-          </label>
+            <legend className="px-1 text-sm font-black text-ink">
+              {group.label}
+            </legend>
+            <div className="mt-2 grid gap-2">
+              {group.permissions.map((permission) => (
+                <label
+                  className="flex items-start gap-3 rounded-md border border-ink/10 bg-white p-3 text-sm"
+                  key={permission.key}
+                >
+                  <input
+                    className="mt-1"
+                    defaultChecked={selected.has(permission.key)}
+                    disabled={disabled}
+                    name="permissionKeys"
+                    type="checkbox"
+                    value={permission.key}
+                  />
+                  <span>
+                    <span className="block font-bold text-ink">
+                      {permission.key}
+                    </span>
+                    <span className="text-ink/55">
+                      {permission.description}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         ))}
       </div>
       <button
@@ -4082,6 +4322,19 @@ function PermissionsPanel({
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
 }) {
+  const [selectedPermissionKey, setSelectedPermissionKey] = useState("");
+  const selectedPermission =
+    permissions.find((permission) => permission.key === selectedPermissionKey) ??
+    null;
+  const selectedAssignedRoles = selectedPermission
+    ? roles.filter((role) =>
+        role.permissions.some(
+          (rolePermission) =>
+            rolePermission.permission.key === selectedPermission.key,
+        ),
+      )
+    : [];
+
   async function syncCatalog() {
     await completeAction(
       () => request("/admin/permissions/seed", { method: "POST" }),
@@ -4089,10 +4342,66 @@ function PermissionsPanel({
     );
   }
 
+  if (selectedPermission) {
+    return (
+      <section className="grid gap-5">
+        <button
+          className="w-fit rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
+          onClick={() => setSelectedPermissionKey("")}
+          type="button"
+        >
+          Back to permissions
+        </button>
+        <div className="border border-ink/10 bg-white p-5">
+          <h2 className="break-all text-2xl font-black text-ink">
+            {selectedPermission.key}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink/60">
+            {selectedPermission.description}
+          </p>
+          <p className="mt-4 text-sm font-black text-leaf">
+            {selectedAssignedRoles.length} roles assigned
+          </p>
+        </div>
+        <div className="overflow-x-auto border border-ink/10 bg-white">
+          <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+            <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+              <tr>
+                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Description</th>
+                <th className="px-4 py-3">Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedAssignedRoles.map((role) => (
+                <tr className="border-t border-ink/10 bg-white" key={role.id}>
+                  <td className="px-4 py-3 font-black text-ink">{role.name}</td>
+                  <td className="px-4 py-3 text-ink/60">
+                    {role.description ?? "No description"}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-ink/60">
+                    {role.isSystem ? "System" : "Custom"}
+                  </td>
+                </tr>
+              ))}
+              {!selectedAssignedRoles.length ? (
+                <tr className="border-t border-ink/10 bg-white">
+                  <td className="px-4 py-4 text-ink/55" colSpan={3}>
+                    No roles are assigned to this permission.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="mt-7">
+    <section className="grid gap-5">
       {canManage ? (
-        <div className="mb-5 flex justify-end">
+        <div className="flex justify-end">
           <button
             className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
             onClick={syncCatalog}
@@ -4102,32 +4411,44 @@ function PermissionsPanel({
           </button>
         </div>
       ) : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {permissions.map((permission) => {
-          const assignedRoles = roles.filter((role) =>
-            role.permissions.some(
-              (rolePermission) =>
-                rolePermission.permission.key === permission.key,
-            ),
-          );
+      <div className="overflow-x-auto border border-ink/10 bg-white">
+        <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+          <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+            <tr>
+              <th className="px-4 py-3">Permission</th>
+              <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">Assigned roles</th>
+            </tr>
+          </thead>
+          <tbody>
+            {permissions.map((permission) => {
+              const assignedRoles = roles.filter((role) =>
+                role.permissions.some(
+                  (rolePermission) =>
+                    rolePermission.permission.key === permission.key,
+                ),
+              );
 
-          return (
-            <article
-              className="rounded-lg border border-ink/10 bg-white p-5"
-              key={permission.key}
-            >
-              <h2 className="break-all text-lg font-black text-ink">
-                {permission.key}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-ink/60">
-                {permission.description}
-              </p>
-              <p className="mt-4 text-sm font-bold text-leaf">
-                {assignedRoles.length} roles assigned
-              </p>
-            </article>
-          );
-        })}
+              return (
+                <tr
+                  className="cursor-pointer border-t border-ink/10 bg-white"
+                  key={permission.key}
+                  onClick={() => setSelectedPermissionKey(permission.key)}
+                >
+                  <td className="break-all px-4 py-3 font-black text-ink">
+                    {permission.key}
+                  </td>
+                  <td className="px-4 py-3 text-ink/60">
+                    {permission.description}
+                  </td>
+                  <td className="px-4 py-3 text-ink/60">
+                    {assignedRoles.length}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -4320,7 +4641,7 @@ function StaffPanel({
       (userRole) => userRole.role.name === "SUPER_ADMIN",
     );
     return (
-      <section className="mt-7 grid gap-5">
+      <section className="grid gap-5">
         <button
           className="w-fit rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
           onClick={() => setSelectedStaffId("")}
@@ -4421,18 +4742,17 @@ function StaffPanel({
   }
 
   return (
-    <section className="mt-7 grid gap-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="field">
+    <section className="grid gap-5">
+      <div className="grid gap-3 rounded-lg border border-ink/10 bg-white p-4 lg:grid-cols-[minmax(260px,1.5fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)_auto] lg:items-end">
+        <label className="field">
             <span className="text-sm font-bold text-ink">Search staff</span>
             <input
               onChange={(event) => setStaffSearch(event.target.value)}
               placeholder="Name, email, role, status"
               value={staffSearch}
             />
-          </label>
-          <label className="field">
+        </label>
+        <label className="field">
             <span className="text-sm font-bold text-ink">Role</span>
             <select
               className="rounded-lg border border-ink/20 bg-white px-3 py-3"
@@ -4446,8 +4766,8 @@ function StaffPanel({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="field">
+        </label>
+        <label className="field">
             <span className="text-sm font-bold text-ink">Status</span>
             <select
               className="rounded-lg border border-ink/20 bg-white px-3 py-3"
@@ -4461,12 +4781,11 @@ function StaffPanel({
                 </option>
               ))}
             </select>
-          </label>
-        </div>
+        </label>
         {canManage ? (
           <button
             aria-label="Create staff"
-            className="h-12 w-12 rounded-lg bg-ink text-2xl font-black leading-none text-white"
+            className="h-12 w-12 rounded-lg bg-ink text-2xl font-black leading-none text-white lg:mb-0"
             onClick={() => setIsCreatingStaff((value) => !value)}
             title="Create staff"
             type="button"

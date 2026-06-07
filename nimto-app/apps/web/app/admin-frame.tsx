@@ -52,14 +52,6 @@ const adminTabs: {
     href: "/design-setup",
   },
   { key: "website", label: "Website", icon: "website", permission: null, href: "/website" },
-  { key: "roles", label: "Roles", icon: "roles", permission: "roles:view", href: "/roles" },
-  {
-    key: "permissions",
-    label: "Permissions",
-    icon: "permissions",
-    permission: "permissions:view",
-    href: "/permissions",
-  },
   {
     key: "users",
     label: "Users",
