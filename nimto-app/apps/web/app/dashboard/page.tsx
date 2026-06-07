@@ -59,6 +59,12 @@ type AuditLog = {
   actor?: Pick<AuthUser, "id" | "name" | "email"> | null;
 };
 
+type PaginatedResponse<T> = {
+  items: T[];
+  nextSkip: number | null;
+  total: number;
+};
+
 type EventType = "WEDDING" | "BIRTHDAY" | "CORPORATE" | "OTHER";
 type DesignCatalogStatus = "ACTIVE" | "INACTIVE";
 
@@ -254,7 +260,9 @@ type DashboardDataSnapshot = {
   permissions: Permission[];
   roles: Role[];
   users: Staff[];
+  usersNextSkip?: number | null;
   staff: Staff[];
+  staffNextSkip?: number | null;
   sessions: Session[];
   auditLogs: AuditLog[];
   designCategories: DesignCategory[];
@@ -266,6 +274,7 @@ type DashboardDataSnapshot = {
 };
 
 const DASHBOARD_CACHE_PREFIX = "nimto_dashboard_cache:";
+const ACCOUNT_LIST_CACHE_MS = 45_000;
 
 const statuses: Staff["status"][] = [
   "ACTIVE",
@@ -445,7 +454,9 @@ export function DashboardClient({
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<Staff[]>([]);
+  const [usersNextSkip, setUsersNextSkip] = useState<number | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffNextSkip, setStaffNextSkip] = useState<number | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [events, setEvents] = useState<InvitationEvent[]>([]);
@@ -471,11 +482,14 @@ export function DashboardClient({
     roles: [],
     sessions: [],
     staff: [],
+    staffNextSkip: null,
     summary: undefined,
     templates: [],
     users: [],
+    usersNextSkip: null,
   });
   const hasDashboardDataRef = useRef(false);
+  const accountListLoadedAtRef = useRef({ staff: 0, users: 0 });
 
   const currentTab = activeTab;
 
@@ -489,7 +503,9 @@ export function DashboardClient({
     setPermissions(snapshot.permissions ?? []);
     setRoles(snapshot.roles ?? []);
     setUsers(snapshot.users ?? []);
+    setUsersNextSkip(snapshot.usersNextSkip ?? null);
     setStaff(snapshot.staff ?? []);
+    setStaffNextSkip(snapshot.staffNextSkip ?? null);
     setSessions(snapshot.sessions ?? []);
     setAuditLogs(snapshot.auditLogs ?? []);
     setDesignCategories(snapshot.designCategories ?? []);
@@ -533,8 +549,10 @@ export function DashboardClient({
       publicDesigns,
       roles,
       users,
+      usersNextSkip,
       sessions,
       staff,
+      staffNextSkip,
       summary: dashboardSummary ?? undefined,
       templates,
     };
@@ -566,8 +584,10 @@ export function DashboardClient({
     publicDesigns,
     roles,
     users,
+    usersNextSkip,
     sessions,
     staff,
+    staffNextSkip,
     templates,
   ]);
 
@@ -650,7 +670,7 @@ export function DashboardClient({
   );
 
   const refreshAdminData = useCallback(
-    async (authUser = user) => {
+    async (authUser = user, options: { force?: boolean } = {}) => {
       const savedToken = localStorage.getItem("nimto_token");
       if (!savedToken || !authUser) {
         return;
@@ -675,9 +695,11 @@ export function DashboardClient({
           roles: latest.roles,
           sessions: latest.sessions,
           staff: latest.staff,
+          staffNextSkip: latest.staffNextSkip,
           summary: latest.summary,
           templates: latest.templates,
           users: latest.users,
+          usersNextSkip: latest.usersNextSkip,
         };
 
         try {
@@ -789,38 +811,60 @@ export function DashboardClient({
         }
 
         if (currentTab === "staff") {
-          const [nextRoles, nextStaff, nextSessions] = await Promise.all([
-            can(authUser, "roles:view")
-              ? apiRequest<Role[]>("/admin/roles", { headers })
-              : Promise.resolve([]),
-            can(authUser, "staff:view")
-              ? apiRequest<Staff[]>("/admin/staff", { headers })
-              : Promise.resolve([]),
-            can(authUser, "sessions:view")
-              ? apiRequest<Session[]>("/admin/sessions", { headers })
-              : Promise.resolve([]),
-          ]);
-          setRoles(nextRoles);
-          setStaff(nextStaff);
-          setSessions(nextSessions);
-          nextSnapshot.roles = nextRoles;
-          nextSnapshot.staff = nextStaff;
-          nextSnapshot.sessions = nextSessions;
+          const canUseCachedStaff =
+            !options.force &&
+            latest.staff.length > 0 &&
+            latest.roles.length > 0 &&
+            Date.now() - accountListLoadedAtRef.current.staff <
+              ACCOUNT_LIST_CACHE_MS;
+          if (canUseCachedStaff) {
+            nextSnapshot.staff = latest.staff;
+            nextSnapshot.staffNextSkip = latest.staffNextSkip;
+            nextSnapshot.roles = latest.roles;
+          } else {
+            const [nextRoles, nextStaffPage] = await Promise.all([
+              can(authUser, "roles:view")
+                ? apiRequest<Role[]>("/admin/roles", { headers })
+                : Promise.resolve([]),
+              can(authUser, "staff:view")
+                ? apiRequest<PaginatedResponse<Staff>>(
+                    "/admin/staff?skip=0&take=30",
+                    { headers },
+                  )
+                : Promise.resolve({ items: [], nextSkip: null, total: 0 }),
+            ]);
+            setRoles(nextRoles);
+            setStaff(nextStaffPage.items);
+            setStaffNextSkip(nextStaffPage.nextSkip);
+            nextSnapshot.roles = nextRoles;
+            nextSnapshot.staff = nextStaffPage.items;
+            nextSnapshot.staffNextSkip = nextStaffPage.nextSkip;
+            accountListLoadedAtRef.current.staff = Date.now();
+          }
         }
 
         if (currentTab === "users") {
-          const [nextUsers, nextSessions] = await Promise.all([
-            can(authUser, "staff:view")
-              ? apiRequest<Staff[]>("/admin/users", { headers })
-              : Promise.resolve([]),
-            can(authUser, "sessions:view")
-              ? apiRequest<Session[]>("/admin/sessions", { headers })
-              : Promise.resolve([]),
-          ]);
-          setUsers(nextUsers);
-          setSessions(nextSessions);
-          nextSnapshot.users = nextUsers;
-          nextSnapshot.sessions = nextSessions;
+          const canUseCachedUsers =
+            !options.force &&
+            latest.users.length > 0 &&
+            Date.now() - accountListLoadedAtRef.current.users <
+              ACCOUNT_LIST_CACHE_MS;
+          if (canUseCachedUsers) {
+            nextSnapshot.users = latest.users;
+            nextSnapshot.usersNextSkip = latest.usersNextSkip;
+          } else {
+            const nextUsersPage = can(authUser, "staff:view")
+              ? await apiRequest<PaginatedResponse<Staff>>(
+                  "/admin/users?skip=0&take=30",
+                  { headers },
+                )
+              : { items: [], nextSkip: null, total: 0 };
+            setUsers(nextUsersPage.items);
+            setUsersNextSkip(nextUsersPage.nextSkip);
+            nextSnapshot.users = nextUsersPage.items;
+            nextSnapshot.usersNextSkip = nextUsersPage.nextSkip;
+            accountListLoadedAtRef.current.users = Date.now();
+          }
         }
 
         if (currentTab === "sessions") {
@@ -940,7 +984,7 @@ export function DashboardClient({
     try {
       await action();
       if (options.refresh !== false) {
-        await refreshAdminData();
+        await refreshAdminData(user, { force: true });
       }
       showToast(message, "success");
       return true;
@@ -955,6 +999,37 @@ export function DashboardClient({
     } finally {
       actionInFlightRef.current = false;
       setIsActionPending(false);
+    }
+  }
+
+  async function loadMoreAccounts(kind: "staff" | "users") {
+    const savedToken = localStorage.getItem("nimto_token");
+    const nextSkip = kind === "staff" ? staffNextSkip : usersNextSkip;
+    if (!savedToken || nextSkip === null) return;
+
+    setIsRefreshing(true);
+    try {
+      const page = await apiRequest<PaginatedResponse<Staff>>(
+        `/admin/${kind}?skip=${nextSkip}&take=30`,
+        { headers: { Authorization: `Bearer ${savedToken}` } },
+      );
+
+      if (kind === "staff") {
+        setStaff((current) => [...current, ...page.items]);
+        setStaffNextSkip(page.nextSkip);
+      } else {
+        setUsers((current) => [...current, ...page.items]);
+        setUsersNextSkip(page.nextSkip);
+      }
+    } catch (caughtError) {
+      showToast(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load more accounts.",
+        "error",
+      );
+    } finally {
+      setIsRefreshing(false);
     }
   }
 
@@ -1095,20 +1170,30 @@ export function DashboardClient({
         ) : null}
         {currentTab === "staff" && can(user, "staff:view") ? (
           <StaffPanel
+            canViewAudit={can(user, "audit:view")}
+            canViewSessions={can(user, "sessions:view")}
             canManage={can(user, "staff:manage")}
+            canManageSessions={can(user, "sessions:manage")}
             completeAction={completeAction}
+            hasMore={staffNextSkip !== null}
+            isLoadingMore={isRefreshing}
+            loadMore={() => loadMoreAccounts("staff")}
             request={request}
             roles={roles}
-            sessions={sessions}
             staff={staff}
           />
         ) : null}
         {currentTab === "users" && can(user, "staff:view") ? (
           <UsersPanel
+            canViewAudit={can(user, "audit:view")}
+            canViewSessions={can(user, "sessions:view")}
             canManage={can(user, "staff:manage")}
+            canManageSessions={can(user, "sessions:manage")}
             completeAction={completeAction}
+            hasMore={usersNextSkip !== null}
+            isLoadingMore={isRefreshing}
+            loadMore={() => loadMoreAccounts("users")}
             request={request}
-            sessions={sessions}
             users={users}
           />
         ) : null}
@@ -4142,18 +4227,28 @@ function AccountSessions({
 }
 
 function StaffPanel({
+  canViewAudit,
+  canViewSessions,
   canManage,
+  canManageSessions,
   completeAction,
+  hasMore,
+  isLoadingMore,
+  loadMore,
   request,
   roles,
-  sessions,
   staff,
 }: {
+  canViewAudit: boolean;
+  canViewSessions: boolean;
   canManage: boolean;
+  canManageSessions: boolean;
   completeAction: CompleteAction;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  loadMore: () => void;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
-  sessions: Session[];
   staff: Staff[];
 }) {
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -4224,10 +4319,6 @@ function StaffPanel({
     const protectedAccount = selectedStaff.roles.some(
       (userRole) => userRole.role.name === "SUPER_ADMIN",
     );
-    const selectedSessions = sessions.filter(
-      (session) => session.user.id === selectedStaff.id,
-    );
-
     return (
       <section className="mt-7 grid gap-5">
         <button
@@ -4317,15 +4408,14 @@ function StaffPanel({
             </div>
           ) : null}
         </form>
-        <div className="grid gap-3">
-          <h3 className="text-lg font-black text-ink">Sessions</h3>
-          <AccountSessions
-            canManage={canManage}
-            completeAction={completeAction}
-            request={request}
-            sessions={selectedSessions}
-          />
-        </div>
+        <AccountActivity
+          accountId={selectedStaff.id}
+          canManageSessions={canManageSessions}
+          canViewAudit={canViewAudit}
+          canViewSessions={canViewSessions}
+          completeAction={completeAction}
+          request={request}
+        />
       </section>
     );
   }
@@ -4470,29 +4560,48 @@ function StaffPanel({
           </tbody>
         </table>
       </div>
+      {hasMore ? (
+        <button
+          className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
+          disabled={isLoadingMore}
+          onClick={loadMore}
+          type="button"
+        >
+          {isLoadingMore ? "Loading..." : "Load more staff"}
+        </button>
+      ) : null}
 
     </section>
   );
 }
 
 function UsersPanel({
+  canViewAudit,
+  canViewSessions,
   canManage,
+  canManageSessions,
   completeAction,
+  hasMore,
+  isLoadingMore,
+  loadMore,
   request,
-  sessions,
   users,
 }: {
+  canViewAudit: boolean;
+  canViewSessions: boolean;
   canManage: boolean;
+  canManageSessions: boolean;
   completeAction: CompleteAction;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  loadMore: () => void;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
-  sessions: Session[];
   users: Staff[];
 }) {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const userAccounts = users ?? [];
-  const accountSessions = sessions ?? [];
   const selectedUser =
     userAccounts.find((account) => account.id === selectedUserId) ?? null;
   const filteredUsers = userAccounts.filter((account) => {
@@ -4521,10 +4630,6 @@ function UsersPanel({
   }
 
   if (selectedUser) {
-    const selectedSessions = accountSessions.filter(
-      (session) => session.user.id === selectedUser.id,
-    );
-
     return (
       <section className="mt-7 grid gap-5">
         <button
@@ -4579,15 +4684,14 @@ function UsersPanel({
             </div>
           ) : null}
         </form>
-        <div className="grid gap-3">
-          <h3 className="text-lg font-black text-ink">Sessions</h3>
-          <AccountSessions
-            canManage={canManage}
-            completeAction={completeAction}
-            request={request}
-            sessions={selectedSessions}
-          />
-        </div>
+        <AccountActivity
+          accountId={selectedUser.id}
+          canManageSessions={canManageSessions}
+          canViewAudit={canViewAudit}
+          canViewSessions={canViewSessions}
+          completeAction={completeAction}
+          request={request}
+        />
       </section>
     );
   }
@@ -4628,17 +4732,10 @@ function UsersPanel({
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Last sign in</th>
               <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Sessions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map((account) => {
-              const activeSessions = accountSessions.filter(
-                (session) =>
-                  session.user.id === account.id && !session.revokedAt,
-              ).length;
-
-              return (
+            {filteredUsers.map((account) => (
                 <tr
                   className="cursor-pointer border-t border-ink/10 bg-white"
                   key={account.id}
@@ -4659,16 +4756,292 @@ function UsersPanel({
                   <td className="px-4 py-3 text-ink/55">
                     {displayDate(account.createdAt)}
                   </td>
-                  <td className="px-4 py-3 text-ink/55">
-                    {activeSessions} active
-                  </td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>
+      {hasMore ? (
+        <button
+          className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
+          disabled={isLoadingMore}
+          onClick={loadMore}
+          type="button"
+        >
+          {isLoadingMore ? "Loading..." : "Load more users"}
+        </button>
+      ) : null}
     </section>
+  );
+}
+
+function AccountActivity({
+  accountId,
+  canManageSessions,
+  canViewAudit,
+  canViewSessions,
+  completeAction,
+  request,
+}: {
+  accountId: string;
+  canManageSessions: boolean;
+  canViewAudit: boolean;
+  canViewSessions: boolean;
+  completeAction: CompleteAction;
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+}) {
+  const defaultTab = canViewSessions ? "sessions" : "audit";
+  const [activeTab, setActiveTab] = useState<"sessions" | "audit">(defaultTab);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsNextSkip, setSessionsNextSkip] = useState<number | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditNextSkip, setAuditNextSkip] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(canViewSessions ? "sessions" : "audit");
+    setSessions([]);
+    setSessionsNextSkip(null);
+    setAuditLogs([]);
+    setAuditNextSkip(null);
+  }, [accountId, canViewSessions]);
+
+  const loadAccountSessions = useCallback(
+    async (skip = 0) => {
+      if (!canViewSessions) return;
+      setIsLoading(true);
+      try {
+        const page = await request<PaginatedResponse<Session>>(
+          `/admin/accounts/${accountId}/sessions?skip=${skip}&take=30`,
+        );
+        setSessions((current) =>
+          skip === 0 ? page.items : [...current, ...page.items],
+        );
+        setSessionsNextSkip(page.nextSkip);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [accountId, canViewSessions, request],
+  );
+
+  const loadAccountAuditLogs = useCallback(
+    async (skip = 0) => {
+      if (!canViewAudit) return;
+      setIsLoading(true);
+      try {
+        const page = await request<PaginatedResponse<AuditLog>>(
+          `/admin/accounts/${accountId}/audit-logs?skip=${skip}&take=30`,
+        );
+        setAuditLogs((current) =>
+          skip === 0 ? page.items : [...current, ...page.items],
+        );
+        setAuditNextSkip(page.nextSkip);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [accountId, canViewAudit, request],
+  );
+
+  useEffect(() => {
+    if (activeTab === "sessions" && canViewSessions && !sessions.length) {
+      void loadAccountSessions();
+    }
+    if (activeTab === "audit" && canViewAudit && !auditLogs.length) {
+      void loadAccountAuditLogs();
+    }
+  }, [
+    activeTab,
+    auditLogs.length,
+    canViewAudit,
+    canViewSessions,
+    loadAccountAuditLogs,
+    loadAccountSessions,
+    sessions.length,
+  ]);
+
+  async function forceLogout(session: Session) {
+    const completed = await completeAction(
+      () =>
+        request(`/admin/sessions/${session.id}/force-logout`, {
+          method: "POST",
+        }),
+      "Session revoked.",
+      { refresh: false },
+    );
+    if (completed) {
+      await loadAccountSessions(0);
+    }
+  }
+
+  if (!canViewSessions && !canViewAudit) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-4">
+      <div className="flex flex-wrap gap-2">
+        {canViewSessions ? (
+          <button
+            className={`rounded-lg px-4 py-2 text-sm font-black ${
+              activeTab === "sessions"
+                ? "bg-ink text-white"
+                : "border border-ink/15 bg-white text-ink"
+            }`}
+            onClick={() => setActiveTab("sessions")}
+            type="button"
+          >
+            Sessions
+          </button>
+        ) : null}
+        {canViewAudit ? (
+          <button
+            className={`rounded-lg px-4 py-2 text-sm font-black ${
+              activeTab === "audit"
+                ? "bg-ink text-white"
+                : "border border-ink/15 bg-white text-ink"
+            }`}
+            onClick={() => setActiveTab("audit")}
+            type="button"
+          >
+            Audit logs
+          </button>
+        ) : null}
+      </div>
+
+      {activeTab === "sessions" && canViewSessions ? (
+        <div className="grid gap-3">
+          <AccountSessionsTable
+            canManage={canManageSessions}
+            forceLogout={forceLogout}
+            sessions={sessions}
+          />
+          {sessionsNextSkip !== null ? (
+            <button
+              className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
+              disabled={isLoading}
+              onClick={() => loadAccountSessions(sessionsNextSkip)}
+              type="button"
+            >
+              {isLoading ? "Loading..." : "Load more sessions"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === "audit" && canViewAudit ? (
+        <div className="grid gap-3">
+          <AccountAuditLogList logs={auditLogs} />
+          {auditNextSkip !== null ? (
+            <button
+              className="mx-auto rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink disabled:opacity-50"
+              disabled={isLoading}
+              onClick={() => loadAccountAuditLogs(auditNextSkip)}
+              type="button"
+            >
+              {isLoading ? "Loading..." : "Load more audit logs"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AccountSessionsTable({
+  canManage,
+  forceLogout,
+  sessions,
+}: {
+  canManage: boolean;
+  forceLogout: (session: Session) => void;
+  sessions: Session[];
+}) {
+  if (!sessions.length) {
+    return (
+      <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
+        No sessions found for this account.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
+      <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+        <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+          <tr>
+            <th className="px-4 py-3">Created</th>
+            <th className="px-4 py-3">Expires</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sessions.map((session) => (
+            <tr className="border-t border-ink/10" key={session.id}>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.createdAt)}
+              </td>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.expiresAt)}
+              </td>
+              <td className="px-4 py-3 font-bold text-ink">
+                {session.revokedAt
+                  ? (session.revocationReason ?? "REVOKED")
+                  : "ACTIVE"}
+              </td>
+              <td className="px-4 py-3">
+                {canManage && !session.revokedAt ? (
+                  <button
+                    className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
+                    onClick={() => forceLogout(session)}
+                    type="button"
+                  >
+                    Force logout
+                  </button>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AccountAuditLogList({ logs }: { logs: AuditLog[] }) {
+  if (!logs.length) {
+    return (
+      <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
+        No audit logs found for this account.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {logs.map((log) => (
+        <article
+          className="rounded-lg border border-ink/10 bg-white p-4"
+          key={log.id}
+        >
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-black text-ink">{log.action}</h3>
+              <p className="mt-1 text-sm text-ink/55">
+                {log.entityType}
+                {log.entityId ? ` / ${log.entityId}` : ""}
+              </p>
+            </div>
+            <p className="text-sm text-ink/50">{displayDate(log.createdAt)}</p>
+          </div>
+          <p className="mt-3 text-sm text-ink/60">
+            {log.actor ? `${log.actor.name} (${log.actor.email})` : "System"}
+          </p>
+        </article>
+      ))}
+    </div>
   );
 }
 

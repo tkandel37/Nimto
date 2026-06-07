@@ -74,14 +74,6 @@ const adminTabs: {
     permission: "staff:view",
     href: "/staff",
   },
-  {
-    key: "sessions",
-    label: "Sessions",
-    icon: "sessions",
-    permission: "sessions:view",
-    href: "/sessions",
-  },
-  { key: "audit", label: "Audit Logs", icon: "audit", permission: "audit:view", href: "/audit" },
 ];
 
 const adminPathToTab: Record<string, AdminTabKey | "settings" | "profile"> = {

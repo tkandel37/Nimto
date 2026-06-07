@@ -20,6 +20,11 @@ type ActorContext = {
   userAgent?: string;
 };
 
+type PageOptions = {
+  skip?: number;
+  take?: number;
+};
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -191,20 +196,36 @@ export class AdminService {
     return { success: true };
   }
 
-  listStaff() {
-    return this.prisma.user.findMany({
-      where: { roles: { some: {} } },
-      orderBy: { createdAt: "desc" },
-      select: this.staffSelect(),
-    });
+  async listStaff(options: PageOptions = {}) {
+    const page = this.pageOptions(options);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where: { roles: { some: {} } },
+        orderBy: { createdAt: "desc" },
+        select: this.staffSelect(),
+        skip: page.skip,
+        take: page.take,
+      }),
+      this.prisma.user.count({ where: { roles: { some: {} } } }),
+    ]);
+
+    return this.pageResult(items, total, page);
   }
 
-  listUsers() {
-    return this.prisma.user.findMany({
-      where: { roles: { none: {} } },
-      orderBy: { createdAt: "desc" },
-      select: this.staffSelect(),
-    });
+  async listUsers(options: PageOptions = {}) {
+    const page = this.pageOptions(options);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where: { roles: { none: {} } },
+        orderBy: { createdAt: "desc" },
+        select: this.staffSelect(),
+        skip: page.skip,
+        take: page.take,
+      }),
+      this.prisma.user.count({ where: { roles: { none: {} } } }),
+    ]);
+
+    return this.pageResult(items, total, page);
   }
 
   async createStaff(dto: CreateStaffDto, context: ActorContext) {
@@ -390,10 +411,30 @@ export class AdminService {
   listSessions() {
     return this.prisma.userSession.findMany({
       orderBy: { createdAt: "desc" },
+      take: 30,
       include: {
         user: { select: { id: true, name: true, email: true, status: true } },
       },
     });
+  }
+
+  async listAccountSessions(userId: string, options: PageOptions = {}) {
+    await this.assertUserExists(userId);
+    const page = this.pageOptions(options);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.userSession.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true, status: true } },
+        },
+        skip: page.skip,
+        take: page.take,
+      }),
+      this.prisma.userSession.count({ where: { userId } }),
+    ]);
+
+    return this.pageResult(items, total, page);
   }
 
   async forceLogout(sessionId: string, context: ActorContext) {
@@ -429,9 +470,33 @@ export class AdminService {
   listAuditLogs() {
     return this.prisma.auditLog.findMany({
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: 30,
       include: { actor: { select: { id: true, name: true, email: true } } },
     });
+  }
+
+  async listAccountAuditLogs(userId: string, options: PageOptions = {}) {
+    await this.assertUserExists(userId);
+    const page = this.pageOptions(options);
+    const where = {
+      OR: [
+        { actorId: userId },
+        { entityType: "User", entityId: userId },
+        { entityType: "UserSession", metadata: { path: ["userId"], equals: userId } },
+      ],
+    } satisfies Prisma.AuditLogWhereInput;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include: { actor: { select: { id: true, name: true, email: true } } },
+        skip: page.skip,
+        take: page.take,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return this.pageResult(items, total, page);
   }
 
   private async getRole(roleId: string) {
@@ -440,6 +505,40 @@ export class AdminService {
       throw new NotFoundException("Role not found.");
     }
     return role;
+  }
+
+  private async assertUserExists(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException("User not found.");
+    }
+  }
+
+  private pageOptions(options: PageOptions) {
+    const skip = Number.isFinite(options.skip) ? Number(options.skip) : 0;
+    const take = Number.isFinite(options.take) ? Number(options.take) : 30;
+
+    return {
+      skip: Math.max(0, skip),
+      take: Math.min(100, Math.max(1, take)),
+    };
+  }
+
+  private pageResult<T>(
+    items: T[],
+    total: number,
+    page: { skip: number; take: number },
+  ) {
+    const nextSkip = page.skip + items.length;
+
+    return {
+      items,
+      nextSkip: nextSkip < total ? nextSkip : null,
+      total,
+    };
   }
 
   private async assertPermissionsExist(keys: string[]) {

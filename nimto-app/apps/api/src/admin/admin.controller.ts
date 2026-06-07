@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -76,14 +77,14 @@ export class AdminController {
 
   @Get("staff")
   @RequirePermissions(PERMISSIONS.staffView)
-  listStaff() {
-    return this.adminService.listStaff();
+  listStaff(@Query("skip") skip?: string, @Query("take") take?: string) {
+    return this.adminService.listStaff(this.pagination(skip, take));
   }
 
   @Get("users")
   @RequirePermissions(PERMISSIONS.staffView)
-  listUsers() {
-    return this.adminService.listUsers();
+  listUsers(@Query("skip") skip?: string, @Query("take") take?: string) {
+    return this.adminService.listUsers(this.pagination(skip, take));
   }
 
   @Post("staff")
@@ -134,10 +135,36 @@ export class AdminController {
     return this.adminService.forceLogout(sessionId, this.context(request));
   }
 
+  @Get("accounts/:userId/sessions")
+  @RequirePermissions(PERMISSIONS.sessionsView)
+  listAccountSessions(
+    @Param("userId") userId: string,
+    @Query("skip") skip?: string,
+    @Query("take") take?: string,
+  ) {
+    return this.adminService.listAccountSessions(
+      userId,
+      this.pagination(skip, take),
+    );
+  }
+
   @Get("audit-logs")
   @RequirePermissions(PERMISSIONS.auditView)
   listAuditLogs() {
     return this.adminService.listAuditLogs();
+  }
+
+  @Get("accounts/:userId/audit-logs")
+  @RequirePermissions(PERMISSIONS.auditView)
+  listAccountAuditLogs(
+    @Param("userId") userId: string,
+    @Query("skip") skip?: string,
+    @Query("take") take?: string,
+  ) {
+    return this.adminService.listAccountAuditLogs(
+      userId,
+      this.pagination(skip, take),
+    );
   }
 
   private context(request: AuthenticatedRequest) {
@@ -145,6 +172,13 @@ export class AdminController {
       actorId: request.user!.sub,
       ipAddress: request.ip,
       userAgent: request.headers["user-agent"],
+    };
+  }
+
+  private pagination(skip?: string, take?: string) {
+    return {
+      skip: Number.parseInt(skip ?? "0", 10),
+      take: Number.parseInt(take ?? "30", 10),
     };
   }
 }
