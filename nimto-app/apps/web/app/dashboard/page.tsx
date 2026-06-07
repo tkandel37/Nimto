@@ -226,6 +226,7 @@ export type TabKey =
   | "website"
   | "roles"
   | "permissions"
+  | "users"
   | "staff"
   | "sessions"
   | "audit";
@@ -242,6 +243,7 @@ type DashboardSummary = {
   roleCount: number;
   sessionCount: number;
   staffCount: number;
+  userCount?: number;
 };
 
 type DashboardDataSnapshot = {
@@ -251,6 +253,7 @@ type DashboardDataSnapshot = {
   events: InvitationEvent[];
   permissions: Permission[];
   roles: Role[];
+  users: Staff[];
   staff: Staff[];
   sessions: Session[];
   auditLogs: AuditLog[];
@@ -441,6 +444,7 @@ export function DashboardClient({
     useState<DashboardSummary | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [users, setUsers] = useState<Staff[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -469,6 +473,7 @@ export function DashboardClient({
     staff: [],
     summary: undefined,
     templates: [],
+    users: [],
   });
   const hasDashboardDataRef = useRef(false);
 
@@ -480,18 +485,19 @@ export function DashboardClient({
 
   function applyDashboardSnapshot(snapshot: DashboardDataSnapshot) {
     setDashboardSummary(snapshot.summary ?? null);
-    setEvents(snapshot.events);
-    setPermissions(snapshot.permissions);
-    setRoles(snapshot.roles);
-    setStaff(snapshot.staff);
-    setSessions(snapshot.sessions);
-    setAuditLogs(snapshot.auditLogs);
-    setDesignCategories(snapshot.designCategories);
-    setTemplates(snapshot.templates);
-    setDesigns(snapshot.designs);
-    setPages(snapshot.pages);
-    setBlogPosts(snapshot.blogPosts);
-    setPublicDesigns(snapshot.publicDesigns);
+    setEvents(snapshot.events ?? []);
+    setPermissions(snapshot.permissions ?? []);
+    setRoles(snapshot.roles ?? []);
+    setUsers(snapshot.users ?? []);
+    setStaff(snapshot.staff ?? []);
+    setSessions(snapshot.sessions ?? []);
+    setAuditLogs(snapshot.auditLogs ?? []);
+    setDesignCategories(snapshot.designCategories ?? []);
+    setTemplates(snapshot.templates ?? []);
+    setDesigns(snapshot.designs ?? []);
+    setPages(snapshot.pages ?? []);
+    setBlogPosts(snapshot.blogPosts ?? []);
+    setPublicDesigns(snapshot.publicDesigns ?? []);
   }
 
   function hydrateDashboardCache(userId: string) {
@@ -526,6 +532,7 @@ export function DashboardClient({
       permissions,
       publicDesigns,
       roles,
+      users,
       sessions,
       staff,
       summary: dashboardSummary ?? undefined,
@@ -542,6 +549,7 @@ export function DashboardClient({
         permissions.length ||
         publicDesigns.length ||
         roles.length ||
+        users.length ||
         sessions.length ||
         staff.length ||
         templates.length,
@@ -557,6 +565,7 @@ export function DashboardClient({
     permissions,
     publicDesigns,
     roles,
+    users,
     sessions,
     staff,
     templates,
@@ -668,6 +677,7 @@ export function DashboardClient({
           staff: latest.staff,
           summary: latest.summary,
           templates: latest.templates,
+          users: latest.users,
         };
 
         try {
@@ -779,18 +789,38 @@ export function DashboardClient({
         }
 
         if (currentTab === "staff") {
-          const [nextRoles, nextStaff] = await Promise.all([
+          const [nextRoles, nextStaff, nextSessions] = await Promise.all([
             can(authUser, "roles:view")
               ? apiRequest<Role[]>("/admin/roles", { headers })
               : Promise.resolve([]),
             can(authUser, "staff:view")
               ? apiRequest<Staff[]>("/admin/staff", { headers })
               : Promise.resolve([]),
+            can(authUser, "sessions:view")
+              ? apiRequest<Session[]>("/admin/sessions", { headers })
+              : Promise.resolve([]),
           ]);
           setRoles(nextRoles);
           setStaff(nextStaff);
+          setSessions(nextSessions);
           nextSnapshot.roles = nextRoles;
           nextSnapshot.staff = nextStaff;
+          nextSnapshot.sessions = nextSessions;
+        }
+
+        if (currentTab === "users") {
+          const [nextUsers, nextSessions] = await Promise.all([
+            can(authUser, "staff:view")
+              ? apiRequest<Staff[]>("/admin/users", { headers })
+              : Promise.resolve([]),
+            can(authUser, "sessions:view")
+              ? apiRequest<Session[]>("/admin/sessions", { headers })
+              : Promise.resolve([]),
+          ]);
+          setUsers(nextUsers);
+          setSessions(nextSessions);
+          nextSnapshot.users = nextUsers;
+          nextSnapshot.sessions = nextSessions;
         }
 
         if (currentTab === "sessions") {
@@ -994,6 +1024,7 @@ export function DashboardClient({
               sessions.filter((session) => !session.revokedAt).length
             }
             staffCount={dashboardSummary?.staffCount ?? staff.length}
+            userCount={dashboardSummary?.userCount ?? users.length}
           />
         ) : null}
         {currentTab === "events" ? (
@@ -1068,7 +1099,17 @@ export function DashboardClient({
             completeAction={completeAction}
             request={request}
             roles={roles}
+            sessions={sessions}
             staff={staff}
+          />
+        ) : null}
+        {currentTab === "users" && can(user, "staff:view") ? (
+          <UsersPanel
+            canManage={can(user, "staff:manage")}
+            completeAction={completeAction}
+            request={request}
+            sessions={sessions}
+            users={users}
           />
         ) : null}
         {currentTab === "sessions" && can(user, "sessions:view") ? (
@@ -1135,12 +1176,14 @@ function OverviewPanel({
   roleCount,
   sessionCount,
   staffCount,
+  userCount,
 }: {
   auditCount: number;
   eventCount: number;
   roleCount: number;
   sessionCount: number;
   staffCount: number;
+  userCount: number;
 }) {
   return (
     <section className="mt-7 grid gap-6">
@@ -1163,6 +1206,7 @@ function OverviewPanel({
         <Metric label="Events" value={eventCount} tone="text-leaf" />
         <Metric label="Roles" value={roleCount} tone="text-leaf" />
         <Metric label="Staff" value={staffCount} tone="text-marigold" />
+        <Metric label="Users" value={userCount} tone="text-leaf" />
         <Metric label="Active sessions" value={sessionCount} tone="text-rose" />
         <Metric label="Audit events" value={auditCount} tone="text-ink" />
       </div>
@@ -4004,22 +4048,129 @@ function PermissionsPanel({
   );
 }
 
+function accountMatchesSearch(
+  account: Staff,
+  query: string,
+  extraValues: string[] = [],
+) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+
+  return [
+    account.name,
+    account.email,
+    account.status,
+    ...account.roles.map((userRole) => userRole.role.name),
+    ...extraValues,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalized);
+}
+
+function AccountSessions({
+  canManage,
+  completeAction,
+  request,
+  sessions,
+}: {
+  canManage: boolean;
+  completeAction: CompleteAction;
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+  sessions: Session[];
+}) {
+  async function forceLogout(session: Session) {
+    await completeAction(
+      () =>
+        request(`/admin/sessions/${session.id}/force-logout`, {
+          method: "POST",
+        }),
+      "Session revoked.",
+    );
+  }
+
+  if (!sessions.length) {
+    return (
+      <div className="rounded-lg border border-ink/10 bg-paper p-4 text-sm font-bold text-ink/55">
+        No sessions found for this account.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
+      <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+        <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+          <tr>
+            <th className="px-4 py-3">Created</th>
+            <th className="px-4 py-3">Expires</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sessions.map((session) => (
+            <tr className="border-t border-ink/10" key={session.id}>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.createdAt)}
+              </td>
+              <td className="px-4 py-3 text-ink/65">
+                {displayDate(session.expiresAt)}
+              </td>
+              <td className="px-4 py-3 font-bold text-ink">
+                {session.revokedAt
+                  ? (session.revocationReason ?? "REVOKED")
+                  : "ACTIVE"}
+              </td>
+              <td className="px-4 py-3">
+                {canManage && !session.revokedAt ? (
+                  <button
+                    className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
+                    onClick={() => forceLogout(session)}
+                    type="button"
+                  >
+                    Force logout
+                  </button>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function StaffPanel({
   canManage,
   completeAction,
   request,
   roles,
+  sessions,
   staff,
 }: {
   canManage: boolean;
   completeAction: CompleteAction;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
+  sessions: Session[];
   staff: Staff[];
 }) {
   const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [staffSearch, setStaffSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [isCreatingStaff, setIsCreatingStaff] = useState(false);
   const selectedStaff =
     staff.find((member) => member.id === selectedStaffId) ?? null;
+  const filteredStaff = staff.filter((member) => {
+    const matchesSearch = accountMatchesSearch(member, staffSearch);
+    const matchesRole =
+      !roleFilter ||
+      member.roles.some((userRole) => userRole.role.id === roleFilter);
+    const matchesStatus = !statusFilter || member.status === statusFilter;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   async function createStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -4039,6 +4190,7 @@ function StaffPanel({
       "Staff account created.",
     );
     if (completed) event.currentTarget.reset();
+    if (completed) setIsCreatingStaff(false);
   }
 
   async function updateStaff(
@@ -4071,6 +4223,9 @@ function StaffPanel({
     );
     const protectedAccount = selectedStaff.roles.some(
       (userRole) => userRole.role.name === "SUPER_ADMIN",
+    );
+    const selectedSessions = sessions.filter(
+      (session) => session.user.id === selectedStaff.id,
     );
 
     return (
@@ -4162,12 +4317,117 @@ function StaffPanel({
             </div>
           ) : null}
         </form>
+        <div className="grid gap-3">
+          <h3 className="text-lg font-black text-ink">Sessions</h3>
+          <AccountSessions
+            canManage={canManage}
+            completeAction={completeAction}
+            request={request}
+            sessions={selectedSessions}
+          />
+        </div>
       </section>
     );
   }
 
   return (
     <section className="mt-7 grid gap-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="field">
+            <span className="text-sm font-bold text-ink">Search staff</span>
+            <input
+              onChange={(event) => setStaffSearch(event.target.value)}
+              placeholder="Name, email, role, status"
+              value={staffSearch}
+            />
+          </label>
+          <label className="field">
+            <span className="text-sm font-bold text-ink">Role</span>
+            <select
+              className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+              onChange={(event) => setRoleFilter(event.target.value)}
+              value={roleFilter}
+            >
+              <option value="">All roles</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="text-sm font-bold text-ink">Status</span>
+            <select
+              className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+              onChange={(event) => setStatusFilter(event.target.value)}
+              value={statusFilter}
+            >
+              <option value="">All statuses</option>
+              {statuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {canManage ? (
+          <button
+            aria-label="Create staff"
+            className="h-12 w-12 rounded-lg bg-ink text-2xl font-black leading-none text-white"
+            onClick={() => setIsCreatingStaff((value) => !value)}
+            title="Create staff"
+            type="button"
+          >
+            +
+          </button>
+        ) : null}
+      </div>
+
+      {isCreatingStaff && canManage ? (
+        <form
+          className="border border-ink/10 bg-white p-5"
+          onSubmit={createStaff}
+        >
+          <h2 className="text-lg font-black text-ink">Create staff</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Name</span>
+              <input name="name" required />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Email</span>
+              <input name="email" required type="email" />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Password</span>
+              <input minLength={8} name="password" required type="password" />
+            </label>
+          </div>
+          <div className="mt-4">
+            <p className="text-sm font-bold text-ink">Roles</p>
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
+              {roles
+                .filter((role) => role.name !== "SUPER_ADMIN")
+                .map((role) => (
+                  <label
+                    className="flex items-center gap-2 text-sm"
+                    key={role.id}
+                  >
+                    <input name="roleIds" type="checkbox" value={role.id} />
+                    {role.name}
+                  </label>
+                ))}
+            </div>
+          </div>
+          <button className="mt-5 rounded-lg bg-ink px-4 py-3 font-bold text-white">
+            Create staff
+          </button>
+        </form>
+      ) : null}
+
       <div className="overflow-x-auto border border-ink/10 bg-white">
         <table className="w-full min-w-[880px] border-collapse text-left text-sm">
           <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
@@ -4180,7 +4440,7 @@ function StaffPanel({
             </tr>
           </thead>
           <tbody>
-            {staff.map((member) => (
+            {filteredStaff.map((member) => (
               <tr
                 className="cursor-pointer border-t border-ink/10 bg-white"
                 key={member.id}
@@ -4211,45 +4471,203 @@ function StaffPanel({
         </table>
       </div>
 
-      {canManage ? (
+    </section>
+  );
+}
+
+function UsersPanel({
+  canManage,
+  completeAction,
+  request,
+  sessions,
+  users,
+}: {
+  canManage: boolean;
+  completeAction: CompleteAction;
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+  sessions: Session[];
+  users: Staff[];
+}) {
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const userAccounts = users ?? [];
+  const accountSessions = sessions ?? [];
+  const selectedUser =
+    userAccounts.find((account) => account.id === selectedUserId) ?? null;
+  const filteredUsers = userAccounts.filter((account) => {
+    const matchesSearch = accountMatchesSearch(account, userSearch);
+    const matchesStatus = !statusFilter || account.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  async function updateUserStatus(
+    event: FormEvent<HTMLFormElement>,
+    userId: string,
+  ) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+
+    await completeAction(
+      () =>
+        request(`/admin/users/${userId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            status: form.get("status"),
+          }),
+        }),
+      "User account updated.",
+    );
+  }
+
+  if (selectedUser) {
+    const selectedSessions = accountSessions.filter(
+      (session) => session.user.id === selectedUser.id,
+    );
+
+    return (
+      <section className="mt-7 grid gap-5">
+        <button
+          className="w-fit rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-bold text-ink"
+          onClick={() => setSelectedUserId("")}
+          type="button"
+        >
+          Back to users
+        </button>
         <form
           className="border border-ink/10 bg-white p-5"
-          onSubmit={createStaff}
+          onSubmit={(event) => updateUserStatus(event, selectedUser.id)}
         >
-          <h2 className="text-lg font-black text-ink">Create staff</h2>
-          <label className="field mt-4">
-            <span className="text-sm font-bold text-ink">Name</span>
-            <input name="name" required />
-          </label>
-          <label className="field mt-4">
-            <span className="text-sm font-bold text-ink">Email</span>
-            <input name="email" required type="email" />
-          </label>
-          <label className="field mt-4">
-            <span className="text-sm font-bold text-ink">Password</span>
-            <input minLength={8} name="password" required type="password" />
-          </label>
-          <div className="mt-4">
-            <p className="text-sm font-bold text-ink">Roles</p>
-            <div className="mt-2 grid gap-2">
-              {roles
-                .filter((role) => role.name !== "SUPER_ADMIN")
-                .map((role) => (
-                  <label
-                    className="flex items-center gap-2 text-sm"
-                    key={role.id}
-                  >
-                    <input name="roleIds" type="checkbox" value={role.id} />
-                    {role.name}
-                  </label>
-                ))}
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-ink">
+                {selectedUser.name}
+              </h2>
+              <p className="mt-1 break-all text-sm text-ink/60">
+                {selectedUser.email}
+              </p>
+              <p className="mt-2 text-sm text-ink/50">
+                Last sign in: {displayDate(selectedUser.lastLoginAt)}
+              </p>
             </div>
+            <p className="text-sm font-black text-leaf">
+              {selectedUser.status}
+            </p>
           </div>
-          <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-            Create staff
-          </button>
+          {canManage ? (
+            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-end">
+              <label className="field md:w-72">
+                <span className="text-sm font-bold text-ink">Status</span>
+                <select
+                  className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  defaultValue={selectedUser.status}
+                  name="status"
+                >
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
+                type="submit"
+              >
+                Update user
+              </button>
+            </div>
+          ) : null}
         </form>
-      ) : null}
+        <div className="grid gap-3">
+          <h3 className="text-lg font-black text-ink">Sessions</h3>
+          <AccountSessions
+            canManage={canManage}
+            completeAction={completeAction}
+            request={request}
+            sessions={selectedSessions}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-7 grid gap-5">
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="field">
+          <span className="text-sm font-bold text-ink">Search users</span>
+          <input
+            onChange={(event) => setUserSearch(event.target.value)}
+            placeholder="Name, email, status"
+            value={userSearch}
+          />
+        </label>
+        <label className="field">
+          <span className="text-sm font-bold text-ink">Status</span>
+          <select
+            className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+            onChange={(event) => setStatusFilter(event.target.value)}
+            value={statusFilter}
+          >
+            <option value="">All statuses</option>
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="overflow-x-auto border border-ink/10 bg-white">
+        <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+          <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+            <tr>
+              <th className="px-4 py-3">User</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Last sign in</th>
+              <th className="px-4 py-3">Created</th>
+              <th className="px-4 py-3">Sessions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((account) => {
+              const activeSessions = accountSessions.filter(
+                (session) =>
+                  session.user.id === account.id && !session.revokedAt,
+              ).length;
+
+              return (
+                <tr
+                  className="cursor-pointer border-t border-ink/10 bg-white"
+                  key={account.id}
+                  onClick={() => setSelectedUserId(account.id)}
+                >
+                  <td className="px-4 py-3">
+                    <p className="font-black text-ink">{account.name}</p>
+                    <p className="break-all text-xs text-ink/45">
+                      {account.email}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-leaf">
+                    {account.status}
+                  </td>
+                  <td className="px-4 py-3 text-ink/55">
+                    {displayDate(account.lastLoginAt)}
+                  </td>
+                  <td className="px-4 py-3 text-ink/55">
+                    {displayDate(account.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-ink/55">
+                    {activeSessions} active
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

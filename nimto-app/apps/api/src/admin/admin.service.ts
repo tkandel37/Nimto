@@ -56,11 +56,18 @@ export class AdminService {
   }
 
   async dashboardSummary(userId: string) {
-    const [eventCount, roleCount, staffCount, activeSessionCount, auditCount] =
-      await this.prisma.$transaction([
+    const [
+      eventCount,
+      roleCount,
+      staffCount,
+      userCount,
+      activeSessionCount,
+      auditCount,
+    ] = await this.prisma.$transaction([
         this.prisma.event.count({ where: { userId } }),
         this.prisma.role.count(),
-        this.prisma.user.count(),
+        this.prisma.user.count({ where: { roles: { some: {} } } }),
+        this.prisma.user.count({ where: { roles: { none: {} } } }),
         this.prisma.userSession.count({ where: { revokedAt: null } }),
         this.prisma.auditLog.count(),
       ]);
@@ -71,6 +78,7 @@ export class AdminService {
       roleCount,
       sessionCount: activeSessionCount,
       staffCount,
+      userCount,
     };
   }
 
@@ -185,6 +193,15 @@ export class AdminService {
 
   listStaff() {
     return this.prisma.user.findMany({
+      where: { roles: { some: {} } },
+      orderBy: { createdAt: "desc" },
+      select: this.staffSelect(),
+    });
+  }
+
+  listUsers() {
+    return this.prisma.user.findMany({
+      where: { roles: { none: {} } },
       orderBy: { createdAt: "desc" },
       select: this.staffSelect(),
     });
@@ -305,6 +322,65 @@ export class AdminService {
     });
 
     await this.record(context, "staff.updated", "User", user.id, {
+      email: user.email,
+      status: user.status,
+    });
+    return user;
+  }
+
+  async updateUserStatus(
+    userId: string,
+    dto: Pick<UpdateStaffDto, "status">,
+    context: ActorContext,
+  ) {
+    this.assertActorKeepsOwnAccess(userId, dto, context);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          status: dto.status,
+          blockedAt:
+            dto.status === UserStatus.BLOCKED
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
+          deactivatedAt:
+            dto.status === UserStatus.DEACTIVATED
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
+          deletionRequestedAt:
+            dto.status === UserStatus.PENDING_DELETION
+              ? new Date()
+              : dto.status === UserStatus.ACTIVE
+                ? null
+                : undefined,
+        },
+        select: this.staffSelect(),
+      });
+
+      if (dto.status && dto.status !== UserStatus.ACTIVE) {
+        await tx.userSession.updateMany({
+          where: { userId, revokedAt: null },
+          data: {
+            revokedAt: new Date(),
+            revocationReason:
+              dto.status === UserStatus.BLOCKED
+                ? "ACCOUNT_BLOCKED"
+                : dto.status === UserStatus.DEACTIVATED
+                  ? "ACCOUNT_DEACTIVATED"
+                  : "ACCOUNT_PENDING_DELETION",
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    await this.record(context, "user.updated", "User", user.id, {
       email: user.email,
       status: user.status,
     });

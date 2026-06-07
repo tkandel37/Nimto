@@ -80,6 +80,12 @@ export class AdminController {
     return this.adminService.listStaff();
   }
 
+  @Get("users")
+  @RequirePermissions(PERMISSIONS.staffView)
+  listUsers() {
+    return this.adminService.listUsers();
+  }
+
   @Post("staff")
   @RequirePermissions(PERMISSIONS.staffManage)
   createStaff(
@@ -97,6 +103,20 @@ export class AdminController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.adminService.updateStaff(userId, dto, this.context(request));
+  }
+
+  @Patch("users/:userId")
+  @RequirePermissions(PERMISSIONS.staffManage)
+  updateUser(
+    @Param("userId") userId: string,
+    @Body() dto: UpdateStaffDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.adminService.updateUserStatus(
+      userId,
+      { status: dto.status },
+      this.context(request),
+    );
   }
 
   @Get("sessions")

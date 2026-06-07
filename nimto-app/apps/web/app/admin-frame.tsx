@@ -12,6 +12,7 @@ type AdminTabKey =
   | "website"
   | "roles"
   | "permissions"
+  | "users"
   | "staff"
   | "sessions"
   | "audit";
@@ -23,6 +24,7 @@ type AdminIconName =
   | "website"
   | "roles"
   | "permissions"
+  | "users"
   | "staff"
   | "sessions"
   | "audit";
@@ -58,7 +60,20 @@ const adminTabs: {
     permission: "permissions:view",
     href: "/permissions",
   },
-  { key: "staff", label: "Staff", icon: "staff", permission: "staff:view", href: "/staff" },
+  {
+    key: "users",
+    label: "Users",
+    icon: "users",
+    permission: "staff:view",
+    href: "/users",
+  },
+  {
+    key: "staff",
+    label: "Staff",
+    icon: "staff",
+    permission: "staff:view",
+    href: "/staff",
+  },
   {
     key: "sessions",
     label: "Sessions",
@@ -80,6 +95,7 @@ const adminPathToTab: Record<string, AdminTabKey | "settings" | "profile"> = {
   "/sessions": "sessions",
   "/settings": "settings",
   "/staff": "staff",
+  "/users": "users",
   "/website": "website",
 };
 
@@ -335,6 +351,12 @@ function AdminTabIcon({ icon }: { icon: AdminIconName }) {
       <>
         <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM3 21a6 6 0 0 1 12 0" />
         <path d="M17 8a3 3 0 1 1 0 6M16 21a5 5 0 0 1 5-5" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
       </>
     ),
     sessions: (
