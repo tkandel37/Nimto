@@ -1,0 +1,359 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  FormEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { apiRequest, AuthUser } from "@/lib/api";
+
+type WorkspacePage = "events" | "designs" | "profile";
+
+type Toast = {
+  id: number;
+  tone: "success" | "error";
+  message: string;
+};
+
+const pageLinks: {
+  key: WorkspacePage;
+  label: string;
+  href: string;
+  icon: ReactNode;
+}[] = [
+  {
+    key: "events",
+    label: "Events",
+    href: "/events",
+    icon: (
+      <>
+        <path d="M7 3v4M17 3v4" />
+        <rect x="4" y="5" width="16" height="17" rx="3" />
+        <path d="M4 10h16M8 14h.01M12 14h.01M16 14h.01" />
+      </>
+    ),
+  },
+  {
+    key: "designs",
+    label: "Designs",
+    href: "/designs",
+    icon: (
+      <>
+        <path d="M4 20h16" />
+        <path d="m6 16 8.5-8.5 2 2L8 18H6v-2Z" />
+        <path d="m13.5 7.5 1.8-1.8a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2l-1.8 1.8" />
+      </>
+    ),
+  },
+  {
+    key: "profile",
+    label: "Profile",
+    href: "/profile",
+    icon: (
+      <>
+        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </>
+    ),
+  },
+];
+
+export function UserWorkspace({
+  activePage,
+  children,
+}: {
+  activePage: WorkspacePage;
+  children: (context: {
+    authHeaders: Record<string, string>;
+    refreshUser: () => Promise<AuthUser | null>;
+    showToast: (message: string, tone?: Toast["tone"]) => void;
+    token: string;
+    user: AuthUser;
+  }) => ReactNode;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [token, setToken] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = useCallback((message: string, tone: Toast["tone"] = "success") => {
+    const id = Date.now();
+    setToasts((current) => [...current, { id, message, tone }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 4200);
+  }, []);
+
+  const authHeaders = useMemo<Record<string, string>>(() => {
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }, [token]);
+
+  const refreshUser = useCallback(async () => {
+    const savedToken = localStorage.getItem("nimto_token");
+    if (!savedToken) {
+      setToken("");
+      setUser(null);
+      return null;
+    }
+
+    const response = await apiRequest<{ user: AuthUser }>("/auth/me", {
+      headers: { Authorization: `Bearer ${savedToken}` },
+    });
+    localStorage.setItem("nimto_user", JSON.stringify(response.user));
+    setToken(savedToken);
+    setUser(response.user);
+    return response.user;
+  }, []);
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("nimto_token");
+    const savedUser = localStorage.getItem("nimto_user");
+
+    if (!savedToken) {
+      setIsChecking(false);
+      return;
+    }
+
+    setToken(savedToken);
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser) as AuthUser);
+      } catch {
+        localStorage.removeItem("nimto_user");
+      }
+    }
+
+    refreshUser()
+      .catch(() => {
+        localStorage.removeItem("nimto_token");
+        localStorage.removeItem("nimto_user");
+        setToken("");
+        setUser(null);
+      })
+      .finally(() => setIsChecking(false));
+  }, [refreshUser]);
+
+  function logout() {
+    localStorage.removeItem("nimto_token");
+    localStorage.removeItem("nimto_user");
+    setToken("");
+    setUser(null);
+    router.replace("/");
+  }
+
+  if (isChecking && !user) {
+    return (
+      <main className="user-shell">
+        <div className="user-loading">Checking your workspace...</div>
+      </main>
+    );
+  }
+
+  if (!token || !user) {
+    return (
+      <main className="user-shell">
+        <section className="user-auth-card">
+          <Link className="text-xl font-black text-ink" href="/">
+            myNimto
+          </Link>
+          <h1 className="mt-6 text-3xl font-black text-ink">
+            Sign in to continue
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-ink/60">
+            Your events, saved designs, and profile are kept inside your account.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link className="user-primary-button" href="/auth?mode=login">
+              Log in
+            </Link>
+            <Link className="user-secondary-button" href="/designs">
+              Browse designs
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="user-shell">
+      <aside className="user-sidebar">
+        <Link className="user-logo" href="/">
+          myNimto
+        </Link>
+        <nav className="user-nav">
+          {pageLinks.map((link) => (
+            <Link
+              aria-current={activePage === link.key ? "page" : undefined}
+              className={
+                activePage === link.key ? "user-nav-link active" : "user-nav-link"
+              }
+              href={link.href}
+              key={link.key}
+            >
+              <Icon>{link.icon}</Icon>
+              <span>{link.label}</span>
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      <section className="user-main">
+        <header className="user-topbar">
+          <nav className="user-site-links" aria-label="Website navigation">
+            <Link href="/">Home</Link>
+            <Link href="/features">Features</Link>
+            <Link href="/about">About</Link>
+            <Link href="/blog">Blog</Link>
+          </nav>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm font-bold text-ink/55 sm:inline">
+              {user.name}
+            </span>
+            <button className="user-ghost-button" onClick={logout} type="button">
+              Log out
+            </button>
+          </div>
+        </header>
+        <div className="user-page">{children({ authHeaders, refreshUser, showToast, token, user })}</div>
+      </section>
+
+      <div className="user-toast-region" role="status" aria-live="polite">
+        {toasts.map((toast) => (
+          <div
+            className={
+              toast.tone === "error"
+                ? "user-toast user-toast-error"
+                : "user-toast"
+            }
+            key={toast.id}
+          >
+            <span className="user-toast-dot" />
+            <p>{toast.message}</p>
+            <button
+              aria-label="Close notification"
+              onClick={() =>
+                setToasts((current) =>
+                  current.filter((item) => item.id !== toast.id),
+                )
+              }
+              type="button"
+            >
+              x
+            </button>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+export function ProfileForm({
+  authHeaders,
+  refreshUser,
+  showToast,
+  user,
+}: {
+  authHeaders: Record<string, string>;
+  refreshUser: () => Promise<AuthUser | null>;
+  showToast: (message: string, tone?: Toast["tone"]) => void;
+  user: AuthUser;
+}) {
+  const [name, setName] = useState(user.name ?? "");
+  const [email, setEmail] = useState(user.email ?? "");
+  const [phone, setPhone] = useState(user.phone ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setName(user.name ?? "");
+    setEmail(user.email ?? "");
+    setPhone(user.phone ?? "");
+  }, [user]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    try {
+      const response = await apiRequest<{ user: AuthUser }>("/auth/profile", {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({ name, email, phone }),
+      });
+      localStorage.setItem("nimto_user", JSON.stringify(response.user));
+      await refreshUser();
+      showToast("Profile updated.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Profile update failed.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <form className="user-panel max-w-2xl" onSubmit={submit}>
+      <div>
+        <p className="user-kicker">Profile</p>
+        <h1 className="mt-2 text-3xl font-black text-ink">Your details</h1>
+        <p className="mt-2 text-sm leading-6 text-ink/60">
+          These details are optional except your account email.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-5">
+        <label className="user-field">
+          <span>Name</span>
+          <input
+            minLength={2}
+            onChange={(event) => setName(event.target.value)}
+            value={name}
+          />
+        </label>
+        <label className="user-field">
+          <span>Email</span>
+          <input
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            type="email"
+            value={email}
+          />
+        </label>
+        <label className="user-field">
+          <span>Phone</span>
+          <input
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder="Optional"
+            value={phone}
+          />
+        </label>
+      </div>
+      <button className="user-primary-button mt-7" disabled={isSaving} type="submit">
+        {isSaving ? "Saving..." : "Save profile"}
+      </button>
+    </form>
+  );
+}
+
+export function Icon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      {children}
+    </svg>
+  );
+}

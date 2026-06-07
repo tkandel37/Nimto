@@ -57,15 +57,18 @@ export class EventsService {
       },
     });
 
-    await this.audit.record({
-      actorId: context.actorId,
-      action: "event.created",
-      entityType: "Event",
-      entityId: event.id,
-      metadata: { title: event.title, slug: event.slug },
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-    });
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "event.created",
+        entityType: "Event",
+        entityId: event.id,
+        metadata: { title: event.title, slug: event.slug },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "event create audit",
+    );
 
     return event;
   }
@@ -83,15 +86,18 @@ export class EventsService {
       data: { ...this.eventData(dto), ...designData },
     });
 
-    await this.audit.record({
-      actorId: context.actorId,
-      action: "event.updated",
-      entityType: "Event",
-      entityId: event.id,
-      metadata: { title: event.title, isPublished: event.isPublished },
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-    });
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "event.updated",
+        entityType: "Event",
+        entityId: event.id,
+        metadata: { title: event.title, isPublished: event.isPublished },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "event update audit",
+    );
 
     return event;
   }
@@ -100,15 +106,18 @@ export class EventsService {
     const existing = await this.assertOwner(userId, eventId);
     await this.prisma.event.delete({ where: { id: eventId } });
 
-    await this.audit.record({
-      actorId: context.actorId,
-      action: "event.deleted",
-      entityType: "Event",
-      entityId: eventId,
-      metadata: { title: existing.title, slug: existing.slug },
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-    });
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "event.deleted",
+        entityType: "Event",
+        entityId: eventId,
+        metadata: { title: existing.title, slug: existing.slug },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "event delete audit",
+    );
 
     return { success: true };
   }
@@ -203,5 +212,11 @@ export class EventsService {
       .replace(/^-+|-+$/g, "");
 
     return slug || `event-${Date.now()}`;
+  }
+
+  private runAfterResponse(work: Promise<unknown>, label: string) {
+    void work.catch((error) => {
+      console.error(`Failed to complete ${label}`, error);
+    });
   }
 }

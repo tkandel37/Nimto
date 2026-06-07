@@ -67,7 +67,7 @@ function AuthForm() {
 
       localStorage.setItem("nimto_token", response.token);
       localStorage.setItem("nimto_user", JSON.stringify(response.user));
-      router.replace("/dashboard");
+      router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -213,5 +213,22 @@ function AuthForm() {
         </div>
       </section>
     </main>
+  );
+}
+
+function isAdminUser(user: AuthResponse["user"]) {
+  return Boolean(
+    user.permissions?.includes("*") ||
+      user.permissions?.some((permission) =>
+        [
+          "template:",
+          "design:",
+          "content:",
+          "blog:",
+          "staff:",
+          "category:",
+          "subcategory:",
+        ].some((prefix) => permission.startsWith(prefix)),
+      ),
   );
 }

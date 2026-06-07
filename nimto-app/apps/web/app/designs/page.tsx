@@ -1,12 +1,25 @@
-import Link from "next/link";
+"use client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import Link from "next/link";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { apiRequest } from "@/lib/api";
+import { UserWorkspace } from "../user-workspace";
 
 type PublicCategory = {
   id: string;
   name: string;
   slug: string;
   subcategories?: { id: string; name: string; slug: string }[];
+};
+
+type TemplateField = {
+  key: string;
+  label: string;
+  type: string;
+  sectionKey?: string;
+  required: boolean;
+  paid: boolean;
+  locked: boolean;
 };
 
 type PublicDesign = {
@@ -20,164 +33,480 @@ type PublicDesign = {
     versionNumber: number;
     rawHtml: string;
     htmlSize: number;
+    scanResult?: { fields?: TemplateField[] } | null;
   }[];
 };
 
-async function getCategories() {
-  try {
-    const response = await fetch(`${API_URL}/template-design/public/categories`, {
-      next: { revalidate: 60 },
-    });
-    if (response.ok) return response.json() as Promise<PublicCategory[]>;
-  } catch {}
-  return [];
+type CreatedEvent = {
+  id: string;
+  title: string;
+  slug: string;
+};
+
+let catalogCache:
+  | { expiresAt: number; categories: PublicCategory[]; designs: PublicDesign[] }
+  | null = null;
+
+export default function DesignsPage() {
+  return (
+    <UserWorkspace activePage="designs">
+      {({ authHeaders, showToast }) => (
+        <DesignsContent authHeaders={authHeaders} showToast={showToast} />
+      )}
+    </UserWorkspace>
+  );
 }
 
-async function getDesigns(params: Record<string, string>) {
-  const query = new URLSearchParams();
-  if (params.categoryId) query.set("categoryId", params.categoryId);
-  if (params.subcategoryId) query.set("subcategoryId", params.subcategoryId);
-  if (params.search) query.set("search", params.search);
-
-  try {
-    const response = await fetch(
-      `${API_URL}/template-design/public/designs?${query.toString()}`,
-      { next: { revalidate: 30 } },
-    );
-    if (response.ok) return response.json() as Promise<PublicDesign[]>;
-  } catch {}
-  return [];
-}
-
-export default async function DesignsPage({
-  searchParams,
+function DesignsContent({
+  authHeaders,
+  showToast,
 }: {
-  searchParams?: Promise<Record<string, string>>;
+  authHeaders: Record<string, string>;
+  showToast: (message: string, tone?: "success" | "error") => void;
 }) {
-  const params = (await searchParams) ?? {};
-  const [categories, designs] = await Promise.all([
-    getCategories(),
-    getDesigns(params),
-  ]);
+  const [categories, setCategories] = useState<PublicCategory[]>(
+    catalogCache?.categories ?? [],
+  );
+  const [designs, setDesigns] = useState<PublicDesign[]>(catalogCache?.designs ?? []);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
+  const [selectedDesign, setSelectedDesign] = useState<PublicDesign | null>(null);
+  const [isLoading, setIsLoading] = useState(!catalogCache);
+
+  useEffect(() => {
+    let isActive = true;
+    if (catalogCache && catalogCache.expiresAt > Date.now()) {
+      setCategories(catalogCache.categories);
+      setDesigns(catalogCache.designs);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    Promise.all([
+      apiRequest<PublicCategory[]>("/template-design/public/categories"),
+      apiRequest<PublicDesign[]>("/template-design/public/designs"),
+    ])
+      .then(([nextCategories, nextDesigns]) => {
+        if (!isActive) return;
+        catalogCache = {
+          expiresAt: Date.now() + 60_000,
+          categories: nextCategories,
+          designs: nextDesigns,
+        };
+        setCategories(nextCategories);
+        setDesigns(nextDesigns);
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        showToast(
+          error instanceof Error ? error.message : "Could not load designs.",
+          "error",
+        );
+      })
+      .finally(() => {
+        if (isActive) setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [showToast]);
+
+  const subcategories = useMemo(
+    () =>
+      categories.find((category) => category.id === categoryId)?.subcategories ??
+      [],
+    [categories, categoryId],
+  );
+
+  const filteredDesigns = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return designs.filter((design) => {
+      if (categoryId && design.category?.id !== categoryId) return false;
+      if (subcategoryId && design.subcategory?.id !== subcategoryId) return false;
+      if (!query) return true;
+      return (
+        design.name.toLowerCase().includes(query) ||
+        design.slug.toLowerCase().includes(query)
+      );
+    });
+  }, [categoryId, designs, search, subcategoryId]);
+
+  if (selectedDesign) {
+    return (
+      <DesignEditor
+        authHeaders={authHeaders}
+        design={selectedDesign}
+        onBack={() => setSelectedDesign(null)}
+        showToast={showToast}
+      />
+    );
+  }
 
   return (
-    <main className="site-shell">
-      <SimpleHeader />
-      <section className="mx-auto max-w-7xl px-5 py-10">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <section className="grid gap-5">
+      <div className="user-panel">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-4xl font-black text-ink">Designs</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-ink/60">
-              Browse current invitation designs and preview the real HTML before
-              creating your event.
+            <p className="user-kicker">Designs</p>
+            <h1 className="mt-2 text-3xl font-black text-ink">
+              Pick an invitation design
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
+              Browse published designs, preview the actual HTML, and create a
+              private event copy from the one you select.
             </p>
           </div>
-          <form className="flex w-full gap-2 md:w-auto">
+          <div className="user-filter-row">
             <input
-              className="min-w-0 flex-1 rounded-lg border border-ink/15 bg-white px-4 py-3"
-              defaultValue={params.search ?? ""}
-              name="search"
+              aria-label="Search designs"
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search designs"
+              value={search}
             />
-            <button className="rounded-lg bg-ink px-5 py-3 font-bold text-white">
-              Search
-            </button>
-          </form>
-        </div>
-
-        <div className="mt-8 flex flex-wrap gap-2">
-          <Link
-            className={`rounded-lg px-4 py-2 text-sm font-bold ${
-              params.categoryId ? "bg-white text-ink" : "bg-leaf text-white"
-            }`}
-            href="/designs"
-          >
-            All
-          </Link>
-          {categories.map((category) => (
-            <Link
-              className={`rounded-lg px-4 py-2 text-sm font-bold ${
-                params.categoryId === category.id
-                  ? "bg-leaf text-white"
-                  : "bg-white text-ink"
-              }`}
-              href={`/designs?categoryId=${category.id}`}
-              key={category.id}
+            <select
+              aria-label="Filter category"
+              onChange={(event) => {
+                setCategoryId(event.target.value);
+                setSubcategoryId("");
+              }}
+              value={categoryId}
             >
-              {category.name}
-            </Link>
-          ))}
+              <option value="">All categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter subcategory"
+              disabled={!categoryId}
+              onChange={(event) => setSubcategoryId(event.target.value)}
+              value={subcategoryId}
+            >
+              <option value="">All subcategories</option>
+              {subcategories.map((subcategory) => (
+                <option key={subcategory.id} value={subcategory.id}>
+                  {subcategory.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          {designs.map((design) => {
-            const current = design.versions[0];
-            return (
-              <article
-                className="overflow-hidden rounded-lg border border-ink/10 bg-white"
-                key={design.id}
-              >
+      <div className="user-design-grid">
+        {filteredDesigns.map((design) => {
+          const current = design.versions[0];
+          return (
+            <article className="user-design-card" key={design.id}>
+              <div className="user-design-preview">
                 <iframe
-                  className="h-[420px] w-full border-0 bg-white"
                   sandbox="allow-scripts"
                   srcDoc={current?.rawHtml ?? ""}
                   title={`${design.name} preview`}
                 />
-                <div className="border-t border-ink/10 p-5">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <h2 className="text-xl font-black text-ink">
-                        {design.name}
-                      </h2>
-                      <p className="mt-1 text-sm text-ink/50">
-                        {[design.category?.name, design.subcategory?.name]
-                          .filter(Boolean)
-                          .join(" / ") || "Uncategorized"}
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-leaf/10 px-3 py-1 text-sm font-black text-leaf">
-                      v{current?.versionNumber ?? 1}
-                    </span>
+              </div>
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-black text-ink">
+                      {design.name}
+                    </h2>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
+                      {[design.category?.name, design.subcategory?.name]
+                        .filter(Boolean)
+                        .join(" / ") || "Uncategorized"}
+                    </p>
                   </div>
-                  <Link
-                    className="mt-4 inline-flex rounded-lg bg-ink px-4 py-3 font-bold text-white"
-                    href={`/dashboard?designId=${design.id}`}
-                  >
-                    Select design
-                  </Link>
+                  <span className="user-version-pill">
+                    v{current?.versionNumber ?? 1}
+                  </span>
                 </div>
-              </article>
-            );
-          })}
-        </div>
+                <button
+                  className="user-primary-button mt-5 w-full"
+                  disabled={!current}
+                  onClick={() => setSelectedDesign(design)}
+                  type="button"
+                >
+                  Use this design
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
 
-        {designs.length ? null : (
-          <div className="mt-8 rounded-lg border border-ink/10 bg-white p-6">
-            <h2 className="text-xl font-black text-ink">No designs found</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/60">
-              Try another category or search term.
-            </p>
-          </div>
-        )}
-      </section>
-    </main>
+      {isLoading ? <p className="user-empty">Loading designs...</p> : null}
+      {!isLoading && !filteredDesigns.length ? (
+        <div className="user-empty">
+          <h2>No designs found</h2>
+          <p>Try another category, subcategory, or search term.</p>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-function SimpleHeader() {
-  return (
-    <header className="site-header">
-      <Link className="text-xl font-black text-ink" href="/">
-        myNimto
-      </Link>
-      <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-        <Link href="/designs">Designs</Link>
-        <Link href="/blog">Blog</Link>
-        <Link href="/about">About</Link>
-        <Link className="site-login-button" href="/auth?mode=login">
-          Log in
-        </Link>
-      </nav>
-    </header>
+function DesignEditor({
+  authHeaders,
+  design,
+  onBack,
+  showToast,
+}: {
+  authHeaders: Record<string, string>;
+  design: PublicDesign;
+  onBack: () => void;
+  showToast: (message: string, tone?: "success" | "error") => void;
+}) {
+  const current = design.versions[0];
+  const fields = useMemo(() => {
+    const scannedFields = current?.scanResult?.fields ?? [];
+    return scannedFields.filter((field) => !field.locked && !field.paid);
+  }, [current]);
+  const inputFields = fields.filter((field) => field.required);
+  const contentFields = fields.filter((field) => !field.required);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [origin, setOrigin] = useState("");
+
+  const previewHtml = useMemo(
+    () => applyFieldValues(current?.rawHtml ?? "", values),
+    [current, values],
   );
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  function updateValue(key: string, value: string) {
+    setValues((currentValues) => ({ ...currentValues, [key]: value }));
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const missingField = inputFields.find((field) => !values[field.key]?.trim());
+    if (missingField) {
+      showToast(`${missingField.label} is required.`, "error");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (!current) {
+        throw new Error("This design does not have a current version.");
+      }
+
+      const response = await apiRequest<CreatedEvent>("/events", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          title: eventTitle(design.name, values),
+          type: "WEDDING",
+          eventDate: dateValue(values),
+          venue: fieldValue(values, ["venue", "location", "place"]),
+          description: fieldValue(values, ["message", "description", "note"]),
+          isPublished: true,
+          designVersionId: current.id,
+          designFieldValues: values,
+        }),
+      });
+      setCreatedEvent(response);
+      localStorage.setItem("nimto_events_changed", String(Date.now()));
+      showToast("Event created and ready to share.");
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Could not create event.",
+        "error",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function copyShareLink() {
+    if (!createdEvent || !origin) return;
+    await navigator.clipboard.writeText(`${origin}/invite/${createdEvent.slug}`);
+    showToast("Share link copied.");
+  }
+
+  return (
+    <section className="user-editor">
+      <div className="user-editor-toolbar">
+        <button className="user-secondary-button" onClick={onBack} type="button">
+          Back
+        </button>
+        <div>
+          <p className="user-kicker">Create event</p>
+          <h1 className="text-2xl font-black text-ink">{design.name}</h1>
+        </div>
+      </div>
+
+      <div className="user-editor-grid">
+        <div className="user-live-preview">
+          <iframe
+            sandbox="allow-scripts"
+            srcDoc={previewHtml}
+            title={`${design.name} live preview`}
+          />
+        </div>
+
+        <form className="user-fields-panel" onSubmit={submit}>
+          <FieldSection
+            fields={inputFields}
+            onChange={updateValue}
+            title="Input fields"
+            values={values}
+          />
+          <FieldSection
+            fields={contentFields}
+            onChange={updateValue}
+            title="Content fields"
+            values={values}
+          />
+          <button
+            className="user-primary-button w-full"
+            disabled={isSaving || !current}
+            type="submit"
+          >
+            {isSaving ? "Creating..." : "Create shareable event"}
+          </button>
+          {createdEvent ? (
+            <div className="user-share-box">
+              <strong>{createdEvent.title}</strong>
+              <p>{`${origin}/invite/${createdEvent.slug}`}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="user-secondary-button"
+                  onClick={copyShareLink}
+                  type="button"
+                >
+                  Copy link
+                </button>
+                <Link
+                  className="user-secondary-button"
+                  href={`/invite/${createdEvent.slug}`}
+                  target="_blank"
+                >
+                  Open preview
+                </Link>
+              </div>
+            </div>
+          ) : null}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function FieldSection({
+  fields,
+  onChange,
+  title,
+  values,
+}: {
+  fields: TemplateField[];
+  onChange: (key: string, value: string) => void;
+  title: string;
+  values: Record<string, string>;
+}) {
+  return (
+    <section className="user-field-section">
+      <h2>{title}</h2>
+      {fields.length ? (
+        <div className="grid gap-4">
+          {fields.map((field) => (
+            <label className="user-field" key={field.key}>
+              <span>
+                {field.label}
+                {field.required ? <b> Required</b> : null}
+              </span>
+              {field.type === "textarea" ? (
+                <textarea
+                  onChange={(event) => onChange(field.key, event.target.value)}
+                  required={field.required}
+                  rows={4}
+                  value={values[field.key] ?? ""}
+                />
+              ) : (
+                <input
+                  onChange={(event) => onChange(field.key, event.target.value)}
+                  required={field.required}
+                  type={inputType(field.type)}
+                  value={values[field.key] ?? ""}
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-ink/55">No editable fields here.</p>
+      )}
+    </section>
+  );
+}
+
+function eventTitle(designName: string, values: Record<string, string>) {
+  return (
+    fieldValue(values, [
+      "event_title",
+      "title",
+      "couple_name",
+      "names",
+      "bride_groom",
+      "groom_name",
+      "bride_name",
+    ]) || `${designName} Invitation`
+  );
+}
+
+function dateValue(values: Record<string, string>) {
+  const value = fieldValue(values, ["event_date", "date", "wedding_date"]);
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function fieldValue(values: Record<string, string>, keys: string[]) {
+  const normalizedKeys = new Set(keys);
+  const entry = Object.entries(values).find(([key, value]) => {
+    const normalizedKey = key.toLowerCase();
+    return normalizedKeys.has(normalizedKey) && value.trim();
+  });
+  return entry?.[1].trim();
+}
+
+function inputType(type: string) {
+  if (type === "date") return "date";
+  if (type === "email") return "email";
+  if (type === "number") return "number";
+  if (type === "url") return "url";
+  return "text";
+}
+
+function applyFieldValues(rawHtml: string, values: Record<string, string>) {
+  return Object.entries(values).reduce((html, [key, value]) => {
+    if (!value) return html;
+    const pattern = new RegExp(
+      `(<[^>]*data-nimto-field=(["'])${escapeRegExp(key)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
+      "gis",
+    );
+    return html.replace(pattern, `$1${escapeHtml(value)}$4`);
+  }, rawHtml);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

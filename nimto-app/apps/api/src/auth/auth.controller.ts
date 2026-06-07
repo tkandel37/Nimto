@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Req,
   Res,
@@ -13,6 +14,7 @@ import { Response } from "express";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { AuthenticatedRequest, JwtAuthGuard } from "./jwt-auth.guard";
 
 @Controller()
@@ -42,6 +44,15 @@ export class AuthController {
   @Get("auth/me")
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.me(request.user!.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("auth/profile")
+  updateProfile(
+    @Body() dto: UpdateProfileDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.authService.updateProfile(request.user!.sub, dto);
   }
 
   @Get("auth/verify-email")

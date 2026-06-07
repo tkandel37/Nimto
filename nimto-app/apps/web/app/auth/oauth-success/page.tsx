@@ -31,7 +31,7 @@ function OAuthSuccessContent() {
     })
       .then((response) => {
         localStorage.setItem("nimto_user", JSON.stringify(response.user));
-        router.replace("/dashboard");
+        router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
       })
       .catch(() => {
         localStorage.removeItem("nimto_token");
@@ -67,6 +67,23 @@ function OAuthSuccessContent() {
         </>
       )}
     </div>
+  );
+}
+
+function isAdminUser(user: AuthUser) {
+  return Boolean(
+    user.permissions?.includes("*") ||
+      user.permissions?.some((permission) =>
+        [
+          "template:",
+          "design:",
+          "content:",
+          "blog:",
+          "staff:",
+          "category:",
+          "subcategory:",
+        ].some((prefix) => permission.startsWith(prefix)),
+      ),
   );
 }
 

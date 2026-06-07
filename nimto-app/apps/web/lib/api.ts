@@ -2,6 +2,7 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   status?: string;
   emailVerifiedAt?: string | null;
   roles?: string[];

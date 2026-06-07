@@ -13,6 +13,7 @@ import { MailService } from "../mail/mail.service";
 import { AuditService } from "../audit/audit.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { SUPER_ADMIN_ROLE } from "./permissions";
 
 @Injectable()
@@ -131,6 +132,45 @@ export class AuthService {
     return {
       user: this.toPublicUser(user),
     };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!existing) {
+      throw new UnauthorizedException("User not found.");
+    }
+
+    const normalizedEmail = dto.email?.trim().toLowerCase();
+    const emailChanged =
+      normalizedEmail !== undefined && normalizedEmail !== existing.email;
+
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: dto.name?.trim(),
+          email: normalizedEmail,
+          emailVerifiedAt: emailChanged ? null : undefined,
+          phone: dto.phone !== undefined ? dto.phone.trim() || null : undefined,
+        },
+        include: this.userAccessInclude(),
+      });
+
+      return { user: this.toPublicUser(user) };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new BadRequestException(
+          "An account with this email already exists.",
+        );
+      }
+      throw error;
+    }
   }
 
   async verifyEmail(token: string) {
@@ -365,6 +405,7 @@ export class AuthService {
     id: string;
     name: string;
     email: string;
+    phone?: string | null;
     status?: string;
     emailVerifiedAt?: Date | null;
     createdAt: Date;
@@ -394,6 +435,7 @@ export class AuthService {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt,
       roles: roleNames,

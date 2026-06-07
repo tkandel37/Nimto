@@ -54,6 +54,7 @@ type ScannedSection = { key: string; label: string; index: number };
 
 const TEMPLATE_ACCESS_CACHE_MS = 30_000;
 const TEMPLATE_DETAIL_CACHE_MS = 60_000;
+const PUBLIC_DESIGN_CACHE_MS = 60_000;
 
 type TemplateAccess = {
   updateAll: boolean;
@@ -81,6 +82,8 @@ const templateDetailCache = new Map<
 >();
 const templateListCache = new Map<string, { expiresAt: number; value: unknown }>();
 const designListCache = new Map<string, { expiresAt: number; value: unknown }>();
+const publicCategoryCache = new Map<string, { expiresAt: number; value: unknown }>();
+const publicDesignCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 @Injectable()
 export class TemplateDesignService {
@@ -102,7 +105,13 @@ export class TemplateDesignService {
   }
 
   listPublicCategories() {
-    return this.prisma.designCategory.findMany({
+    const cacheKey = "active";
+    const cached = publicCategoryCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const query = this.prisma.designCategory.findMany({
       where: { status: DesignCatalogStatus.ACTIVE },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
@@ -112,6 +121,13 @@ export class TemplateDesignService {
         },
       },
     });
+    void query.then((value) => {
+      publicCategoryCache.set(cacheKey, {
+        expiresAt: Date.now() + PUBLIC_DESIGN_CACHE_MS,
+        value,
+      });
+    });
+    return query;
   }
 
   listPublicDesigns(filters: {
@@ -120,7 +136,17 @@ export class TemplateDesignService {
     search?: string;
   }) {
     const search = filters.search?.trim();
-    return this.prisma.invitationDesign.findMany({
+    const cacheKey = JSON.stringify({
+      categoryId: filters.categoryId ?? "",
+      subcategoryId: filters.subcategoryId ?? "",
+      search: search ?? "",
+    });
+    const cached = publicDesignCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const query = this.prisma.invitationDesign.findMany({
       where: {
         status: DesignStatus.ACTIVE,
         categoryId: filters.categoryId || undefined,
@@ -174,6 +200,13 @@ export class TemplateDesignService {
         },
       },
     });
+    void query.then((value) => {
+      publicDesignCache.set(cacheKey, {
+        expiresAt: Date.now() + PUBLIC_DESIGN_CACHE_MS,
+        value,
+      });
+    });
+    return query;
   }
 
   async listTemplates(userId: string) {

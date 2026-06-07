@@ -7,7 +7,6 @@ import { AuthUser } from "@/lib/api";
 
 type AdminTabKey =
   | "overview"
-  | "events"
   | "designSetup"
   | "website"
   | "roles"
@@ -19,7 +18,6 @@ type AdminTabKey =
 
 type AdminIconName =
   | "dashboard"
-  | "events"
   | "design"
   | "website"
   | "roles"
@@ -43,7 +41,6 @@ const adminTabs: {
     permission: null,
     href: "/dashboard",
   },
-  { key: "events", label: "Events", icon: "events", permission: null, href: "/events" },
   {
     key: "designSetup",
     label: "Design Setup",
@@ -68,13 +65,11 @@ const adminTabs: {
   },
 ];
 
-const adminPathToTab: Record<string, AdminTabKey | "settings" | "profile"> = {
+const adminPathToTab: Record<string, AdminTabKey | "settings"> = {
   "/audit": "audit",
   "/dashboard": "overview",
   "/design-setup": "designSetup",
-  "/events": "events",
   "/permissions": "permissions",
-  "/profile": "profile",
   "/roles": "roles",
   "/sessions": "sessions",
   "/settings": "settings",
@@ -164,10 +159,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAdmin) return;
 
-    const hrefs = new Set([
-      ...visibleTabs.map((tab) => tab.href),
-      "/profile",
-    ]);
+    const hrefs = new Set(visibleTabs.map((tab) => tab.href));
 
     if (
       canAny(user, [
@@ -267,19 +259,6 @@ export function AdminFrame({ children }: { children: ReactNode }) {
               <SettingsIcon />
             </Link>
           ) : null}
-          <Link
-            aria-label="Profile"
-            className={
-              activeTabForRender === "profile"
-                ? "sidebar-icon-tab sidebar-icon-tab-active"
-                : "sidebar-icon-tab"
-            }
-            data-tooltip="Profile"
-            href="/profile"
-            title="Profile"
-          >
-            <ProfileIcon />
-          </Link>
         </div>
       </aside>
 
@@ -296,13 +275,6 @@ function AdminTabIcon({ icon }: { icon: AdminIconName }) {
         <rect x="13" y="3" width="8" height="5" rx="2" />
         <rect x="13" y="10" width="8" height="11" rx="2" />
         <rect x="3" y="13" width="8" height="8" rx="2" />
-      </>
-    ),
-    events: (
-      <>
-        <path d="M7 3v4M17 3v4" />
-        <rect x="4" y="5" width="16" height="17" rx="3" />
-        <path d="M4 10h16M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
       </>
     ),
     design: (

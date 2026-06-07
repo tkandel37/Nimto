@@ -19,6 +19,7 @@ type InvitationEvent = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 function displayDate(value?: string | null) {
   if (!value) {
@@ -60,13 +61,25 @@ export async function generateMetadata({
     `${event.type} invitation${event.eventDate ? ` on ${displayDate(event.eventDate)}` : ""}.`;
 
   return {
+    metadataBase: new URL(APP_URL),
     title,
     description,
+    alternates: {
+      canonical: `/invite/${slug}`,
+    },
     openGraph: {
       title,
       description,
+      url: `/invite/${slug}`,
+      siteName: "myNimto",
       type: "website",
       images: event.coverImage ? [{ url: event.coverImage }] : undefined,
+    },
+    twitter: {
+      card: event.coverImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: event.coverImage ? [event.coverImage] : undefined,
     },
   };
 }
