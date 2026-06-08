@@ -1218,13 +1218,32 @@ a {
 }
 
 .user-field span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 0.84rem;
   font-weight: 900;
   color: rgba(23, 32, 51, 0.72);
 }
 
+.user-field span span {
+  display: inline;
+}
+
+.user-field em {
+  border-radius: 999px;
+  background: rgba(23, 32, 51, 0.08);
+  padding: 3px 7px;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: rgba(23, 32, 51, 0.48);
+}
+
 .user-field b {
-  margin-left: 6px;
   font-size: 0.68rem;
   text-transform: uppercase;
   color: var(--rose);

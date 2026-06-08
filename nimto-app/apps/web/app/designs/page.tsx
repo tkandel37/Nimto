@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
 
@@ -20,6 +20,11 @@ type TemplateField = {
   required: boolean;
   paid: boolean;
   locked: boolean;
+};
+
+type NormalizedField = TemplateField & {
+  inputType: string;
+  control: "input" | "textarea";
 };
 
 type PublicDesign = {
@@ -263,9 +268,12 @@ function DesignEditor({
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
   const current = design.versions[0];
+  const previewRef = useRef<HTMLIFrameElement | null>(null);
   const fields = useMemo(() => {
     const scannedFields = current?.scanResult?.fields ?? [];
-    return scannedFields.filter((field) => !field.locked && !field.paid);
+    return scannedFields
+      .map(normalizeField)
+      .filter((field) => !field.locked && !field.paid);
   }, [current]);
   const inputFields = fields.filter((field) => field.required);
   const contentFields = fields.filter((field) => !field.required);
@@ -273,15 +281,18 @@ function DesignEditor({
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [origin, setOrigin] = useState("");
-
   const previewHtml = useMemo(
-    () => applyFieldValues(current?.rawHtml ?? "", values),
-    [current, values],
+    () => installPreviewFieldSync(current?.rawHtml ?? ""),
+    [current?.rawHtml],
   );
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    updatePreviewFrame(previewRef.current, values);
+  }, [values]);
 
   function updateValue(key: string, value: string) {
     setValues((currentValues) => ({ ...currentValues, [key]: value }));
@@ -349,9 +360,11 @@ function DesignEditor({
       <div className="user-editor-grid">
         <div className="user-live-preview">
           <iframe
+            ref={previewRef}
             sandbox="allow-scripts"
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
+            onLoad={() => updatePreviewFrame(previewRef.current, values)}
           />
         </div>
 
@@ -409,7 +422,7 @@ function FieldSection({
   title,
   values,
 }: {
-  fields: TemplateField[];
+  fields: NormalizedField[];
   onChange: (key: string, value: string) => void;
   title: string;
   values: Record<string, string>;
@@ -422,10 +435,11 @@ function FieldSection({
           {fields.map((field) => (
             <label className="user-field" key={field.key}>
               <span>
-                {field.label}
+                <span>{field.label}</span>
+                <em>{field.inputType}</em>
                 {field.required ? <b> Required</b> : null}
               </span>
-              {field.type === "textarea" ? (
+              {field.control === "textarea" ? (
                 <textarea
                   onChange={(event) => onChange(field.key, event.target.value)}
                   required={field.required}
@@ -436,7 +450,7 @@ function FieldSection({
                 <input
                   onChange={(event) => onChange(field.key, event.target.value)}
                   required={field.required}
-                  type={inputType(field.type)}
+                  type={field.inputType}
                   value={values[field.key] ?? ""}
                 />
               )}
@@ -480,33 +494,58 @@ function fieldValue(values: Record<string, string>, keys: string[]) {
   return entry?.[1].trim();
 }
 
-function inputType(type: string) {
-  if (type === "date") return "date";
-  if (type === "email") return "email";
-  if (type === "number") return "number";
-  if (type === "url") return "url";
-  return "text";
+function normalizeField(field: TemplateField): NormalizedField {
+  const rawType = field.type?.trim().toLowerCase() || "text";
+  const textareaTypes = new Set(["textarea", "message", "longtext", "content"]);
+  const supportedInputTypes = new Set([
+    "date",
+    "datetime-local",
+    "email",
+    "number",
+    "tel",
+    "text",
+    "time",
+    "url",
+  ]);
+
+  if (textareaTypes.has(rawType)) {
+    return { ...field, type: rawType, inputType: "text", control: "textarea" };
+  }
+
+  const inputType = supportedInputTypes.has(rawType) ? rawType : "text";
+  return { ...field, type: rawType, inputType, control: "input" };
 }
 
-function applyFieldValues(rawHtml: string, values: Record<string, string>) {
-  return Object.entries(values).reduce((html, [key, value]) => {
-    if (!value) return html;
-    const pattern = new RegExp(
-      `(<[^>]*data-nimto-field=(["'])${escapeRegExp(key)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
-      "gis",
-    );
-    return html.replace(pattern, `$1${escapeHtml(value)}$4`);
-  }, rawHtml);
+function updatePreviewFrame(
+  iframe: HTMLIFrameElement | null,
+  values: Record<string, string>,
+) {
+  iframe?.contentWindow?.postMessage(
+    { source: "nimto-user-preview", type: "field-values", values },
+    "*",
+  );
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+function installPreviewFieldSync(rawHtml: string) {
+  const script = `<script>
+(() => {
+  const escapeSelector = (value) => {
+    if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
+    return String(value).replace(/"/g, "\\\\\"");
+  };
+  window.addEventListener("message", (event) => {
+    const data = event.data || {};
+    if (data.source !== "nimto-user-preview" || data.type !== "field-values") return;
+    Object.entries(data.values || {}).forEach(([key, value]) => {
+      const element = document.querySelector('[data-nimto-field="' + escapeSelector(key) + '"]');
+      if (element) element.textContent = value == null ? "" : String(value);
+    });
+  });
+})();
+</script>`;
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (/<\/body>/i.test(rawHtml)) {
+    return rawHtml.replace(/<\/body>/i, `${script}</body>`);
+  }
+  return `${rawHtml}${script}`;
 }

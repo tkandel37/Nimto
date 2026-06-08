@@ -171,6 +171,7 @@ type InvitationDesign = {
     id: string;
     versionNumber: number;
     status: "CURRENT" | "SUPERSEDED";
+    rawHtml?: string;
     htmlSize: number;
     scanResult?: InvitationTemplate["scanResult"];
     createdAt: string;
@@ -178,6 +179,10 @@ type InvitationDesign = {
   createdAt: string;
   updatedAt: string;
 };
+
+type ScannedTemplateField = NonNullable<
+  NonNullable<InvitationTemplate["scanResult"]>["fields"]
+>[number];
 
 type PageContent = {
   id: string;
@@ -2350,9 +2355,8 @@ function DesignSetupPanel({
 
 function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
   const current = design?.versions.find((version) => version.status === "CURRENT");
-  const supersededCount =
-    design?.versions.filter((version) => version.status === "SUPERSEDED").length ??
-    0;
+  const fields = current?.scanResult?.fields ?? [];
+  const fieldGroups = groupedTemplateFields(fields);
 
   return (
     <div className="border border-ink/10 bg-white p-4">
@@ -2377,8 +2381,8 @@ function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
               </dd>
             </div>
             <div>
-              <dt className="font-bold text-ink/45">Superseded</dt>
-              <dd className="mt-1 font-black text-ink">{supersededCount}</dd>
+              <dt className="font-bold text-ink/45">Fields</dt>
+              <dd className="mt-1 font-black text-ink">{fields.length}</dd>
             </div>
             <div>
               <dt className="font-bold text-ink/45">Owner</dt>
@@ -2392,30 +2396,49 @@ function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
               .filter(Boolean)
               .join(" / ") || "Uncategorized"}
           </p>
-          <div className="border-t border-ink/10 pt-3">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
-              Version history
-            </p>
-            <div className="mt-2 grid gap-2">
-              {design.versions.map((version) => (
-                <div
-                  className="flex items-center justify-between border border-ink/10 px-3 py-2 text-sm"
-                  key={version.id}
-                >
-                  <span className="font-bold text-ink">
-                    v{version.versionNumber}
-                  </span>
-                  <span
-                    className={
-                      version.status === "CURRENT"
-                        ? "font-black text-leaf"
-                        : "font-bold text-ink/45"
-                    }
+          <div className="grid gap-3 border-t border-ink/10 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                Current fields
+              </p>
+              <button
+                className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-black text-ink transition-colors hover:bg-paper"
+                disabled={!current?.rawHtml}
+                onClick={() => openDesignPreview(design.name, current?.rawHtml)}
+                type="button"
+              >
+                Preview
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <DesignFieldMetric label="Input" value={fieldGroups.input.length} />
+              <DesignFieldMetric
+                label="Content"
+                value={fieldGroups.content.length}
+              />
+              <DesignFieldMetric label="Locked" value={fieldGroups.locked.length} />
+              <DesignFieldMetric label="Paid" value={fieldGroups.paid.length} />
+            </div>
+            <div className="grid gap-2">
+              {fieldGroups.highlighted.length ? (
+                fieldGroups.highlighted.map((field) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-lg border border-ink/10 bg-paper/70 px-3 py-2 text-sm"
+                    key={field.key}
                   >
-                    {version.status}
-                  </span>
-                </div>
-              ))}
+                    <span className="min-w-0 truncate font-bold text-ink">
+                      {field.label}
+                    </span>
+                    <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-black uppercase text-ink/50">
+                      {fieldKind(field)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-lg border border-dashed border-ink/15 p-3 text-sm leading-6 text-ink/55">
+                  No scanned fields are available for this design version.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -2426,6 +2449,51 @@ function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
       )}
     </div>
   );
+}
+
+function DesignFieldMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-ink/10 bg-paper/70 p-3">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/45">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function groupedTemplateFields(fields: ScannedTemplateField[] = []) {
+  const locked = fields.filter((field) => field.locked);
+  const paid = fields.filter((field) => field.paid);
+  const visible = fields.filter((field) => !field.locked && !field.paid);
+  const input = visible.filter((field) => field.required);
+  const content = visible.filter((field) => !field.required);
+
+  return {
+    content,
+    highlighted: [...input, ...content, ...locked, ...paid].slice(0, 8),
+    input,
+    locked,
+    paid,
+  };
+}
+
+function fieldKind(field: ScannedTemplateField) {
+  if (field.locked) return "Locked";
+  if (field.paid) return "Paid";
+  return field.required ? "Input" : "Content";
+}
+
+function openDesignPreview(title: string, rawHtml?: string) {
+  if (!rawHtml) return;
+  const documentHtml = /<title\b/i.test(rawHtml)
+    ? rawHtml
+    : rawHtml.replace(/<head\b([^>]*)>/i, `<head$1><title>${title} preview</title>`);
+  const blobUrl = URL.createObjectURL(
+    new Blob([documentHtml], { type: "text/html" }),
+  );
+  window.open(blobUrl, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
 }
 
 function TemplateCreatePanel({
