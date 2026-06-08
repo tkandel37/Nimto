@@ -364,7 +364,13 @@ function DesignEditor({
             sandbox="allow-scripts"
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
-            onLoad={() => updatePreviewFrame(previewRef.current, values)}
+            onLoad={() => {
+              updatePreviewFrame(previewRef.current, values);
+              window.setTimeout(
+                () => updatePreviewFrame(previewRef.current, values),
+                80,
+              );
+            }}
           />
         </div>
 
@@ -520,10 +526,9 @@ function updatePreviewFrame(
   iframe: HTMLIFrameElement | null,
   values: Record<string, string>,
 ) {
-  iframe?.contentWindow?.postMessage(
-    { source: "nimto-user-preview", type: "field-values", values },
-    "*",
-  );
+  const message = { source: "nimto-user-preview", type: "field-values", values };
+  iframe?.contentWindow?.postMessage(message, "*");
+  window.setTimeout(() => iframe?.contentWindow?.postMessage(message, "*"), 40);
 }
 
 function installPreviewFieldSync(rawHtml: string) {
@@ -537,8 +542,21 @@ function installPreviewFieldSync(rawHtml: string) {
     const data = event.data || {};
     if (data.source !== "nimto-user-preview" || data.type !== "field-values") return;
     Object.entries(data.values || {}).forEach(([key, value]) => {
-      const element = document.querySelector('[data-nimto-field="' + escapeSelector(key) + '"]');
-      if (element) element.textContent = value == null ? "" : String(value);
+      const nextValue = value == null ? "" : String(value);
+      document
+        .querySelectorAll('[data-nimto-field="' + escapeSelector(key) + '"]')
+        .forEach((element) => {
+          if (
+            element instanceof HTMLInputElement ||
+            element instanceof HTMLTextAreaElement ||
+            element instanceof HTMLSelectElement
+          ) {
+            element.value = nextValue;
+            element.setAttribute("value", nextValue);
+            return;
+          }
+          element.textContent = nextValue;
+        });
     });
   });
 })();

@@ -755,6 +755,7 @@ export function DashboardClient({
             !options.force &&
             latest.designCategories.length > 0 &&
             (latest.templates.length > 0 || latest.designs.length > 0) &&
+            latest.designs.every(designHasCurrentFieldMetadata) &&
             Date.now() - designSetupLoadedAtRef.current < DESIGN_SETUP_CACHE_MS;
           if (canUseCachedDesignSetup) {
             nextSnapshot.designCategories = latest.designCategories;
@@ -2355,7 +2356,10 @@ function DesignSetupPanel({
 
 function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
   const current = design?.versions.find((version) => version.status === "CURRENT");
-  const fields = current?.scanResult?.fields ?? [];
+  const fields = useMemo(
+    () => current?.scanResult?.fields ?? scanFieldsFromHtml(current?.rawHtml),
+    [current?.rawHtml, current?.scanResult?.fields],
+  );
   const fieldGroups = groupedTemplateFields(fields);
 
   return (
@@ -2476,6 +2480,42 @@ function groupedTemplateFields(fields: ScannedTemplateField[] = []) {
     locked,
     paid,
   };
+}
+
+function designHasCurrentFieldMetadata(design: InvitationDesign) {
+  const current = design.versions.find((version) => version.status === "CURRENT");
+  return Boolean(current?.scanResult?.fields || current?.rawHtml);
+}
+
+function scanFieldsFromHtml(rawHtml?: string): ScannedTemplateField[] {
+  if (!rawHtml || typeof DOMParser === "undefined") {
+    return [];
+  }
+
+  const document = new DOMParser().parseFromString(rawHtml, "text/html");
+  return Array.from(document.querySelectorAll("[data-nimto-field]")).map(
+    (element) => {
+      const key = element.getAttribute("data-nimto-field") ?? "";
+      return {
+        key,
+        label: element.getAttribute("data-nimto-label") ?? labelizeField(key),
+        type: element.getAttribute("data-nimto-type") ?? "text",
+        required: booleanMarker(element.getAttribute("data-nimto-required")),
+        paid: booleanMarker(element.getAttribute("data-nimto-paid")),
+        locked: booleanMarker(element.getAttribute("data-nimto-locked")),
+      };
+    },
+  );
+}
+
+function booleanMarker(value: string | null) {
+  return value === "" || value === "true" || value === "1";
+}
+
+function labelizeField(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function fieldKind(field: ScannedTemplateField) {
