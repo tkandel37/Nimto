@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
@@ -31,6 +31,10 @@ function AuthForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMode(searchParams.get("mode") === "login" ? "login" : "register");
+  }, [searchParams]);
 
   const copy = useMemo(
     () =>
@@ -81,7 +85,9 @@ function AuthForm() {
 
   function switchMode() {
     setError("");
-    setMode((current) => (current === "register" ? "login" : "register"));
+    const nextMode = mode === "register" ? "login" : "register";
+    setMode(nextMode);
+    router.replace(`/auth?mode=${nextMode}`, { scroll: false });
   }
 
   return (

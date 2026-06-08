@@ -48,8 +48,15 @@ type CreatedEvent = {
   slug: string;
 };
 
+const CATALOG_CACHE_VERSION = 2;
+
 let catalogCache:
-  | { expiresAt: number; categories: PublicCategory[]; designs: PublicDesign[] }
+  | {
+      version: number;
+      expiresAt: number;
+      categories: PublicCategory[];
+      designs: PublicDesign[];
+    }
   | null = null;
 
 export default function DesignsPage() {
@@ -81,7 +88,11 @@ function DesignsContent({
 
   useEffect(() => {
     let isActive = true;
-    if (catalogCache && catalogCache.expiresAt > Date.now()) {
+    if (
+      catalogCache &&
+      catalogCache.version === CATALOG_CACHE_VERSION &&
+      catalogCache.expiresAt > Date.now()
+    ) {
       setCategories(catalogCache.categories);
       setDesigns(catalogCache.designs);
       setIsLoading(false);
@@ -96,6 +107,7 @@ function DesignsContent({
       .then(([nextCategories, nextDesigns]) => {
         if (!isActive) return;
         catalogCache = {
+          version: CATALOG_CACHE_VERSION,
           expiresAt: Date.now() + 60_000,
           categories: nextCategories,
           designs: nextDesigns,
@@ -269,6 +281,7 @@ function DesignEditor({
 }) {
   const current = design.versions[0];
   const previewRef = useRef<HTMLIFrameElement | null>(null);
+  const fieldRefs = useRef<Record<string, HTMLLabelElement | null>>({});
   const fields = useMemo(() => {
     const scannedFields = current?.scanResult?.fields ?? [];
     return scannedFields
@@ -277,13 +290,14 @@ function DesignEditor({
   }, [current]);
   const inputFields = fields.filter((field) => field.required);
   const contentFields = fields.filter((field) => !field.required);
+  const [activeFieldKey, setActiveFieldKey] = useState(fields[0]?.key ?? "");
   const [values, setValues] = useState<Record<string, string>>({});
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [origin, setOrigin] = useState("");
   const previewHtml = useMemo(
-    () => installPreviewFieldSync(current?.rawHtml ?? ""),
-    [current?.rawHtml],
+    () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
+    [current?.rawHtml, fields],
   );
 
   useEffect(() => {
@@ -291,11 +305,52 @@ function DesignEditor({
   }, []);
 
   useEffect(() => {
-    updatePreviewFrame(previewRef.current, values);
-  }, [values]);
+    updatePreviewFrame(previewRef.current, values, activeFieldKey);
+  }, [activeFieldKey, values]);
+
+  useEffect(() => {
+    if (activeFieldKey || !fields[0]) return;
+    setActiveFieldKey(fields[0].key);
+  }, [activeFieldKey, fields]);
+
+  useEffect(() => {
+    function receivePreviewMessage(event: MessageEvent) {
+      if (event.data?.source !== "nimto-user-preview") return;
+      if (event.data.type === "selectField" && event.data.fieldKey) {
+        selectField(event.data.fieldKey);
+      }
+      if (event.data.type === "fieldValue" && event.data.fieldKey) {
+        setValues((currentValues) => ({
+          ...currentValues,
+          [event.data.fieldKey]: String(event.data.value ?? ""),
+        }));
+      }
+    }
+
+    window.addEventListener("message", receivePreviewMessage);
+    return () => window.removeEventListener("message", receivePreviewMessage);
+  }, []);
 
   function updateValue(key: string, value: string) {
     setValues((currentValues) => ({ ...currentValues, [key]: value }));
+  }
+
+  function selectField(key: string) {
+    setActiveFieldKey(key);
+    fieldRefs.current[key]?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }
+
+  function moveField(offset: number) {
+    if (!fields.length) return;
+    const currentIndex = Math.max(
+      0,
+      fields.findIndex((field) => field.key === activeFieldKey),
+    );
+    const nextIndex = (currentIndex + offset + fields.length) % fields.length;
+    selectField(fields[nextIndex].key);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -365,9 +420,10 @@ function DesignEditor({
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
             onLoad={() => {
-              updatePreviewFrame(previewRef.current, values);
+              updatePreviewFrame(previewRef.current, values, activeFieldKey);
               window.setTimeout(
-                () => updatePreviewFrame(previewRef.current, values),
+                () =>
+                  updatePreviewFrame(previewRef.current, values, activeFieldKey),
                 80,
               );
             }}
@@ -375,15 +431,51 @@ function DesignEditor({
         </div>
 
         <form className="user-fields-panel" onSubmit={submit}>
+          <div className="user-field-nav">
+            <button
+              className="user-secondary-button"
+              disabled={!fields.length}
+              onClick={() => moveField(-1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <span>
+              {fields.length
+                ? `${Math.max(
+                    fields.findIndex((field) => field.key === activeFieldKey) + 1,
+                    1,
+                  )} / ${fields.length}`
+                : "0 / 0"}
+            </span>
+            <button
+              className="user-secondary-button"
+              disabled={!fields.length}
+              onClick={() => moveField(1)}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
           <FieldSection
+            activeFieldKey={activeFieldKey}
             fields={inputFields}
             onChange={updateValue}
+            onFieldRef={(key, element) => {
+              fieldRefs.current[key] = element;
+            }}
+            onSelect={selectField}
             title="Input fields"
             values={values}
           />
           <FieldSection
+            activeFieldKey={activeFieldKey}
             fields={contentFields}
             onChange={updateValue}
+            onFieldRef={(key, element) => {
+              fieldRefs.current[key] = element;
+            }}
+            onSelect={selectField}
             title="Content fields"
             values={values}
           />
@@ -423,13 +515,19 @@ function DesignEditor({
 }
 
 function FieldSection({
+  activeFieldKey,
   fields,
   onChange,
+  onFieldRef,
+  onSelect,
   title,
   values,
 }: {
+  activeFieldKey: string;
   fields: NormalizedField[];
   onChange: (key: string, value: string) => void;
+  onFieldRef: (key: string, element: HTMLLabelElement | null) => void;
+  onSelect: (key: string) => void;
   title: string;
   values: Record<string, string>;
 }) {
@@ -439,7 +537,15 @@ function FieldSection({
       {fields.length ? (
         <div className="grid gap-4">
           {fields.map((field) => (
-            <label className="user-field" key={field.key}>
+            <label
+              className={
+                activeFieldKey === field.key
+                  ? "user-field user-field-active"
+                  : "user-field"
+              }
+              key={field.key}
+              ref={(element) => onFieldRef(field.key, element)}
+            >
               <span>
                 <span>{field.label}</span>
                 <em>{field.inputType}</em>
@@ -447,14 +553,22 @@ function FieldSection({
               </span>
               {field.control === "textarea" ? (
                 <textarea
-                  onChange={(event) => onChange(field.key, event.target.value)}
+                  onChange={(event) => {
+                    onSelect(field.key);
+                    onChange(field.key, event.target.value);
+                  }}
+                  onFocus={() => onSelect(field.key)}
                   required={field.required}
                   rows={4}
                   value={values[field.key] ?? ""}
                 />
               ) : (
                 <input
-                  onChange={(event) => onChange(field.key, event.target.value)}
+                  onChange={(event) => {
+                    onSelect(field.key);
+                    onChange(field.key, event.target.value);
+                  }}
+                  onFocus={() => onSelect(field.key)}
                   required={field.required}
                   type={field.inputType}
                   value={values[field.key] ?? ""}
@@ -525,40 +639,115 @@ function normalizeField(field: TemplateField): NormalizedField {
 function updatePreviewFrame(
   iframe: HTMLIFrameElement | null,
   values: Record<string, string>,
+  selectedFieldKey: string,
 ) {
-  const message = { source: "nimto-user-preview", type: "field-values", values };
+  const message = {
+    source: "nimto-user-editor",
+    type: "sync",
+    values,
+    selectedFieldKey,
+  };
   iframe?.contentWindow?.postMessage(message, "*");
   window.setTimeout(() => iframe?.contentWindow?.postMessage(message, "*"), 40);
 }
 
-function installPreviewFieldSync(rawHtml: string) {
+function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
+  const editableKeys = JSON.stringify(fields.map((field) => field.key)).replace(
+    /<\/script/gi,
+    "<\\/script",
+  );
   const script = `<script>
 (() => {
+  const editableKeys = new Set(${editableKeys});
   const escapeSelector = (value) => {
     if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
     return String(value).replace(/"/g, "\\\\\"");
   };
-  window.addEventListener("message", (event) => {
-    const data = event.data || {};
-    if (data.source !== "nimto-user-preview" || data.type !== "field-values") return;
-    Object.entries(data.values || {}).forEach(([key, value]) => {
-      const nextValue = value == null ? "" : String(value);
+  const readElementValue = (element) => {
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+    ) {
+      return element.value || "";
+    }
+    return element.textContent || "";
+  };
+  const writeElementValue = (element, value) => {
+    const nextValue = value == null ? "" : String(value);
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+    ) {
+      element.value = nextValue;
+      element.setAttribute("value", nextValue);
+      return;
+    }
+    if (element.textContent !== nextValue) element.textContent = nextValue;
+  };
+  const selectField = (key, notify = true, shouldScroll = true) => {
+    document.querySelectorAll("[data-nimto-field]").forEach((element) => {
+      element.removeAttribute("data-nimto-preview-selected");
+    });
+    const element = document.querySelector('[data-nimto-field="' + escapeSelector(key) + '"]');
+    if (element) {
+      element.setAttribute("data-nimto-preview-selected", "true");
+      if (shouldScroll) {
+        element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+    }
+    if (notify) {
+      window.parent.postMessage({
+        source: "nimto-user-preview",
+        type: "selectField",
+        fieldKey: key
+      }, "*");
+    }
+  };
+  const applyValues = (values) => {
+    Object.entries(values || {}).forEach(([key, value]) => {
       document
         .querySelectorAll('[data-nimto-field="' + escapeSelector(key) + '"]')
-        .forEach((element) => {
-          if (
-            element instanceof HTMLInputElement ||
-            element instanceof HTMLTextAreaElement ||
-            element instanceof HTMLSelectElement
-          ) {
-            element.value = nextValue;
-            element.setAttribute("value", nextValue);
-            return;
-          }
-          element.textContent = nextValue;
-        });
+        .forEach((element) => writeElementValue(element, value));
     });
+  };
+  const prepareEditableFields = () => {
+    document.querySelectorAll("[data-nimto-field]").forEach((element) => {
+      const key = element.getAttribute("data-nimto-field");
+      if (!key || !editableKeys.has(key)) return;
+      element.setAttribute("data-nimto-user-editable", "true");
+      if (
+        !(element instanceof HTMLInputElement) &&
+        !(element instanceof HTMLTextAreaElement) &&
+        !(element instanceof HTMLSelectElement)
+      ) {
+        element.setAttribute("contenteditable", "true");
+      }
+      element.addEventListener("click", (event) => {
+        event.preventDefault();
+        selectField(key, true, false);
+      });
+      element.addEventListener("input", () => {
+        window.parent.postMessage({
+          source: "nimto-user-preview",
+          type: "fieldValue",
+          fieldKey: key,
+          value: readElementValue(element)
+        }, "*");
+      });
+    });
+  };
+  window.addEventListener("message", (event) => {
+    const data = event.data || {};
+    if (data.source !== "nimto-user-editor" || data.type !== "sync") return;
+    applyValues(data.values);
+    if (data.selectedFieldKey) selectField(data.selectedFieldKey, false, true);
   });
+  const style = document.createElement("style");
+  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-field][data-nimto-preview-selected="true"]{outline:2px solid #16745e!important;background:rgba(22,116,94,.12)!important;box-shadow:0 0 0 6px rgba(22,116,94,.08)!important}';
+  document.head.appendChild(style);
+  prepareEditableFields();
 })();
 </script>`;
 

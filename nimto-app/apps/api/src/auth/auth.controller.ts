@@ -85,7 +85,9 @@ export class AuthController {
     const { token } = req.user;
     // Redirect back to frontend with the token
     const frontendUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      process.env.FRONTEND_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "http://localhost:3000";
     res.redirect(`${frontendUrl}/auth/oauth-success?token=${token}`);
   }
 }
