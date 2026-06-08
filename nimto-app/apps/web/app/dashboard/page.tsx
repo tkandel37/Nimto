@@ -190,6 +190,8 @@ type PageContent = {
   title: string;
   subtitle?: string | null;
   body?: string | null;
+  publishedAt?: string | null;
+  createdAt?: string;
   updatedAt: string;
 };
 
@@ -224,6 +226,7 @@ type BlogPost = {
   sources?: { label: string; url: string }[] | null;
   status: "DRAFT" | "PUBLISHED";
   publishedAt?: string | null;
+  createdAt?: string;
   updatedAt: string;
   author?: Pick<AuthUser, "id" | "name" | "email">;
 };
@@ -1239,6 +1242,8 @@ export function DashboardClient({
             canManageBlog={canAny(user, ["blog:manage:own", "blog:manage:all"])}
             canManageContent={can(user, "content:manage")}
             completeAction={completeAction}
+            onPagesChange={setPages}
+            onPostsChange={setBlogPosts}
             pages={pages}
             posts={blogPosts}
             request={request}
@@ -3778,6 +3783,8 @@ function WebsitePanel({
   canManageBlog,
   canManageContent,
   completeAction,
+  onPagesChange,
+  onPostsChange,
   pages,
   posts,
   request,
@@ -3785,159 +3792,683 @@ function WebsitePanel({
   canManageBlog: boolean;
   canManageContent: boolean;
   completeAction: CompleteAction;
+  onPagesChange: Dispatch<SetStateAction<PageContent[]>>;
+  onPostsChange: Dispatch<SetStateAction<BlogPost[]>>;
   pages: PageContent[];
   posts: BlogPost[];
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
 }) {
-  async function savePage(event: FormEvent<HTMLFormElement>, key: string) {
+  const [section, setSection] = useState<"pages" | "blog">(
+    canManageContent ? "pages" : "blog",
+  );
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedPageKey, setSelectedPageKey] = useState("");
+  const [selectedPostId, setSelectedPostId] = useState("");
+  const [isCreatingPage, setIsCreatingPage] = useState(false);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const query = search.trim().toLowerCase();
+  const selectedPage = pages.find((page) => page.key === selectedPageKey) ?? null;
+  const selectedPost = posts.find((post) => post.id === selectedPostId) ?? null;
+
+  const filteredPages = pages.filter((page) => {
+    if (!query) return true;
+    return [page.key, page.title, page.subtitle, page.body]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+
+  const filteredPosts = posts.filter((post) => {
+    if (statusFilter !== "ALL" && post.status !== statusFilter) return false;
+    if (!query) return true;
+    return [post.title, post.slug, post.excerpt, post.content]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+
+  async function savePage(event: FormEvent<HTMLFormElement>, keyOverride?: string) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const key = (keyOverride || String(form.get("key") ?? "")).trim();
+    if (!key) return;
 
-    await completeAction(
-      () =>
-        request(`/cms/admin/pages/${key}`, {
+    let savedPage: PageContent | null = null;
+    const completed = await completeAction(
+      async () => {
+        savedPage = await request<PageContent>(`/cms/admin/pages/${key}`, {
           method: "PATCH",
           body: JSON.stringify({
             title: form.get("title"),
             subtitle: form.get("subtitle") || undefined,
             body: form.get("body") || undefined,
           }),
-        }),
-      "Website content saved.",
+        });
+      },
+      isCreatingPage ? "Page created." : "Page updated.",
+      { refresh: false },
     );
+
+    if (completed && savedPage) {
+      const nextPage = savedPage as PageContent;
+      onPagesChange((current) => upsertByKey(current, nextPage));
+      setSelectedPageKey(nextPage.key);
+      setIsCreatingPage(false);
+    }
   }
 
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-
+    let createdPost: BlogPost | null = null;
     const completed = await completeAction(
-      () =>
-        request("/cms/admin/blog", {
+      async () => {
+        createdPost = await request<BlogPost>("/cms/admin/blog", {
           method: "POST",
           body: JSON.stringify(blogPayload(form)),
-        }),
+        });
+      },
       "Blog post created.",
+      { refresh: false },
     );
-    if (completed) event.currentTarget.reset();
+    if (completed && createdPost) {
+      const nextPost = createdPost as BlogPost;
+      onPostsChange((current) => [nextPost, ...current]);
+      setSelectedPostId(nextPost.id);
+      setIsCreatingPost(false);
+    }
   }
 
   async function updatePost(event: FormEvent<HTMLFormElement>, postId: string) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-
-    await completeAction(
-      () =>
-        request(`/cms/admin/blog/${postId}`, {
+    let updatedPost: BlogPost | null = null;
+    const completed = await completeAction(
+      async () => {
+        updatedPost = await request<BlogPost>(`/cms/admin/blog/${postId}`, {
           method: "PATCH",
           body: JSON.stringify(blogPayload(form)),
-        }),
+        });
+      },
       "Blog post updated.",
+      { refresh: false },
     );
+    if (completed && updatedPost) {
+      const nextPost = updatedPost as BlogPost;
+      onPostsChange((current) =>
+        current.map((post) =>
+          post.id === postId ? { ...post, ...nextPost } : post,
+        ),
+      );
+    }
   }
 
   async function deletePost(postId: string) {
-    await completeAction(
+    const completed = await completeAction(
       () => request(`/cms/admin/blog/${postId}`, { method: "DELETE" }),
       "Blog post deleted.",
+      { refresh: false },
+    );
+    if (completed) {
+      onPostsChange((current) => current.filter((post) => post.id !== postId));
+      setSelectedPostId("");
+    }
+  }
+
+  function startCreatePage() {
+    setSection("pages");
+    setSelectedPageKey("");
+    setIsCreatingPage(true);
+  }
+
+  function startCreatePost() {
+    setSection("blog");
+    setSelectedPostId("");
+    setIsCreatingPost(true);
+  }
+
+  if (section === "pages" && canManageContent && (isCreatingPage || selectedPage)) {
+    return (
+      <section className="mt-7 grid gap-5">
+        <WebsiteEditorHeader
+          eyebrow={isCreatingPage ? "Add New Page" : "Edit Page"}
+          onBack={() => {
+            setIsCreatingPage(false);
+            setSelectedPageKey("");
+          }}
+          title={isCreatingPage ? "Add New Page" : selectedPage?.title || "Page"}
+        />
+        <form
+          className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
+          key={isCreatingPage ? "new-page" : selectedPage?.key}
+          onSubmit={(event) => savePage(event, selectedPage?.key)}
+        >
+          <div className="grid gap-4 rounded-lg border border-ink/10 bg-white p-5">
+            {isCreatingPage ? (
+              <label className="field">
+                <span className="text-sm font-bold text-ink">Page key</span>
+                <input
+                  name="key"
+                  pattern="[a-z0-9-]+"
+                  placeholder="contact-us"
+                  required
+                />
+              </label>
+            ) : null}
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Title</span>
+              <input
+                className="text-xl font-black"
+                defaultValue={selectedPage?.title ?? ""}
+                name="title"
+                placeholder="Add title"
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Subtitle</span>
+              <input
+                defaultValue={selectedPage?.subtitle ?? ""}
+                name="subtitle"
+                placeholder="Short supporting text"
+              />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Body</span>
+              <textarea
+                className="min-h-[460px] rounded-lg border border-ink/20 bg-white px-4 py-4 text-base leading-7"
+                defaultValue={selectedPage?.body ?? ""}
+                name="body"
+                placeholder="Start writing..."
+              />
+            </label>
+          </div>
+          <aside className="grid gap-4 self-start">
+            <div className="rounded-lg border border-ink/10 bg-white p-4">
+              <h3 className="font-black text-ink">Publish</h3>
+              <dl className="mt-4 grid gap-3 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="font-bold text-ink/50">Status</dt>
+                  <dd className="font-black text-leaf">
+                    {selectedPage?.publishedAt ? "Published" : "Draft"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="font-bold text-ink/50">URL</dt>
+                  <dd className="min-w-0 truncate font-bold text-ink/60">
+                    /{selectedPage?.key ?? "new-page"}
+                  </dd>
+                </div>
+                {selectedPage?.updatedAt ? (
+                  <div className="flex justify-between gap-3">
+                    <dt className="font-bold text-ink/50">Updated</dt>
+                    <dd className="font-bold text-ink/60">
+                      {displayDate(selectedPage.updatedAt)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="mt-5 grid gap-2">
+                <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
+                  {isCreatingPage ? "Publish page" : "Update page"}
+                </button>
+                {!isCreatingPage && selectedPage ? (
+                  <a
+                    className="rounded-lg border border-ink/15 px-4 py-3 text-center font-bold text-ink"
+                    href={`/${selectedPage.key === "landing" ? "" : selectedPage.key}`}
+                    target="_blank"
+                  >
+                    Preview
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+        </form>
+      </section>
+    );
+  }
+
+  if (section === "blog" && canManageBlog && (isCreatingPost || selectedPost)) {
+    return (
+      <section className="mt-7 grid gap-5">
+        <WebsiteEditorHeader
+          eyebrow={isCreatingPost ? "Add New Post" : "Edit Post"}
+          onBack={() => {
+            setIsCreatingPost(false);
+            setSelectedPostId("");
+          }}
+          title={isCreatingPost ? "Add New Post" : selectedPost?.title || "Post"}
+        />
+        <form
+          className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"
+          key={isCreatingPost ? "new-post" : selectedPost?.id}
+          onSubmit={(event) =>
+            isCreatingPost
+              ? createPost(event)
+              : selectedPost
+                ? updatePost(event, selectedPost.id)
+                : event.preventDefault()
+          }
+        >
+          <div className="grid gap-4 rounded-lg border border-ink/10 bg-white p-5">
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Title</span>
+              <input
+                className="text-xl font-black"
+                defaultValue={selectedPost?.title ?? ""}
+                name="title"
+                placeholder="Add title"
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Content</span>
+              <textarea
+                className="min-h-[520px] rounded-lg border border-ink/20 bg-white px-4 py-4 text-base leading-7"
+                defaultValue={selectedPost?.content ?? ""}
+                name="content"
+                placeholder="Start writing..."
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Excerpt</span>
+              <textarea
+                className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                defaultValue={selectedPost?.excerpt ?? ""}
+                name="excerpt"
+              />
+            </label>
+            <label className="field">
+              <span className="text-sm font-bold text-ink">Citation summary</span>
+              <textarea
+                className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                defaultValue={selectedPost?.citationSummary ?? ""}
+                name="citationSummary"
+              />
+            </label>
+          </div>
+          <aside className="grid gap-4 self-start">
+            <div className="rounded-lg border border-ink/10 bg-white p-4">
+              <h3 className="font-black text-ink">Publish</h3>
+              <label className="field mt-4">
+                <span className="text-sm font-bold text-ink">Status</span>
+                <select
+                  className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  defaultValue={selectedPost?.status ?? "DRAFT"}
+                  name="status"
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="PUBLISHED">Published</option>
+                </select>
+              </label>
+              <dl className="mt-4 grid gap-3 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="font-bold text-ink/50">Author</dt>
+                  <dd className="font-bold text-ink/60">
+                    {selectedPost?.author?.name ?? "You"}
+                  </dd>
+                </div>
+                {selectedPost?.updatedAt ? (
+                  <div className="flex justify-between gap-3">
+                    <dt className="font-bold text-ink/50">Updated</dt>
+                    <dd className="font-bold text-ink/60">
+                      {displayDate(selectedPost.updatedAt)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="mt-5 grid gap-2">
+                <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
+                  {isCreatingPost ? "Publish post" : "Update post"}
+                </button>
+                {!isCreatingPost && selectedPost?.status === "PUBLISHED" ? (
+                  <a
+                    className="rounded-lg border border-ink/15 px-4 py-3 text-center font-bold text-ink"
+                    href={`/blog/${selectedPost.slug}`}
+                    target="_blank"
+                  >
+                    Preview
+                  </a>
+                ) : null}
+                {selectedPost && !isCreatingPost ? (
+                  <button
+                    className="rounded-lg border border-rose/30 px-4 py-3 font-bold text-rose"
+                    onClick={() => deletePost(selectedPost.id)}
+                    type="button"
+                  >
+                    Move to trash
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-lg border border-ink/10 bg-white p-4">
+              <h3 className="font-black text-ink">SEO</h3>
+              <div className="mt-4 grid gap-4">
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">Meta title</span>
+                  <input defaultValue={selectedPost?.metaTitle ?? ""} name="metaTitle" />
+                </label>
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">
+                    Meta description
+                  </span>
+                  <textarea
+                    className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                    defaultValue={selectedPost?.metaDescription ?? ""}
+                    name="metaDescription"
+                  />
+                </label>
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">Keywords</span>
+                  <input defaultValue={selectedPost?.keywords ?? ""} name="keywords" />
+                </label>
+              </div>
+            </div>
+            <div className="rounded-lg border border-ink/10 bg-white p-4">
+              <h3 className="font-black text-ink">Structured content</h3>
+              <label className="field mt-4">
+                <span className="text-sm font-bold text-ink">FAQ</span>
+                <textarea
+                  className="min-h-28 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  defaultValue={formatFaq(selectedPost?.faq)}
+                  name="faq"
+                  placeholder="Question | Answer"
+                />
+              </label>
+              <label className="field mt-4">
+                <span className="text-sm font-bold text-ink">Sources</span>
+                <textarea
+                  className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                  defaultValue={formatSources(selectedPost?.sources)}
+                  name="sources"
+                  placeholder="Source title | https://example.com"
+                />
+              </label>
+            </div>
+          </aside>
+        </form>
+      </section>
     );
   }
 
   return (
-    <section className="mt-7 grid gap-6">
-      {canManageContent ? (
-        <div className="grid gap-4 xl:grid-cols-3">
-          {pageKeys.map((key) => {
-            const page = pages.find((item) => item.key === key);
-            return (
-              <form
-                className="rounded-lg border border-ink/10 bg-white p-5"
-                key={key}
-                onSubmit={(event) => savePage(event, key)}
+    <section className="mt-7 grid gap-5">
+      <div className="rounded-lg border border-ink/10 bg-white p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+              Website CMS
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-ink">
+              Pages and blog posts
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
+              Manage website content from a table first, then open one item to edit.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canManageContent ? (
+              <button
+                className={
+                  section === "pages"
+                    ? "rounded-lg bg-ink px-4 py-2 text-sm font-black text-white"
+                    : "rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-black text-ink"
+                }
+                onClick={() => setSection("pages")}
+                type="button"
               >
-                <h2 className="text-lg font-black capitalize text-ink">
-                  {key}
-                </h2>
-                <label className="field mt-4">
-                  <span className="text-sm font-bold text-ink">Title</span>
-                  <input
-                    defaultValue={page?.title ?? ""}
-                    name="title"
-                    required
-                  />
-                </label>
-                <label className="field mt-4">
-                  <span className="text-sm font-bold text-ink">Subtitle</span>
-                  <input defaultValue={page?.subtitle ?? ""} name="subtitle" />
-                </label>
-                <label className="field mt-4">
-                  <span className="text-sm font-bold text-ink">Body</span>
-                  <textarea
-                    className="min-h-32 rounded-lg border border-ink/20 bg-white px-3 py-3"
-                    defaultValue={page?.body ?? ""}
-                    name="body"
-                  />
-                </label>
-                <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-                  Save page
-                </button>
-              </form>
-            );
-          })}
+                Pages
+              </button>
+            ) : null}
+            {canManageBlog ? (
+              <button
+                className={
+                  section === "blog"
+                    ? "rounded-lg bg-ink px-4 py-2 text-sm font-black text-white"
+                    : "rounded-lg border border-ink/15 bg-white px-4 py-2 text-sm font-black text-ink"
+                }
+                onClick={() => setSection("blog")}
+                type="button"
+              >
+                Blog
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-wrap gap-2">
+            <input
+              className="min-h-10 min-w-64 flex-1 rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={`Search ${section === "pages" ? "pages" : "posts"}`}
+              value={search}
+            />
+            {section === "blog" ? (
+              <select
+                className="min-h-10 rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold"
+                onChange={(event) => setStatusFilter(event.target.value)}
+                value={statusFilter}
+              >
+                <option value="ALL">All statuses</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="DRAFT">Draft</option>
+              </select>
+            ) : null}
+          </div>
+          {section === "pages" && canManageContent ? (
+            <button
+              className="rounded-lg bg-ink px-4 py-2 text-sm font-black text-white"
+              onClick={startCreatePage}
+              type="button"
+            >
+              Add new page
+            </button>
+          ) : null}
+          {section === "blog" && canManageBlog ? (
+            <button
+              className="rounded-lg bg-ink px-4 py-2 text-sm font-black text-white"
+              onClick={startCreatePost}
+              type="button"
+            >
+              Add new post
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {section === "pages" && canManageContent ? (
+        <div className="grid gap-5">
+          <WebsiteTable
+            emptyLabel="No pages found"
+            headers={["Title", "Author", "Status", "Date"]}
+            rows={filteredPages.map((page) => ({
+              id: page.key,
+              cells: [
+                <span key="title">
+                  <strong className="block text-ink">{page.title}</strong>
+                  <span className="mt-1 block text-xs text-ink/45">
+                    /{page.key}
+                  </span>
+                  <span className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+                    <button
+                      className="text-leaf hover:underline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedPageKey(page.key);
+                        setIsCreatingPage(false);
+                      }}
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    <a
+                      className="text-ink/55 hover:underline"
+                      href={`/${page.key === "landing" ? "" : page.key}`}
+                      onClick={(event) => event.stopPropagation()}
+                      target="_blank"
+                    >
+                      Preview
+                    </a>
+                  </span>
+                </span>,
+                "Admin",
+                page.publishedAt ? "Published" : "Draft",
+                displayDate(page.updatedAt),
+              ],
+              onClick: () => {
+                setSelectedPageKey(page.key);
+                setIsCreatingPage(false);
+              },
+            }))}
+          />
         </div>
       ) : null}
 
-      {canManageBlog ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid gap-4">
-            {posts.map((post) => (
-              <form
-                className="rounded-lg border border-ink/10 bg-white p-5"
-                key={post.id}
-                onSubmit={(event) => updatePost(event, post.id)}
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h2 className="text-lg font-black text-ink">
-                      {post.title}
-                    </h2>
-                    <p className="mt-1 text-sm text-ink/55">
-                      /blog/{post.slug}
-                    </p>
-                  </div>
-                  <p className="text-sm font-bold text-leaf">{post.status}</p>
-                </div>
-                <BlogFields post={post} />
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
-                    Update post
-                  </button>
-                  <button
-                    className="rounded-lg border border-rose/30 px-4 py-3 font-bold text-rose"
-                    onClick={() => deletePost(post.id)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </form>
-            ))}
-          </div>
-
-          <form
-            className="rounded-lg border border-ink/10 bg-white p-5"
-            onSubmit={createPost}
-          >
-            <h2 className="text-lg font-black text-ink">Create blog post</h2>
-            <BlogFields />
-            <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-              Create post
-            </button>
-          </form>
+      {section === "blog" && canManageBlog ? (
+        <div className="grid gap-5">
+          <WebsiteTable
+            emptyLabel="No blog posts found"
+            headers={["Title", "Author", "Status", "Date"]}
+            rows={filteredPosts.map((post) => ({
+              id: post.id,
+              cells: [
+                <span key="title">
+                  <strong className="block text-ink">{post.title}</strong>
+                  <span className="mt-1 block text-xs text-ink/45">
+                    /blog/{post.slug}
+                  </span>
+                  <span className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+                    <button
+                      className="text-leaf hover:underline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedPostId(post.id);
+                        setIsCreatingPost(false);
+                      }}
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    {post.status === "PUBLISHED" ? (
+                      <a
+                        className="text-ink/55 hover:underline"
+                        href={`/blog/${post.slug}`}
+                        onClick={(event) => event.stopPropagation()}
+                        target="_blank"
+                      >
+                        Preview
+                      </a>
+                    ) : null}
+                    <button
+                      className="text-rose hover:underline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void deletePost(post.id);
+                      }}
+                      type="button"
+                    >
+                      Trash
+                    </button>
+                  </span>
+                </span>,
+                post.author?.name ?? "You",
+                post.status,
+                displayDate(post.updatedAt),
+              ],
+              onClick: () => {
+                setSelectedPostId(post.id);
+                setIsCreatingPost(false);
+              },
+            }))}
+          />
         </div>
       ) : null}
     </section>
   );
+}
+
+function WebsiteEditorHeader({
+  eyebrow,
+  onBack,
+  title,
+}: {
+  eyebrow: string;
+  onBack: () => void;
+  title: string;
+}) {
+  return (
+    <div className="rounded-lg border border-ink/10 bg-white p-5">
+      <button
+        className="text-sm font-black text-leaf hover:underline"
+        onClick={onBack}
+        type="button"
+      >
+        Back to list
+      </button>
+      <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-ink/45">
+        {eyebrow}
+      </p>
+      <h2 className="mt-2 text-3xl font-black text-ink">{title}</h2>
+    </div>
+  );
+}
+
+function WebsiteTable({
+  emptyLabel,
+  headers,
+  rows,
+}: {
+  emptyLabel: string;
+  headers: string[];
+  rows: {
+    id: string;
+    cells: ReactNode[];
+    onClick: () => void;
+  }[];
+}) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
+      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+        <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+          <tr>
+            {headers.map((header) => (
+              <th className="px-4 py-3" key={header}>
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              className="cursor-pointer border-t border-ink/10 bg-white hover:bg-paper/70"
+              key={row.id}
+              onClick={row.onClick}
+            >
+              {row.cells.map((cell, index) => (
+                <td className="px-4 py-3 text-ink/65" key={`${row.id}-${index}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length ? null : (
+        <p className="border-t border-ink/10 p-5 text-sm font-bold text-ink/50">
+          {emptyLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function upsertByKey(items: PageContent[], page: PageContent) {
+  const exists = items.some((item) => item.key === page.key);
+  if (!exists) return [page, ...items];
+  return items.map((item) => (item.key === page.key ? page : item));
 }
 
 function BlogFields({ post }: { post?: BlogPost }) {
