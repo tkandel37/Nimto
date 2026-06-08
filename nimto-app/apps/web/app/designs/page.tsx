@@ -294,6 +294,9 @@ function DesignEditor({
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [origin, setOrigin] = useState("");
+  const valuesRef = useRef(values);
+  const activeFieldKeyRef = useRef(activeFieldKey);
+  const fieldsRef = useRef(fields);
   const previewHtml = useMemo(
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
@@ -304,8 +307,11 @@ function DesignEditor({
   }, []);
 
   useEffect(() => {
-    updatePreviewFrame(previewRef.current, values, activeFieldKey);
-  }, [activeFieldKey, values]);
+    valuesRef.current = values;
+    activeFieldKeyRef.current = activeFieldKey;
+    fieldsRef.current = fields;
+    updatePreviewFrame(previewRef.current, values, activeFieldKey, fields);
+  }, [activeFieldKey, fields, values]);
 
   useEffect(() => {
     if (activeFieldKey || !fields[0]) return;
@@ -318,7 +324,16 @@ function DesignEditor({
       if (event.data.type === "selectField" && event.data.fieldKey) {
         selectField(event.data.fieldKey);
       }
+      if (event.data.type === "ready") {
+        updatePreviewFrame(
+          previewRef.current,
+          valuesRef.current,
+          activeFieldKeyRef.current,
+          fieldsRef.current,
+        );
+      }
       if (event.data.type === "fieldValue" && event.data.fieldKey) {
+        selectField(event.data.fieldKey);
         setValues((currentValues) => ({
           ...currentValues,
           [event.data.fieldKey]: String(event.data.value ?? ""),
@@ -415,10 +430,15 @@ function DesignEditor({
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
             onLoad={() => {
-              updatePreviewFrame(previewRef.current, values, activeFieldKey);
+              updatePreviewFrame(previewRef.current, values, activeFieldKey, fields);
               window.setTimeout(
                 () =>
-                  updatePreviewFrame(previewRef.current, values, activeFieldKey),
+                  updatePreviewFrame(
+                    previewRef.current,
+                    valuesRef.current,
+                    activeFieldKeyRef.current,
+                    fieldsRef.current,
+                  ),
                 80,
               );
             }}
@@ -615,10 +635,12 @@ function updatePreviewFrame(
   iframe: HTMLIFrameElement | null,
   values: Record<string, string>,
   selectedFieldKey: string,
+  fields: NormalizedField[],
 ) {
   const message = {
     source: "nimto-user-editor",
     type: "sync",
+    fields: fields.map((field) => ({ key: field.key, label: field.label })),
     values,
     selectedFieldKey,
   };
@@ -627,16 +649,42 @@ function updatePreviewFrame(
 }
 
 function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
-  const editableKeys = JSON.stringify(fields.map((field) => field.key)).replace(
-    /<\/script/gi,
-    "<\\/script",
-  );
+  const editableFields = JSON.stringify(
+    fields.map((field) => ({ key: field.key, label: field.label })),
+  ).replace(/<\/script/gi, "<\\/script");
   const script = `<script>
 (() => {
-  const editableKeys = new Set(${editableKeys});
+  const fieldList = ${editableFields};
+  const fieldsByKey = new Map(fieldList.map((field) => [field.key, field]));
+  const editableKeys = new Set(fieldList.map((field) => field.key));
   const escapeSelector = (value) => {
     if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
     return String(value).replace(/"/g, "\\\\\"");
+  };
+  const mergeFields = (nextFields) => {
+    (nextFields || []).forEach((field) => {
+      if (!field || !field.key) return;
+      fieldsByKey.set(field.key, field);
+      editableKeys.add(field.key);
+    });
+  };
+  const fieldElements = (key) => {
+    const field = fieldsByKey.get(key) || { key };
+    const selectors = ['[data-nimto-field="' + escapeSelector(key) + '"]'];
+    if (field.label) {
+      selectors.push('[data-nimto-label="' + escapeSelector(field.label) + '"]');
+    }
+    const elements = new Set();
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => elements.add(element));
+    });
+    return Array.from(elements);
+  };
+  const fieldKeyForElement = (element) => {
+    const key = element.getAttribute("data-nimto-field");
+    if (key) return key;
+    const label = element.getAttribute("data-nimto-label");
+    return fieldList.find((field) => field.label === label)?.key || "";
   };
   const readElementValue = (element) => {
     if (
@@ -662,10 +710,12 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     if (element.textContent !== nextValue) element.textContent = nextValue;
   };
   const selectField = (key, notify = true, shouldScroll = true) => {
-    document.querySelectorAll("[data-nimto-field]").forEach((element) => {
+    document
+      .querySelectorAll("[data-nimto-field], [data-nimto-label]")
+      .forEach((element) => {
       element.removeAttribute("data-nimto-preview-selected");
     });
-    const element = document.querySelector('[data-nimto-field="' + escapeSelector(key) + '"]');
+    const element = fieldElements(key)[0];
     if (element) {
       element.setAttribute("data-nimto-preview-selected", "true");
       if (shouldScroll) {
@@ -680,16 +730,15 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
       }, "*");
     }
   };
-  const applyValues = (values) => {
+  const applyValues = (values, nextFields) => {
+    mergeFields(nextFields);
     Object.entries(values || {}).forEach(([key, value]) => {
-      document
-        .querySelectorAll('[data-nimto-field="' + escapeSelector(key) + '"]')
-        .forEach((element) => writeElementValue(element, value));
+      fieldElements(key).forEach((element) => writeElementValue(element, value));
     });
   };
   const prepareEditableFields = () => {
-    document.querySelectorAll("[data-nimto-field]").forEach((element) => {
-      const key = element.getAttribute("data-nimto-field");
+    document.querySelectorAll("[data-nimto-field], [data-nimto-label]").forEach((element) => {
+      const key = fieldKeyForElement(element);
       if (!key || !editableKeys.has(key)) return;
       element.setAttribute("data-nimto-user-editable", "true");
       if (
@@ -716,13 +765,14 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
   window.addEventListener("message", (event) => {
     const data = event.data || {};
     if (data.source !== "nimto-user-editor" || data.type !== "sync") return;
-    applyValues(data.values);
+    applyValues(data.values, data.fields);
     if (data.selectedFieldKey) selectField(data.selectedFieldKey, false, true);
   });
   const style = document.createElement("style");
-  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-field][data-nimto-preview-selected="true"]{outline:2px solid #16745e!important;background:rgba(22,116,94,.12)!important;box-shadow:0 0 0 6px rgba(22,116,94,.08)!important}';
+  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-preview-selected="true"]{outline:2px solid #16745e!important;background:rgba(22,116,94,.12)!important;box-shadow:0 0 0 6px rgba(22,116,94,.08)!important}';
   document.head.appendChild(style);
   prepareEditableFields();
+  window.parent.postMessage({ source: "nimto-user-preview", type: "ready" }, "*");
 })();
 </script>`;
 
