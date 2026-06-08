@@ -281,7 +281,6 @@ function DesignEditor({
 }) {
   const current = design.versions[0];
   const previewRef = useRef<HTMLIFrameElement | null>(null);
-  const fieldRefs = useRef<Record<string, HTMLLabelElement | null>>({});
   const fields = useMemo(() => {
     const scannedFields = current?.scanResult?.fields ?? [];
     return scannedFields
@@ -337,10 +336,6 @@ function DesignEditor({
 
   function selectField(key: string) {
     setActiveFieldKey(key);
-    fieldRefs.current[key]?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-    });
   }
 
   function moveField(offset: number) {
@@ -458,23 +453,15 @@ function DesignEditor({
             </button>
           </div>
           <FieldSection
-            activeFieldKey={activeFieldKey}
             fields={inputFields}
             onChange={updateValue}
-            onFieldRef={(key, element) => {
-              fieldRefs.current[key] = element;
-            }}
             onSelect={selectField}
             title="Input fields"
             values={values}
           />
           <FieldSection
-            activeFieldKey={activeFieldKey}
             fields={contentFields}
             onChange={updateValue}
-            onFieldRef={(key, element) => {
-              fieldRefs.current[key] = element;
-            }}
             onSelect={selectField}
             title="Content fields"
             values={values}
@@ -515,18 +502,14 @@ function DesignEditor({
 }
 
 function FieldSection({
-  activeFieldKey,
   fields,
   onChange,
-  onFieldRef,
   onSelect,
   title,
   values,
 }: {
-  activeFieldKey: string;
   fields: NormalizedField[];
   onChange: (key: string, value: string) => void;
-  onFieldRef: (key: string, element: HTMLLabelElement | null) => void;
   onSelect: (key: string) => void;
   title: string;
   values: Record<string, string>;
@@ -537,15 +520,7 @@ function FieldSection({
       {fields.length ? (
         <div className="grid gap-4">
           {fields.map((field) => (
-            <label
-              className={
-                activeFieldKey === field.key
-                  ? "user-field user-field-active"
-                  : "user-field"
-              }
-              key={field.key}
-              ref={(element) => onFieldRef(field.key, element)}
-            >
+            <label className="user-field" key={field.key}>
               <span>
                 <span>{field.label}</span>
                 <em>{field.inputType}</em>

@@ -1239,17 +1239,6 @@ a {
 .user-field {
   display: grid;
   gap: 7px;
-  border-radius: 8px;
-  padding: 8px;
-  margin: -8px;
-  transition:
-    background 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.user-field-active {
-  background: rgba(22, 116, 94, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(22, 116, 94, 0.24);
 }
 
 .user-field span {
