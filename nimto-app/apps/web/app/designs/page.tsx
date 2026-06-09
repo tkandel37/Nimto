@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
@@ -76,6 +77,9 @@ function DesignsContent({
   authHeaders: Record<string, string>;
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedTemplateSlug = searchParams.get("template") ?? "";
   const [categories, setCategories] = useState<PublicCategory[]>(
     catalogCache?.categories ?? [],
   );
@@ -83,7 +87,6 @@ function DesignsContent({
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
-  const [selectedDesign, setSelectedDesign] = useState<PublicDesign | null>(null);
   const [isLoading, setIsLoading] = useState(!catalogCache);
 
   useEffect(() => {
@@ -93,13 +96,18 @@ function DesignsContent({
       catalogCache.version === CATALOG_CACHE_VERSION &&
       catalogCache.expiresAt > Date.now()
     ) {
-      setCategories(catalogCache.categories);
-      setDesigns(catalogCache.designs);
-      setIsLoading(false);
+      queueMicrotask(() => {
+        if (!isActive || !catalogCache) return;
+        setCategories(catalogCache.categories);
+        setDesigns(catalogCache.designs);
+        setIsLoading(false);
+      });
       return;
     }
 
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (isActive) setIsLoading(true);
+    });
     Promise.all([
       apiRequest<PublicCategory[]>("/template-design/public/categories"),
       apiRequest<PublicDesign[]>("/template-design/public/designs"),
@@ -151,12 +159,31 @@ function DesignsContent({
     });
   }, [categoryId, designs, search, subcategoryId]);
 
+  const selectedDesign = useMemo(
+    () =>
+      selectedTemplateSlug
+        ? designs.find(
+            (design) =>
+              design.slug === selectedTemplateSlug || design.id === selectedTemplateSlug,
+          ) ?? null
+        : null,
+    [designs, selectedTemplateSlug],
+  );
+
+  function openDesignEditor(design: PublicDesign) {
+    router.push(`/designs?template=${encodeURIComponent(design.slug)}`);
+  }
+
+  function closeDesignEditor() {
+    router.push("/designs");
+  }
+
   if (selectedDesign) {
     return (
       <DesignEditor
         authHeaders={authHeaders}
         design={selectedDesign}
-        onBack={() => setSelectedDesign(null)}
+        onBack={closeDesignEditor}
         showToast={showToast}
       />
     );
@@ -246,7 +273,7 @@ function DesignsContent({
                 <button
                   className="user-primary-button mt-5 w-full"
                   disabled={!current}
-                  onClick={() => setSelectedDesign(design)}
+                  onClick={() => openDesignEditor(design)}
                   type="button"
                 >
                   Use this design
@@ -290,33 +317,34 @@ function DesignEditor({
   const inputFields = fields.filter((field) => field.required);
   const contentFields = fields.filter((field) => !field.required);
   const [activeFieldKey, setActiveFieldKey] = useState(fields[0]?.key ?? "");
+  const selectedFieldKey = activeFieldKey || fields[0]?.key || "";
   const [values, setValues] = useState<Record<string, string>>({});
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [origin, setOrigin] = useState("");
+  const [origin] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin,
+  );
   const valuesRef = useRef(values);
-  const activeFieldKeyRef = useRef(activeFieldKey);
+  const activeFieldKeyRef = useRef(selectedFieldKey);
   const fieldsRef = useRef(fields);
+  const lastSyncedActiveFieldKeyRef = useRef(selectedFieldKey);
   const previewHtml = useMemo(
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
   );
 
   useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
-
-  useEffect(() => {
     valuesRef.current = values;
-    activeFieldKeyRef.current = activeFieldKey;
+    activeFieldKeyRef.current = selectedFieldKey;
     fieldsRef.current = fields;
-    updatePreviewFrame(previewRef.current, values, activeFieldKey, fields);
-  }, [activeFieldKey, fields, values]);
-
-  useEffect(() => {
-    if (activeFieldKey || !fields[0]) return;
-    setActiveFieldKey(fields[0].key);
-  }, [activeFieldKey, fields]);
+    const shouldScroll =
+      Boolean(selectedFieldKey) &&
+      lastSyncedActiveFieldKeyRef.current !== selectedFieldKey;
+    lastSyncedActiveFieldKeyRef.current = selectedFieldKey;
+    updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
+      shouldScroll,
+    });
+  }, [fields, selectedFieldKey, values]);
 
   useEffect(() => {
     function receivePreviewMessage(event: MessageEvent) {
@@ -330,6 +358,7 @@ function DesignEditor({
           valuesRef.current,
           activeFieldKeyRef.current,
           fieldsRef.current,
+          { shouldScroll: true },
         );
       }
       if (event.data.type === "fieldValue" && event.data.fieldKey) {
@@ -346,18 +375,32 @@ function DesignEditor({
   }, []);
 
   function updateValue(key: string, value: string) {
-    setValues((currentValues) => ({ ...currentValues, [key]: value }));
+    setValues((currentValues) => {
+      const nextValues = { ...currentValues, [key]: value };
+      valuesRef.current = nextValues;
+      activeFieldKeyRef.current = key;
+      lastSyncedActiveFieldKeyRef.current = key;
+      updatePreviewFrame(previewRef.current, nextValues, key, fieldsRef.current, {
+        shouldScroll: false,
+      });
+      return nextValues;
+    });
   }
 
   function selectField(key: string) {
+    activeFieldKeyRef.current = key;
+    lastSyncedActiveFieldKeyRef.current = key;
     setActiveFieldKey(key);
+    updatePreviewFrame(previewRef.current, valuesRef.current, key, fieldsRef.current, {
+      shouldScroll: true,
+    });
   }
 
   function moveField(offset: number) {
     if (!fields.length) return;
     const currentIndex = Math.max(
       0,
-      fields.findIndex((field) => field.key === activeFieldKey),
+      fields.findIndex((field) => field.key === selectedFieldKey),
     );
     const nextIndex = (currentIndex + offset + fields.length) % fields.length;
     selectField(fields[nextIndex].key);
@@ -426,11 +469,13 @@ function DesignEditor({
         <div className="user-live-preview">
           <iframe
             ref={previewRef}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-same-origin"
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
             onLoad={() => {
-              updatePreviewFrame(previewRef.current, values, activeFieldKey, fields);
+              updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
+                shouldScroll: true,
+              });
               window.setTimeout(
                 () =>
                   updatePreviewFrame(
@@ -438,6 +483,7 @@ function DesignEditor({
                     valuesRef.current,
                     activeFieldKeyRef.current,
                     fieldsRef.current,
+                    { shouldScroll: true },
                   ),
                 80,
               );
@@ -458,7 +504,7 @@ function DesignEditor({
             <span>
               {fields.length
                 ? `${Math.max(
-                    fields.findIndex((field) => field.key === activeFieldKey) + 1,
+                    fields.findIndex((field) => field.key === selectedFieldKey) + 1,
                     1,
                   )} / ${fields.length}`
                 : "0 / 0"}
@@ -611,7 +657,13 @@ function fieldValue(values: Record<string, string>, keys: string[]) {
 
 function normalizeField(field: TemplateField): NormalizedField {
   const rawType = field.type?.trim().toLowerCase() || "text";
-  const textareaTypes = new Set(["textarea", "message", "longtext", "content"]);
+  const textareaTypes = new Set([
+    "textarea",
+    "message",
+    "longtext",
+    "long_text",
+    "content",
+  ]);
   const supportedInputTypes = new Set([
     "date",
     "datetime-local",
@@ -636,16 +688,165 @@ function updatePreviewFrame(
   values: Record<string, string>,
   selectedFieldKey: string,
   fields: NormalizedField[],
+  options: { shouldScroll?: boolean } = {},
 ) {
+  updatePreviewFrameDom(iframe, values, selectedFieldKey, fields, options);
   const message = {
     source: "nimto-user-editor",
     type: "sync",
     fields: fields.map((field) => ({ key: field.key, label: field.label })),
     values,
     selectedFieldKey,
+    shouldScroll: options.shouldScroll ?? false,
   };
   iframe?.contentWindow?.postMessage(message, "*");
   window.setTimeout(() => iframe?.contentWindow?.postMessage(message, "*"), 40);
+}
+
+function updatePreviewFrameDom(
+  iframe: HTMLIFrameElement | null,
+  values: Record<string, string>,
+  selectedFieldKey: string,
+  fields: NormalizedField[],
+  options: { shouldScroll?: boolean },
+) {
+  const document = iframe?.contentDocument;
+  if (!document) return;
+
+  document
+    .querySelectorAll("[data-nimto-field], [data-nimto-label]")
+    .forEach((element) => {
+      element.removeAttribute("data-nimto-preview-selected");
+      removePreviewHighlight(element);
+    });
+
+  fields.forEach((field) => {
+    const elements = previewFieldElements(document, field);
+    if (Object.prototype.hasOwnProperty.call(values, field.key)) {
+      elements.forEach((element) =>
+        writePreviewElementValue(element, values[field.key] ?? ""),
+      );
+    }
+    if (field.key === selectedFieldKey) {
+      const selectedElement = elements[0];
+      if (selectedElement) {
+        selectedElement.setAttribute("data-nimto-preview-selected", "true");
+        applyPreviewHighlight(selectedElement);
+      }
+      if (selectedElement && options.shouldScroll) {
+        selectedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }
+  });
+}
+
+function applyPreviewHighlight(element: Element) {
+  if (!isPreviewHtmlElement(element)) return;
+  stylePreviewHighlightElement(element);
+  if (isPreviewFormElement(element) || element.querySelector("[data-nimto-active-highlight]")) {
+    return;
+  }
+
+  const text = element.textContent ?? "";
+  const highlight = element.ownerDocument.createElement("span");
+  highlight.setAttribute("data-nimto-active-highlight", "true");
+  highlight.textContent = text;
+  stylePreviewHighlightElement(highlight);
+  element.textContent = "";
+  element.appendChild(highlight);
+}
+
+function removePreviewHighlight(element: Element) {
+  if (!isPreviewHtmlElement(element)) return;
+  const highlight = element.querySelector("[data-nimto-active-highlight]");
+  if (highlight) {
+    element.textContent = highlight.textContent ?? "";
+  }
+  [
+    "outline",
+    "outline-offset",
+    "border-radius",
+    "display",
+    "padding",
+    "color",
+    "background-color",
+    "border-bottom",
+    "text-shadow",
+    "box-shadow",
+    "-webkit-box-decoration-break",
+    "box-decoration-break",
+  ].forEach((property) => element.style.removeProperty(property));
+}
+
+function stylePreviewHighlightElement(element: HTMLElement) {
+  element.style.setProperty("outline", "4px solid #22c55e", "important");
+  element.style.setProperty("outline-offset", "6px", "important");
+  element.style.setProperty("border-radius", "12px", "important");
+  element.style.setProperty("display", "inline-block", "important");
+  element.style.setProperty("padding", "0 .08em", "important");
+  element.style.setProperty("color", "#22c55e", "important");
+  element.style.setProperty("background-color", "rgba(34,197,94,.30)", "important");
+  element.style.setProperty("border-bottom", "6px solid #22c55e", "important");
+  element.style.setProperty(
+    "text-shadow",
+    "0 0 10px rgba(34,197,94,.95), 0 0 24px rgba(34,197,94,.72)",
+    "important",
+  );
+  element.style.setProperty(
+    "box-shadow",
+    "0 0 0 8px rgba(34,197,94,.26), 0 0 30px rgba(34,197,94,.48)",
+    "important",
+  );
+  element.style.setProperty("-webkit-box-decoration-break", "clone");
+  element.style.setProperty("box-decoration-break", "clone");
+}
+
+function previewFieldElements(document: Document, field: NormalizedField) {
+  const selectors = [`[data-nimto-field="${cssEscape(field.key)}"]`];
+  if (field.label) {
+    selectors.push(`[data-nimto-label="${cssEscape(field.label)}"]`);
+  }
+
+  const elements = new Set<Element>();
+  selectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((element) => elements.add(element));
+  });
+  return [...elements];
+}
+
+function writePreviewElementValue(element: Element, value: string) {
+  if (isPreviewFormElement(element)) {
+    element.value = value;
+    element.setAttribute("value", value);
+    return;
+  }
+  if (element.textContent !== value) element.textContent = value;
+  element.setAttribute("data-nimto-preview-value", value);
+}
+
+function isPreviewHtmlElement(element: Element): element is HTMLElement {
+  const view = element.ownerDocument.defaultView;
+  return Boolean(view?.HTMLElement && element instanceof view.HTMLElement);
+}
+
+function isPreviewFormElement(
+  element: Element,
+): element is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+  const view = element.ownerDocument.defaultView;
+  return Boolean(
+    (view?.HTMLInputElement && element instanceof view.HTMLInputElement) ||
+      (view?.HTMLTextAreaElement && element instanceof view.HTMLTextAreaElement) ||
+      (view?.HTMLSelectElement && element instanceof view.HTMLSelectElement),
+  );
+}
+
+function cssEscape(value: string) {
+  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(value);
+  return value.replace(/["\\]/g, "\\$&");
 }
 
 function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
@@ -708,16 +909,63 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
       return;
     }
     if (element.textContent !== nextValue) element.textContent = nextValue;
+    element.setAttribute("data-nimto-preview-value", nextValue);
+  };
+  const stylePreviewHighlightElement = (element) => {
+    if (!(element instanceof HTMLElement)) return;
+    element.style.setProperty("outline", "4px solid #22c55e", "important");
+    element.style.setProperty("outline-offset", "6px", "important");
+    element.style.setProperty("border-radius", "12px", "important");
+    element.style.setProperty("display", "inline-block", "important");
+    element.style.setProperty("padding", "0 .08em", "important");
+    element.style.setProperty("color", "#22c55e", "important");
+    element.style.setProperty("background-color", "rgba(34,197,94,.30)", "important");
+    element.style.setProperty("border-bottom", "6px solid #22c55e", "important");
+    element.style.setProperty("text-shadow", "0 0 10px rgba(34,197,94,.95), 0 0 24px rgba(34,197,94,.72)", "important");
+    element.style.setProperty("box-shadow", "0 0 0 8px rgba(34,197,94,.26), 0 0 30px rgba(34,197,94,.48)", "important");
+    element.style.setProperty("-webkit-box-decoration-break", "clone");
+    element.style.setProperty("box-decoration-break", "clone");
+  };
+  const applyPreviewHighlight = (element) => {
+    if (!(element instanceof HTMLElement)) return;
+    stylePreviewHighlightElement(element);
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement ||
+      element.querySelector("[data-nimto-active-highlight]")
+    ) {
+      return;
+    }
+    const text = element.textContent || "";
+    const highlight = document.createElement("span");
+    highlight.setAttribute("data-nimto-active-highlight", "true");
+    highlight.textContent = text;
+    stylePreviewHighlightElement(highlight);
+    element.textContent = "";
+    element.appendChild(highlight);
+  };
+  const removePreviewHighlight = (element) => {
+    if (!(element instanceof HTMLElement)) return;
+    const highlight = element.querySelector("[data-nimto-active-highlight]");
+    if (highlight) {
+      element.textContent = highlight.textContent || "";
+    }
+    ["outline","outline-offset","border-radius","display","padding","color","background-color","border-bottom","text-shadow","box-shadow","-webkit-box-decoration-break","box-decoration-break"].forEach((property) => {
+      element.style.removeProperty(property);
+    });
   };
   const selectField = (key, notify = true, shouldScroll = true) => {
     document
       .querySelectorAll("[data-nimto-field], [data-nimto-label]")
       .forEach((element) => {
       element.removeAttribute("data-nimto-preview-selected");
+      removePreviewHighlight(element);
     });
     const element = fieldElements(key)[0];
     if (element) {
       element.setAttribute("data-nimto-preview-selected", "true");
+      applyPreviewHighlight(element);
       if (shouldScroll) {
         element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
       }
@@ -766,10 +1014,12 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     const data = event.data || {};
     if (data.source !== "nimto-user-editor" || data.type !== "sync") return;
     applyValues(data.values, data.fields);
-    if (data.selectedFieldKey) selectField(data.selectedFieldKey, false, true);
+    if (data.selectedFieldKey) {
+      selectField(data.selectedFieldKey, false, data.shouldScroll !== false);
+    }
   });
   const style = document.createElement("style");
-  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-preview-selected="true"]{outline:2px solid #16745e!important;background:rgba(22,116,94,.12)!important;box-shadow:0 0 0 6px rgba(22,116,94,.08)!important}';
+  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:4px}[data-nimto-preview-selected="true"]{color:#22c55e!important;outline:4px solid #22c55e!important;outline-offset:6px!important;border-radius:12px!important;background:rgba(34,197,94,.30)!important;border-bottom:6px solid #22c55e!important;box-shadow:0 0 0 8px rgba(34,197,94,.26),0 0 30px rgba(34,197,94,.48)!important;text-shadow:0 0 10px rgba(34,197,94,.95),0 0 24px rgba(34,197,94,.72)!important;-webkit-box-decoration-break:clone;box-decoration-break:clone}';
   document.head.appendChild(style);
   prepareEditableFields();
   window.parent.postMessage({ source: "nimto-user-preview", type: "ready" }, "*");
