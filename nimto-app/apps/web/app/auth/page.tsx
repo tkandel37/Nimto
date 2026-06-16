@@ -36,6 +36,20 @@ function AuthForm() {
     setMode(searchParams.get("mode") === "login" ? "login" : "register");
   }, [searchParams]);
 
+  useEffect(() => {
+    const token = localStorage.getItem("nimto_token");
+    const storedUser = localStorage.getItem("nimto_user");
+    if (!token || !storedUser) return;
+
+    try {
+      const user = JSON.parse(storedUser) as AuthResponse["user"];
+      router.replace(isAdminUser(user) ? "/dashboard" : "/events");
+    } catch {
+      localStorage.removeItem("nimto_token");
+      localStorage.removeItem("nimto_user");
+    }
+  }, [router]);
+
   const copy = useMemo(
     () =>
       mode === "register"

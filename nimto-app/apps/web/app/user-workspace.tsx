@@ -249,7 +249,7 @@ export function UserWorkspace({
   return (
     <main className="user-shell">
       <aside className="user-sidebar">
-        <Link className="user-logo" href="/">
+        <Link className="user-logo" href="/events">
           myNimto
         </Link>
         <nav className="user-nav">
@@ -272,7 +272,7 @@ export function UserWorkspace({
       <section className="user-main">
         <header className="user-topbar">
           <nav className="user-site-links" aria-label="Website navigation">
-            <Link href="/">Home</Link>
+            <Link href="/events">Home</Link>
             <Link href="/features">Features</Link>
             <Link href="/about">About</Link>
             <Link href="/blog">Blog</Link>
