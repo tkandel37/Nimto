@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   FormEvent,
   ReactNode,
@@ -10,7 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { apiRequest, AuthUser } from "@/lib/api";
+import { ApiError, apiRequest, AuthUser } from "@/lib/api";
 
 type WorkspacePage = "events" | "designs" | "profile";
 
@@ -18,6 +18,12 @@ type Toast = {
   id: number;
   tone: "success" | "error";
   message: string;
+};
+
+type AuthState = {
+  isChecking: boolean;
+  token: string;
+  user: AuthUser | null;
 };
 
 const pageLinks: {
@@ -76,12 +82,16 @@ export function UserWorkspace({
     user: AuthUser;
   }) => ReactNode;
 }) {
-  const pathname = usePathname();
   const router = useRouter();
-  const [token, setToken] = useState("");
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isChecking, setIsChecking] = useState(true);
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    const storedAuth = readStoredAuth();
+    return {
+      ...storedAuth,
+      isChecking: Boolean(storedAuth.token && !storedAuth.user),
+    };
+  });
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const { isChecking, token, user } = authState;
 
   const showToast = useCallback((message: string, tone: Toast["tone"] = "success") => {
     const id = Date.now();
@@ -100,8 +110,7 @@ export function UserWorkspace({
   const refreshUser = useCallback(async () => {
     const savedToken = localStorage.getItem("nimto_token");
     if (!savedToken) {
-      setToken("");
-      setUser(null);
+      setAuthState({ isChecking: false, token: "", user: null });
       return null;
     }
 
@@ -109,44 +118,57 @@ export function UserWorkspace({
       headers: { Authorization: `Bearer ${savedToken}` },
     });
     localStorage.setItem("nimto_user", JSON.stringify(response.user));
-    setToken(savedToken);
-    setUser(response.user);
+    setAuthState({
+      isChecking: false,
+      token: savedToken,
+      user: response.user,
+    });
     return response.user;
   }, []);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("nimto_token");
-    const savedUser = localStorage.getItem("nimto_user");
+    let isActive = true;
+    const storedAuth = readStoredAuth();
 
-    if (!savedToken) {
-      setIsChecking(false);
+    if (!storedAuth.token) {
+      setAuthState({ isChecking: false, token: "", user: null });
       return;
     }
 
-    setToken(savedToken);
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser) as AuthUser);
-      } catch {
-        localStorage.removeItem("nimto_user");
-      }
-    }
+    setAuthState({
+      ...storedAuth,
+      isChecking: !storedAuth.user,
+    });
 
     refreshUser()
-      .catch(() => {
-        localStorage.removeItem("nimto_token");
-        localStorage.removeItem("nimto_user");
-        setToken("");
-        setUser(null);
+      .catch((error) => {
+        if (!isActive) return;
+        if (isAuthFailure(error)) {
+          clearStoredAuth();
+          setAuthState({ isChecking: false, token: "", user: null });
+          return;
+        }
+        setAuthState((current) => ({
+          ...current,
+          isChecking: false,
+        }));
       })
-      .finally(() => setIsChecking(false));
+      .finally(() => {
+        if (!isActive) return;
+        setAuthState((current) => ({
+          ...current,
+          isChecking: false,
+        }));
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [refreshUser]);
 
   function logout() {
-    localStorage.removeItem("nimto_token");
-    localStorage.removeItem("nimto_user");
-    setToken("");
-    setUser(null);
+    clearStoredAuth();
+    setAuthState({ isChecking: false, token: "", user: null });
     router.replace("/");
   }
 
@@ -158,7 +180,7 @@ export function UserWorkspace({
     );
   }
 
-  if (!token || !user) {
+  if (!token) {
     return (
       <main className="user-shell">
         <section className="user-auth-card">
@@ -178,6 +200,48 @@ export function UserWorkspace({
             <Link className="user-secondary-button" href="/designs">
               Browse designs
             </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="user-shell">
+        <section className="user-auth-card">
+          <Link className="text-xl font-black text-ink" href="/">
+            myNimto
+          </Link>
+          <h1 className="mt-6 text-3xl font-black text-ink">
+            Reconnecting your workspace
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-ink/60">
+            Your session is still saved. We just need a successful connection to
+            load your account details.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              className="user-primary-button"
+              onClick={() => {
+                setAuthState((current) => ({ ...current, isChecking: true }));
+                refreshUser().catch((error) => {
+                  if (isAuthFailure(error)) {
+                    clearStoredAuth();
+                    setAuthState({ isChecking: false, token: "", user: null });
+                    return;
+                  }
+                  setAuthState((current) => ({ ...current, isChecking: false }));
+                  showToast("Could not reconnect. Please try again.", "error");
+                });
+              }}
+              type="button"
+            >
+              Retry
+            </button>
+            <button className="user-secondary-button" onClick={logout} type="button">
+              Log in again
+            </button>
           </div>
         </section>
       </main>
@@ -356,4 +420,33 @@ export function Icon({ children }: { children: ReactNode }) {
       {children}
     </svg>
   );
+}
+
+function readStoredAuth(): Pick<AuthState, "token" | "user"> {
+  if (typeof window === "undefined") {
+    return { token: "", user: null };
+  }
+
+  const token = localStorage.getItem("nimto_token") ?? "";
+  const savedUser = localStorage.getItem("nimto_user");
+
+  if (!savedUser) {
+    return { token, user: null };
+  }
+
+  try {
+    return { token, user: JSON.parse(savedUser) as AuthUser };
+  } catch {
+    localStorage.removeItem("nimto_user");
+    return { token, user: null };
+  }
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem("nimto_token");
+  localStorage.removeItem("nimto_user");
+}
+
+function isAuthFailure(error: unknown) {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
