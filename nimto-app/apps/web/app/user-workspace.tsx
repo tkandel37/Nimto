@@ -83,12 +83,10 @@ export function UserWorkspace({
   }) => ReactNode;
 }) {
   const router = useRouter();
-  const [authState, setAuthState] = useState<AuthState>(() => {
-    const storedAuth = readStoredAuth();
-    return {
-      ...storedAuth,
-      isChecking: Boolean(storedAuth.token && !storedAuth.user),
-    };
+  const [authState, setAuthState] = useState<AuthState>({
+    isChecking: true,
+    token: "",
+    user: null,
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const { isChecking, token, user } = authState;
