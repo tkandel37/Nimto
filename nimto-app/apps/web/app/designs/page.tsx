@@ -319,6 +319,7 @@ function DesignEditor({
   const [activeFieldKey, setActiveFieldKey] = useState(fields[0]?.key ?? "");
   const selectedFieldKey = activeFieldKey || fields[0]?.key || "";
   const [values, setValues] = useState<Record<string, string>>({});
+  const [previewEditFieldKey, setPreviewEditFieldKey] = useState("");
   const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [origin] = useState(() =>
@@ -328,10 +329,45 @@ function DesignEditor({
   const activeFieldKeyRef = useRef(selectedFieldKey);
   const fieldsRef = useRef(fields);
   const lastSyncedActiveFieldKeyRef = useRef(selectedFieldKey);
+  const previewEditorInputRef = useRef<HTMLInputElement | null>(null);
+  const previewEditField = fields.find((field) => field.key === previewEditFieldKey);
   const previewHtml = useMemo(
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
   );
+
+  function applyPreviewFieldValue(fieldKey: string, value: string) {
+    const nextValues = { ...valuesRef.current, [fieldKey]: value };
+    valuesRef.current = nextValues;
+    activeFieldKeyRef.current = fieldKey;
+    lastSyncedActiveFieldKeyRef.current = fieldKey;
+    setValues(nextValues);
+    setActiveFieldKey(fieldKey);
+    updatePreviewFrame(previewRef.current, nextValues, fieldKey, fieldsRef.current, {
+      shouldScroll: false,
+    });
+    bindPreviewFrameEditing(
+      previewRef.current,
+      fieldsRef.current,
+      applyPreviewFieldValue,
+      selectField,
+      openPreviewValueEditor,
+    );
+  }
+
+  function openPreviewValueEditor(fieldKey: string) {
+    setPreviewEditFieldKey(fieldKey);
+    const frameDocument = previewRef.current?.contentDocument;
+    const field = fieldsRef.current.find((candidate) => candidate.key === fieldKey);
+    if (!frameDocument || !field) return;
+
+    const element = previewFieldElements(frameDocument, field)[0];
+    if (!element) return;
+    const initialValue = readPreviewElementValue(element).trim();
+    if (!Object.prototype.hasOwnProperty.call(valuesRef.current, fieldKey)) {
+      applyPreviewFieldValue(fieldKey, initialValue);
+    }
+  }
 
   useEffect(() => {
     valuesRef.current = values;
@@ -344,13 +380,28 @@ function DesignEditor({
     updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
       shouldScroll,
     });
+    bindPreviewFrameEditing(
+      previewRef.current,
+      fields,
+      applyPreviewFieldValue,
+      selectField,
+      openPreviewValueEditor,
+    );
   }, [fields, selectedFieldKey, values]);
+
+  useEffect(() => {
+    if (!previewEditFieldKey) return;
+    previewEditorInputRef.current?.focus();
+    previewEditorInputRef.current?.select();
+  }, [previewEditFieldKey]);
 
   useEffect(() => {
     function receivePreviewMessage(event: MessageEvent) {
       if (event.data?.source !== "nimto-user-preview") return;
       if (event.data.type === "selectField" && event.data.fieldKey) {
-        selectField(event.data.fieldKey);
+        const fieldKey = String(event.data.fieldKey);
+        selectField(fieldKey);
+        window.setTimeout(() => openPreviewValueEditor(fieldKey), 0);
       }
       if (event.data.type === "ready") {
         updatePreviewFrame(
@@ -362,16 +413,17 @@ function DesignEditor({
         );
       }
       if (event.data.type === "fieldValue" && event.data.fieldKey) {
-        selectField(event.data.fieldKey);
-        setValues((currentValues) => ({
-          ...currentValues,
-          [event.data.fieldKey]: String(event.data.value ?? ""),
-        }));
+        applyPreviewFieldValue(
+          String(event.data.fieldKey),
+          String(event.data.value ?? ""),
+        );
       }
     }
 
     window.addEventListener("message", receivePreviewMessage);
-    return () => window.removeEventListener("message", receivePreviewMessage);
+    return () => {
+      window.removeEventListener("message", receivePreviewMessage);
+    };
   }, []);
 
   function updateValue(key: string, value: string) {
@@ -476,19 +528,61 @@ function DesignEditor({
               updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
                 shouldScroll: true,
               });
+              bindPreviewFrameEditing(
+                previewRef.current,
+                fields,
+                applyPreviewFieldValue,
+                selectField,
+                openPreviewValueEditor,
+              );
               window.setTimeout(
-                () =>
+                () => {
                   updatePreviewFrame(
                     previewRef.current,
                     valuesRef.current,
                     activeFieldKeyRef.current,
                     fieldsRef.current,
                     { shouldScroll: true },
-                  ),
+                  );
+                  bindPreviewFrameEditing(
+                    previewRef.current,
+                    fieldsRef.current,
+                    applyPreviewFieldValue,
+                    selectField,
+                    openPreviewValueEditor,
+                  );
+                },
                 80,
               );
             }}
           />
+          {previewEditField ? (
+            <div className="user-preview-inline-editor">
+              <label>
+                <span>{previewEditField.label}</span>
+                <input
+                  ref={previewEditorInputRef}
+                  onChange={(event) =>
+                    applyPreviewFieldValue(previewEditField.key, event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === "Escape") {
+                      event.preventDefault();
+                      setPreviewEditFieldKey("");
+                    }
+                  }}
+                  value={values[previewEditField.key] ?? ""}
+                />
+              </label>
+              <button
+                aria-label="Close preview editor"
+                onClick={() => setPreviewEditFieldKey("")}
+                type="button"
+              >
+                Done
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <form className="user-fields-panel" onSubmit={submit}>
@@ -744,6 +838,74 @@ function updatePreviewFrameDom(
   });
 }
 
+function bindPreviewFrameEditing(
+  iframe: HTMLIFrameElement | null,
+  fields: NormalizedField[],
+  onValue: (key: string, value: string) => void,
+  onSelect: (key: string) => void,
+  onOpenEditor: (key: string) => void,
+) {
+  const document = iframe?.contentDocument;
+  if (!document) return;
+
+  fields.forEach((field) => {
+    previewFieldElements(document, field).forEach((element) => {
+      element.setAttribute("data-nimto-user-editable", "true");
+      if (!isPreviewFormElement(element) && isPreviewHtmlElement(element)) {
+        element.setAttribute("contenteditable", "true");
+      }
+      if (element.getAttribute("data-nimto-user-edit-bound") === "true") return;
+      element.setAttribute("data-nimto-user-edit-bound", "true");
+
+      const startSvgEdit = (event: Event) => {
+        if (isPreviewFormElement(element) || isPreviewHtmlElement(element)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect(field.key);
+        onOpenEditor(field.key);
+      };
+
+      element.addEventListener("pointerdown", startSvgEdit, true);
+      element.addEventListener("click", (event) => {
+        onSelect(field.key);
+        if (isPreviewFormElement(element)) {
+          focusPreviewEditableElement(element);
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenEditor(field.key);
+      });
+
+      ["input", "blur", "keyup", "compositionend"].forEach((eventName) => {
+        element.addEventListener(eventName, () => {
+          onValue(field.key, readPreviewElementValue(element));
+        });
+      });
+    });
+  });
+}
+
+function focusPreviewEditableElement(element: Element) {
+  if (isPreviewFormElement(element)) {
+    element.focus();
+    if ("select" in element && typeof element.select === "function") {
+      element.select();
+    }
+    return;
+  }
+  if (!isPreviewHtmlElement(element)) return;
+  element.focus();
+  const document = element.ownerDocument;
+  const selection = document.defaultView?.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function applyPreviewHighlight(element: Element) {
   if (!isPreviewHtmlElement(element)) return;
   stylePreviewHighlightElement(element);
@@ -798,6 +960,13 @@ function writePreviewElementValue(element: Element, value: string) {
   }
   if (element.textContent !== value) element.textContent = value;
   element.setAttribute("data-nimto-preview-value", value);
+}
+
+function readPreviewElementValue(element: Element) {
+  if (isPreviewFormElement(element)) {
+    return element.value;
+  }
+  return element.textContent ?? "";
 }
 
 function isPreviewHtmlElement(element: Element): element is HTMLElement {
@@ -883,6 +1052,86 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     if (element.textContent !== nextValue) element.textContent = nextValue;
     element.setAttribute("data-nimto-preview-value", nextValue);
   };
+  const focusEditableElement = (element) => {
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+    ) {
+      element.focus();
+      if (typeof element.select === "function") element.select();
+      return;
+    }
+    if (!(element instanceof HTMLElement)) return;
+    element.focus();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const selection = window.getSelection();
+    if (!selection) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+  const notifyFieldValue = (key, element) => {
+    window.parent.postMessage({
+      source: "nimto-user-preview",
+      type: "fieldValue",
+      fieldKey: key,
+      value: readElementValue(element)
+    }, "*");
+  };
+  let activeOverlay = null;
+  const removeActiveOverlay = () => {
+    if (!activeOverlay) return;
+    activeOverlay.remove();
+    activeOverlay = null;
+  };
+  const startOverlayEdit = (key, element) => {
+    removeActiveOverlay();
+    const rect = element.getBoundingClientRect();
+    const computed = window.getComputedStyle(element);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = readElementValue(element);
+    input.setAttribute("aria-label", "Edit " + key);
+    input.style.position = "fixed";
+    input.style.zIndex = "2147483647";
+    input.style.left = Math.max(8, rect.left) + "px";
+    input.style.top = Math.max(8, rect.top) + "px";
+    input.style.width = Math.max(160, rect.width || 0) + "px";
+    input.style.minHeight = Math.max(36, rect.height || 0) + "px";
+    input.style.border = "2px solid #3f8f5f";
+    input.style.borderRadius = "6px";
+    input.style.background = "rgba(255,255,255,.96)";
+    input.style.color = computed.color || "#172033";
+    input.style.font = computed.font || "16px sans-serif";
+    input.style.padding = "4px 8px";
+    input.style.boxShadow = "0 10px 24px rgba(23,32,51,.18)";
+    input.style.outline = "none";
+    input.addEventListener("input", () => {
+      writeElementValue(element, input.value);
+      notifyFieldValue(key, element);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        notifyFieldValue(key, element);
+        removeActiveOverlay();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        removeActiveOverlay();
+      }
+    });
+    input.addEventListener("blur", () => {
+      notifyFieldValue(key, element);
+      removeActiveOverlay();
+    });
+    document.body.appendChild(input);
+    activeOverlay = input;
+    input.focus();
+    input.select();
+  };
   const stylePreviewHighlightElement = (element) => {
     if (!(element instanceof HTMLElement)) return;
     element.style.setProperty("outline", "2px solid #3f8f5f", "important");
@@ -945,17 +1194,23 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
         element.setAttribute("contenteditable", "true");
       }
       element.addEventListener("click", (event) => {
-        event.preventDefault();
         selectField(key, true, false);
+        if (
+          element instanceof HTMLInputElement ||
+          element instanceof HTMLTextAreaElement ||
+          element instanceof HTMLSelectElement ||
+          element instanceof HTMLElement
+        ) {
+          focusEditableElement(element);
+          return;
+        }
+        event.preventDefault();
+        startOverlayEdit(key, element);
       });
-      element.addEventListener("input", () => {
-        window.parent.postMessage({
-          source: "nimto-user-preview",
-          type: "fieldValue",
-          fieldKey: key,
-          value: readElementValue(element)
-        }, "*");
-      });
+      element.addEventListener("input", () => notifyFieldValue(key, element));
+      element.addEventListener("blur", () => notifyFieldValue(key, element));
+      element.addEventListener("keyup", () => notifyFieldValue(key, element));
+      element.addEventListener("compositionend", () => notifyFieldValue(key, element));
     });
   };
   window.addEventListener("message", (event) => {

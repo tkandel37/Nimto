@@ -1192,6 +1192,62 @@ a {
   box-shadow: 0 18px 50px rgba(23, 32, 51, 0.06);
 }
 
+.user-preview-inline-editor {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(190px, 280px) auto;
+  gap: 8px;
+  align-items: end;
+  max-width: calc(100% - 28px);
+  border: 1px solid rgba(63, 143, 95, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 10px;
+  box-shadow: 0 18px 44px rgba(23, 32, 51, 0.18);
+}
+
+.user-preview-inline-editor label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.user-preview-inline-editor span {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: rgba(23, 32, 51, 0.65);
+  text-transform: uppercase;
+}
+
+.user-preview-inline-editor input {
+  min-width: 0;
+  border: 1px solid rgba(23, 32, 51, 0.16);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font: inherit;
+  color: var(--ink);
+  outline: none;
+}
+
+.user-preview-inline-editor input:focus {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(63, 143, 95, 0.13);
+}
+
+.user-preview-inline-editor button {
+  border: 0;
+  border-radius: 6px;
+  background: var(--leaf);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  font-weight: 900;
+  color: white;
+  cursor: pointer;
+}
+
 .user-fields-panel {
   display: grid;
   gap: 14px;
