@@ -747,17 +747,6 @@ function updatePreviewFrameDom(
 function applyPreviewHighlight(element: Element) {
   if (!isPreviewHtmlElement(element)) return;
   stylePreviewHighlightElement(element);
-  if (isPreviewFormElement(element) || element.querySelector("[data-nimto-active-highlight]")) {
-    return;
-  }
-
-  const text = element.textContent ?? "";
-  const highlight = element.ownerDocument.createElement("span");
-  highlight.setAttribute("data-nimto-active-highlight", "true");
-  highlight.textContent = text;
-  stylePreviewHighlightElement(highlight);
-  element.textContent = "";
-  element.appendChild(highlight);
 }
 
 function removePreviewHighlight(element: Element) {
@@ -783,26 +772,9 @@ function removePreviewHighlight(element: Element) {
 }
 
 function stylePreviewHighlightElement(element: HTMLElement) {
-  element.style.setProperty("outline", "4px solid #22c55e", "important");
-  element.style.setProperty("outline-offset", "6px", "important");
-  element.style.setProperty("border-radius", "12px", "important");
-  element.style.setProperty("display", "inline-block", "important");
-  element.style.setProperty("padding", "0 .08em", "important");
-  element.style.setProperty("color", "#22c55e", "important");
-  element.style.setProperty("background-color", "rgba(34,197,94,.30)", "important");
-  element.style.setProperty("border-bottom", "6px solid #22c55e", "important");
-  element.style.setProperty(
-    "text-shadow",
-    "0 0 10px rgba(34,197,94,.95), 0 0 24px rgba(34,197,94,.72)",
-    "important",
-  );
-  element.style.setProperty(
-    "box-shadow",
-    "0 0 0 8px rgba(34,197,94,.26), 0 0 30px rgba(34,197,94,.48)",
-    "important",
-  );
-  element.style.setProperty("-webkit-box-decoration-break", "clone");
-  element.style.setProperty("box-decoration-break", "clone");
+  element.style.setProperty("outline", "2px solid #3f8f5f", "important");
+  element.style.setProperty("outline-offset", "3px", "important");
+  element.style.setProperty("background-color", "rgba(63,143,95,.10)", "important");
 }
 
 function previewFieldElements(document: Document, field: NormalizedField) {
@@ -913,37 +885,13 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
   };
   const stylePreviewHighlightElement = (element) => {
     if (!(element instanceof HTMLElement)) return;
-    element.style.setProperty("outline", "4px solid #22c55e", "important");
-    element.style.setProperty("outline-offset", "6px", "important");
-    element.style.setProperty("border-radius", "12px", "important");
-    element.style.setProperty("display", "inline-block", "important");
-    element.style.setProperty("padding", "0 .08em", "important");
-    element.style.setProperty("color", "#22c55e", "important");
-    element.style.setProperty("background-color", "rgba(34,197,94,.30)", "important");
-    element.style.setProperty("border-bottom", "6px solid #22c55e", "important");
-    element.style.setProperty("text-shadow", "0 0 10px rgba(34,197,94,.95), 0 0 24px rgba(34,197,94,.72)", "important");
-    element.style.setProperty("box-shadow", "0 0 0 8px rgba(34,197,94,.26), 0 0 30px rgba(34,197,94,.48)", "important");
-    element.style.setProperty("-webkit-box-decoration-break", "clone");
-    element.style.setProperty("box-decoration-break", "clone");
+    element.style.setProperty("outline", "2px solid #3f8f5f", "important");
+    element.style.setProperty("outline-offset", "3px", "important");
+    element.style.setProperty("background-color", "rgba(63,143,95,.10)", "important");
   };
   const applyPreviewHighlight = (element) => {
     if (!(element instanceof HTMLElement)) return;
     stylePreviewHighlightElement(element);
-    if (
-      element instanceof HTMLInputElement ||
-      element instanceof HTMLTextAreaElement ||
-      element instanceof HTMLSelectElement ||
-      element.querySelector("[data-nimto-active-highlight]")
-    ) {
-      return;
-    }
-    const text = element.textContent || "";
-    const highlight = document.createElement("span");
-    highlight.setAttribute("data-nimto-active-highlight", "true");
-    highlight.textContent = text;
-    stylePreviewHighlightElement(highlight);
-    element.textContent = "";
-    element.appendChild(highlight);
   };
   const removePreviewHighlight = (element) => {
     if (!(element instanceof HTMLElement)) return;
@@ -1019,7 +967,7 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     }
   });
   const style = document.createElement("style");
-  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:4px}[data-nimto-preview-selected="true"]{color:#22c55e!important;outline:4px solid #22c55e!important;outline-offset:6px!important;border-radius:12px!important;background:rgba(34,197,94,.30)!important;border-bottom:6px solid #22c55e!important;box-shadow:0 0 0 8px rgba(34,197,94,.26),0 0 30px rgba(34,197,94,.48)!important;text-shadow:0 0 10px rgba(34,197,94,.95),0 0 24px rgba(34,197,94,.72)!important;-webkit-box-decoration-break:clone;box-decoration-break:clone}';
+  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-preview-selected="true"]{outline:2px solid #3f8f5f!important;outline-offset:3px!important;background:rgba(63,143,95,.10)!important}';
   document.head.appendChild(style);
   prepareEditableFields();
   window.parent.postMessage({ source: "nimto-user-preview", type: "ready" }, "*");
