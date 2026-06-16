@@ -44,10 +44,26 @@ type TemplateScanResult = {
   sections: { key: string; label: string }[];
   fields: TemplateField[];
   countdownFieldKey?: string;
+  countdownFieldStatus?: "valid" | "missing_type" | "unsupported_type";
   customNameFieldKeys: string[];
+  hasOpeningSlot: boolean;
+  openingSlots: string[];
+  hasBackgroundEffectSlot: boolean;
+  backgroundEffectSlots: string[];
+  effectAreas: string[];
+  effectSlots: string[];
   hasGallery: boolean;
   hasMusic: boolean;
   hasMap: boolean;
+  capabilities: {
+    supportsCountdown: boolean;
+    supportsInviteeName: boolean;
+    supportsGallery: boolean;
+    supportsMusic: boolean;
+    supportsMap: boolean;
+    supportsOpeningAnimation: boolean;
+    supportsBackgroundEffects: boolean;
+  };
 };
 
 type ScannedSection = { key: string; label: string; index: number };
@@ -76,14 +92,48 @@ const designAccessCache = new Map<
   string,
   { expiresAt: number; value: DesignAccess }
 >();
-const templateDetailCache = new Map<
-  string,
-  { expiresAt: number; value: unknown }
->();
-const templateListCache = new Map<string, { expiresAt: number; value: unknown }>();
-const designListCache = new Map<string, { expiresAt: number; value: unknown }>();
-const publicCategoryCache = new Map<string, { expiresAt: number; value: unknown }>();
-const publicDesignCache = new Map<string, { expiresAt: number; value: unknown }>();
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: Promise<T> | T;
+};
+
+const templateDetailCache = new Map<string, CacheEntry<unknown>>();
+const templateListCache = new Map<string, CacheEntry<unknown>>();
+const designListCache = new Map<string, CacheEntry<unknown>>();
+const publicCategoryCache = new Map<string, CacheEntry<unknown>>();
+const publicDesignCache = new Map<string, CacheEntry<unknown>>();
+
+function cachedValue<T>(
+  cache: Map<string, CacheEntry<unknown>>,
+  key: string,
+  ttlMs: number,
+  load: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return Promise.resolve(cached.value as T | Promise<T>);
+  }
+
+  const pending = load()
+    .then((value) => {
+      cache.set(key, {
+        expiresAt: Date.now() + ttlMs,
+        value,
+      });
+      return value;
+    })
+    .catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+
+  cache.set(key, {
+    expiresAt: now + ttlMs,
+    value: pending,
+  });
+  return pending;
+}
 
 @Injectable()
 export class TemplateDesignService {
@@ -105,29 +155,22 @@ export class TemplateDesignService {
   }
 
   listPublicCategories() {
-    const cacheKey = "active";
-    const cached = publicCategoryCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-
-    const query = this.prisma.designCategory.findMany({
-      where: { status: DesignCatalogStatus.ACTIVE },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      include: {
-        subcategories: {
+    return cachedValue(
+      publicCategoryCache,
+      "active",
+      PUBLIC_DESIGN_CACHE_MS,
+      () =>
+        this.prisma.designCategory.findMany({
           where: { status: DesignCatalogStatus.ACTIVE },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        },
-      },
-    });
-    void query.then((value) => {
-      publicCategoryCache.set(cacheKey, {
-        expiresAt: Date.now() + PUBLIC_DESIGN_CACHE_MS,
-        value,
-      });
-    });
-    return query;
+          include: {
+            subcategories: {
+              where: { status: DesignCatalogStatus.ACTIVE },
+              orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+            },
+          },
+        }),
+    );
   }
 
   listPublicDesigns(filters: {
@@ -141,206 +184,190 @@ export class TemplateDesignService {
       subcategoryId: filters.subcategoryId ?? "",
       search: search ?? "",
     });
-    const cached = publicDesignCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-
-    const query = this.prisma.invitationDesign.findMany({
-      where: {
-        status: DesignStatus.ACTIVE,
-        categoryId: filters.categoryId || undefined,
-        subcategoryId: filters.subcategoryId || undefined,
-        AND: [
-          filters.categoryId
-            ? {}
-            : {
-                OR: [
-                  { categoryId: null },
-                  { category: { status: DesignCatalogStatus.ACTIVE } },
-                ],
-              },
-          filters.subcategoryId
-            ? {}
-            : {
-                OR: [
-                  { subcategoryId: null },
-                  { subcategory: { status: DesignCatalogStatus.ACTIVE } },
-                ],
-              },
-        ],
-        versions: { some: { status: DesignVersionStatus.CURRENT } },
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: "insensitive" as const } },
-                { slug: { contains: search, mode: "insensitive" as const } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { updatedAt: "desc" },
-      include: {
-        category: { select: { id: true, name: true, slug: true } },
-        subcategory: { select: { id: true, name: true, slug: true } },
-        versions: {
-          where: { status: DesignVersionStatus.CURRENT },
-          orderBy: { versionNumber: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            versionNumber: true,
-            status: true,
-            name: true,
-            rawHtml: true,
-            htmlSize: true,
-            scanResult: true,
-            createdAt: true,
+    return cachedValue(
+      publicDesignCache,
+      cacheKey,
+      PUBLIC_DESIGN_CACHE_MS,
+      () =>
+        this.prisma.invitationDesign.findMany({
+          where: {
+            status: DesignStatus.ACTIVE,
+            categoryId: filters.categoryId || undefined,
+            subcategoryId: filters.subcategoryId || undefined,
+            AND: [
+              filters.categoryId
+                ? {}
+                : {
+                    OR: [
+                      { categoryId: null },
+                      { category: { status: DesignCatalogStatus.ACTIVE } },
+                    ],
+                  },
+              filters.subcategoryId
+                ? {}
+                : {
+                    OR: [
+                      { subcategoryId: null },
+                      { subcategory: { status: DesignCatalogStatus.ACTIVE } },
+                    ],
+                  },
+            ],
+            versions: { some: { status: DesignVersionStatus.CURRENT } },
+            ...(search
+              ? {
+                  OR: [
+                    { name: { contains: search, mode: "insensitive" as const } },
+                    { slug: { contains: search, mode: "insensitive" as const } },
+                  ],
+                }
+              : {}),
           },
-        },
-      },
-    });
-    void query.then((value) => {
-      publicDesignCache.set(cacheKey, {
-        expiresAt: Date.now() + PUBLIC_DESIGN_CACHE_MS,
-        value,
-      });
-    });
-    return query;
-  }
-
-  async listTemplates(userId: string) {
-    const cached = templateListCache.get(userId);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-
-    const access = await this.templateAccess(userId);
-    if (!access.viewAll && !access.viewOwn) {
-      throw new ForbiddenException("You cannot view templates.");
-    }
-
-    const templates = await this.prisma.invitationTemplate.findMany({
-      where: access.viewAll ? undefined : { createdById: userId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        sourceFileName: true,
-        htmlSize: true,
-        scanResult: true,
-        scannedAt: true,
-        designId: true,
-        design: {
-          select: {
-            id: true,
-            slug: true,
-            status: true,
+          orderBy: { updatedAt: "desc" },
+          include: {
+            category: { select: { id: true, name: true, slug: true } },
+            subcategory: { select: { id: true, name: true, slug: true } },
             versions: {
               where: { status: DesignVersionStatus.CURRENT },
-              select: { id: true, versionNumber: true, status: true },
-              take: 1,
-            },
-          },
-        },
-        categoryId: true,
-        subcategoryId: true,
-        createdAt: true,
-        updatedAt: true,
-        category: { select: { id: true, name: true, slug: true } },
-        subcategory: { select: { id: true, name: true, slug: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
-      },
-    });
-    templateListCache.set(userId, {
-      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
-      value: templates,
-    });
-    return templates;
-  }
-
-  async getTemplate(templateId: string, userId: string) {
-    const cacheKey = `${userId}:${templateId}`;
-    const cached = templateDetailCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-
-    const template = await this.prisma.invitationTemplate.findUnique({
-      where: { id: templateId },
-      include: {
-        category: true,
-        subcategory: true,
-        design: {
-          include: {
-            versions: {
               orderBy: { versionNumber: "desc" },
+              take: 1,
               select: {
                 id: true,
                 versionNumber: true,
                 status: true,
+                name: true,
+                rawHtml: true,
+                htmlSize: true,
+                scanResult: true,
                 createdAt: true,
               },
             },
           },
-        },
-        createdBy: { select: { id: true, name: true, email: true } },
+        }),
+    );
+  }
+
+  async listTemplates(userId: string) {
+    return cachedValue(
+      templateListCache,
+      userId,
+      TEMPLATE_DETAIL_CACHE_MS,
+      async () => {
+        const access = await this.templateAccess(userId);
+        if (!access.viewAll && !access.viewOwn) {
+          throw new ForbiddenException("You cannot view templates.");
+        }
+
+        return this.prisma.invitationTemplate.findMany({
+          where: access.viewAll ? undefined : { createdById: userId },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            sourceFileName: true,
+            htmlSize: true,
+            scanResult: true,
+            scannedAt: true,
+            designId: true,
+            design: {
+              select: {
+                id: true,
+                slug: true,
+                status: true,
+                versions: {
+                  where: { status: DesignVersionStatus.CURRENT },
+                  select: { id: true, versionNumber: true, status: true },
+                  take: 1,
+                },
+              },
+            },
+            categoryId: true,
+            subcategoryId: true,
+            createdAt: true,
+            updatedAt: true,
+            category: { select: { id: true, name: true, slug: true } },
+            subcategory: { select: { id: true, name: true, slug: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
+          },
+        });
       },
-    });
-    if (!template) {
-      throw new NotFoundException("Template not found.");
-    }
+    );
+  }
 
-    const access = await this.templateAccess(userId);
-    if (!access.viewAll && !(access.viewOwn && template.createdById === userId)) {
-      throw new ForbiddenException("You cannot view this template.");
-    }
+  async getTemplate(templateId: string, userId: string) {
+    const cacheKey = `${userId}:${templateId}`;
+    return cachedValue(
+      templateDetailCache,
+      cacheKey,
+      TEMPLATE_DETAIL_CACHE_MS,
+      async () => {
+        const template = await this.prisma.invitationTemplate.findUnique({
+          where: { id: templateId },
+          include: {
+            category: true,
+            subcategory: true,
+            design: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: "desc" },
+                  select: {
+                    id: true,
+                    versionNumber: true,
+                    status: true,
+                    createdAt: true,
+                  },
+                },
+              },
+            },
+            createdBy: { select: { id: true, name: true, email: true } },
+          },
+        });
+        if (!template) {
+          throw new NotFoundException("Template not found.");
+        }
 
-    templateDetailCache.set(cacheKey, {
-      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
-      value: template,
-    });
-    return template;
+        const access = await this.templateAccess(userId);
+        if (
+          !access.viewAll &&
+          !(access.viewOwn && template.createdById === userId)
+        ) {
+          throw new ForbiddenException("You cannot view this template.");
+        }
+
+        return template;
+      },
+    );
   }
 
   async listDesigns(userId: string) {
-    const cached = designListCache.get(userId);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
+    return cachedValue(designListCache, userId, TEMPLATE_DETAIL_CACHE_MS, async () => {
+      const access = await this.designAccess(userId);
+      if (!access.viewAll && !access.viewOwn) {
+        throw new ForbiddenException("You cannot view designs.");
+      }
 
-    const access = await this.designAccess(userId);
-    if (!access.viewAll && !access.viewOwn) {
-      throw new ForbiddenException("You cannot view designs.");
-    }
-
-    const designs = await this.prisma.invitationDesign.findMany({
-      where: access.viewAll ? undefined : { createdById: userId },
-      orderBy: { updatedAt: "desc" },
-      include: {
-        category: { select: { id: true, name: true, slug: true } },
-        subcategory: { select: { id: true, name: true, slug: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
-        versions: {
-          orderBy: { versionNumber: "desc" },
-          select: {
-            id: true,
-            versionNumber: true,
-            status: true,
-            rawHtml: true,
-            htmlSize: true,
-            scanResult: true,
-            createdAt: true,
+      return this.prisma.invitationDesign.findMany({
+        where: access.viewAll ? undefined : { createdById: userId },
+        orderBy: { updatedAt: "desc" },
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+          subcategory: { select: { id: true, name: true, slug: true } },
+          createdBy: { select: { id: true, name: true, email: true } },
+          versions: {
+            orderBy: { versionNumber: "desc" },
+            select: {
+              id: true,
+              versionNumber: true,
+              status: true,
+              rawHtml: true,
+              htmlSize: true,
+              scanResult: true,
+              createdAt: true,
+            },
           },
         },
-      },
+      });
     });
-    designListCache.set(userId, {
-      expiresAt: Date.now() + TEMPLATE_DETAIL_CACHE_MS,
-      value: designs,
-    });
-    return designs;
   }
 
   async createTemplate(
@@ -695,6 +722,7 @@ export class TemplateDesignService {
         name: category.name,
         slug: category.slug,
       });
+      this.clearTemplateListCaches();
       return category;
     } catch (error) {
       this.throwIfUniqueConstraint(error, "A category with this slug exists.");
@@ -718,6 +746,7 @@ export class TemplateDesignService {
         name: category.name,
         status: category.status,
       });
+      this.clearTemplateListCaches();
       return category;
     } catch (error) {
       this.throwIfUniqueConstraint(error, "A category with this slug exists.");
@@ -760,6 +789,7 @@ export class TemplateDesignService {
         slug: subcategory.slug,
         categoryId,
       });
+      this.clearTemplateListCaches();
       return subcategory;
     } catch (error) {
       this.throwIfUniqueConstraint(
@@ -786,6 +816,7 @@ export class TemplateDesignService {
         name: subcategory.name,
         status: subcategory.status,
       });
+      this.clearTemplateListCaches();
       return subcategory;
     } catch (error) {
       this.throwIfUniqueConstraint(
@@ -885,15 +916,41 @@ export class TemplateDesignService {
     const countdownFieldKey =
       this.firstAttribute(rawHtml, "data-nimto-countdown-for") ??
       this.stringMeta(meta, "countdownFieldKey");
+    const countdownField = countdownFieldKey
+      ? fields.find((field) => field.key === countdownFieldKey)
+      : undefined;
 
     if (
       countdownFieldKey &&
-      !fields.some((field) => field.key === countdownFieldKey)
+      !countdownField
     ) {
       throw new BadRequestException(
         "Countdown field must match a data-nimto-field key.",
       );
     }
+
+    const openingSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-opening-slot",
+    );
+    const backgroundEffectSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-bg-effect-slot",
+    );
+    const effectSlots = this.attributesByName(rawHtml, "data-nimto-effect-slot");
+    const effectAreas = this.attributesByName(rawHtml, "data-nimto-effect-area");
+    const hasGallery = /data-nimto-gallery/i.test(rawHtml);
+    const hasMusic = /data-nimto-music/i.test(rawHtml);
+    const hasMap = /data-nimto-map/i.test(rawHtml);
+    const supportsCountdown = Boolean(countdownFieldKey);
+    const supportsInviteeName = fields.some(
+      (field) => field.key === "invitee_name",
+    );
+    const supportsOpeningAnimation = openingSlots.length > 0;
+    const supportsBackgroundEffects =
+      backgroundEffectSlots.length > 0 ||
+      effectSlots.includes("background") ||
+      effectAreas.length > 0;
 
     return {
       version: 1,
@@ -902,12 +959,28 @@ export class TemplateDesignService {
       sections,
       fields,
       countdownFieldKey,
+      countdownFieldStatus: this.countdownFieldStatus(countdownField),
       customNameFieldKeys: fields
-        .filter((field) => field.type === "custom_name" || field.paid)
+        .filter((field) => field.key === "invitee_name" || field.type === "custom_name")
         .map((field) => field.key),
-      hasGallery: /data-nimto-gallery/i.test(rawHtml),
-      hasMusic: /data-nimto-music/i.test(rawHtml),
-      hasMap: /data-nimto-map/i.test(rawHtml),
+      hasOpeningSlot: supportsOpeningAnimation,
+      openingSlots,
+      hasBackgroundEffectSlot: supportsBackgroundEffects,
+      backgroundEffectSlots,
+      effectSlots,
+      effectAreas,
+      hasGallery,
+      hasMusic,
+      hasMap,
+      capabilities: {
+        supportsCountdown,
+        supportsInviteeName,
+        supportsGallery: hasGallery,
+        supportsMusic: hasMusic,
+        supportsMap: hasMap,
+        supportsOpeningAnimation,
+        supportsBackgroundEffects,
+      },
     };
   }
 
@@ -999,6 +1072,31 @@ export class TemplateDesignService {
       new RegExp(`${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"),
     );
     return match?.[1] ?? match?.[2] ?? match?.[3];
+  }
+
+  private attributesByName(rawHtml: string, attribute: string) {
+    const values = new Set<string>();
+    const pattern = new RegExp(
+      `${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+      "gi",
+    );
+    for (const match of rawHtml.matchAll(pattern)) {
+      const value = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+      if (value) {
+        values.add(value);
+      }
+    }
+    return [...values];
+  }
+
+  private countdownFieldStatus(
+    field?: TemplateField,
+  ): TemplateScanResult["countdownFieldStatus"] {
+    if (!field) return undefined;
+    if (!field.type || field.type === "text") return "missing_type";
+    return ["date", "datetime", "datetime-local", "time"].includes(field.type)
+      ? "valid"
+      : "unsupported_type";
   }
 
   private nearestSectionKey(sections: ScannedSection[], index: number) {

@@ -132,10 +132,26 @@ type InvitationTemplate = {
       locked: boolean;
     }[];
     countdownFieldKey?: string;
+    countdownFieldStatus?: "valid" | "missing_type" | "unsupported_type";
     customNameFieldKeys?: string[];
+    hasOpeningSlot?: boolean;
+    openingSlots?: string[];
+    hasBackgroundEffectSlot?: boolean;
+    backgroundEffectSlots?: string[];
+    effectAreas?: string[];
+    effectSlots?: string[];
     hasGallery?: boolean;
     hasMusic?: boolean;
     hasMap?: boolean;
+    capabilities?: {
+      supportsCountdown?: boolean;
+      supportsInviteeName?: boolean;
+      supportsGallery?: boolean;
+      supportsMusic?: boolean;
+      supportsMap?: boolean;
+      supportsOpeningAnimation?: boolean;
+      supportsBackgroundEffects?: boolean;
+    };
   } | null;
   scannedAt?: string | null;
   designId?: string | null;
@@ -1220,6 +1236,8 @@ export function DashboardClient({
             categories={designCategories}
             completeAction={completeAction}
             designs={designs}
+            onDesignsChange={setDesigns}
+            onPublicDesignsChange={setPublicDesigns}
             onTemplatesChange={setTemplates}
             request={request}
             templates={templates}
@@ -1732,6 +1750,8 @@ function DesignSetupPanel({
   categories,
   completeAction,
   designs,
+  onDesignsChange,
+  onPublicDesignsChange,
   onTemplatesChange,
   request,
   templates,
@@ -1744,6 +1764,8 @@ function DesignSetupPanel({
   categories: DesignCategory[];
   completeAction: CompleteAction;
   designs: InvitationDesign[];
+  onDesignsChange: Dispatch<SetStateAction<InvitationDesign[]>>;
+  onPublicDesignsChange: Dispatch<SetStateAction<InvitationDesign[]>>;
   onTemplatesChange: Dispatch<SetStateAction<InvitationTemplate[]>>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   templates: InvitationTemplate[];
@@ -1764,6 +1786,7 @@ function DesignSetupPanel({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [featureFilter, setFeatureFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [selectedDesignId, setSelectedDesignId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -1782,6 +1805,7 @@ function DesignSetupPanel({
       (!categoryFilter || design.category?.id === categoryFilter) &&
       (!subcategoryFilter || design.subcategory?.id === subcategoryFilter) &&
       (!statusFilter || design.status === statusFilter) &&
+      matchesFeatureFilter(current?.scanResult, featureFilter) &&
       matchesDateFilter(current?.createdAt ?? design.updatedAt, dateFilter)
     );
   });
@@ -1801,6 +1825,7 @@ function DesignSetupPanel({
       (!categoryFilter || template.categoryId === categoryFilter) &&
       (!subcategoryFilter || template.subcategoryId === subcategoryFilter) &&
       (!statusFilter || template.status === statusFilter) &&
+      matchesFeatureFilter(template.scanResult, featureFilter) &&
       matchesDateFilter(template.updatedAt, dateFilter)
     );
   });
@@ -1925,11 +1950,11 @@ function DesignSetupPanel({
         if (selectedTemplate?.id === templateId) {
           await persistSelectedTemplateDraft();
         }
-        const design = await request(`/template-design/templates/${templateId}/publish`, {
+        await request(`/template-design/templates/${templateId}/publish`, {
           method: "POST",
         });
-        localStorage.setItem("nimto_design_catalog_changed", String(Date.now()));
-        return design;
+        markDesignCatalogChanged();
+        await reloadDesignCatalog();
       },
       "Template published as current design.",
       { refresh: false },
@@ -1941,10 +1966,13 @@ function DesignSetupPanel({
 
   async function unpublishTemplate(templateId: string) {
     await completeAction(
-      () =>
-        request(`/template-design/templates/${templateId}/unpublish`, {
+      async () => {
+        await request(`/template-design/templates/${templateId}/unpublish`, {
           method: "POST",
-        }),
+        });
+        markDesignCatalogChanged();
+        await reloadDesignCatalog();
+      },
       "Design unpublished.",
       { refresh: false },
     );
@@ -1953,6 +1981,23 @@ function DesignSetupPanel({
     } else {
       upsertTemplateSummary({ id: templateId, status: "UNPUBLISHED" });
     }
+  }
+
+  async function reloadDesignCatalog() {
+    const nextPublicDesigns = await request<InvitationDesign[]>(
+      "/template-design/public/designs",
+    );
+    onPublicDesignsChange(nextPublicDesigns);
+
+    try {
+      onDesignsChange(await request<InvitationDesign[]>("/template-design/designs"));
+    } catch {
+      // Publishing should not fail for users without private design-list access.
+    }
+  }
+
+  function markDesignCatalogChanged() {
+    localStorage.setItem("nimto_design_catalog_changed", String(Date.now()));
   }
 
   async function duplicateTemplate(templateId: string) {
@@ -2097,7 +2142,7 @@ function DesignSetupPanel({
               Manage designs and templates from a scalable table view.
             </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-5 xl:min-w-[760px]">
+          <div className="grid gap-3 md:grid-cols-6 xl:min-w-[900px]">
             <label className="field md:col-span-2">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
                 Search
@@ -2143,6 +2188,25 @@ function DesignSetupPanel({
                     {subcategory.name}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                Feature
+              </span>
+              <select
+                className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                value={featureFilter}
+                onChange={(event) => setFeatureFilter(event.target.value)}
+              >
+                <option value="">Any</option>
+                <option value="countdown">Countdown</option>
+                <option value="invitee">Invitee name</option>
+                <option value="opening">Opening slot</option>
+                <option value="background">Background effects</option>
+                <option value="gallery">Gallery</option>
+                <option value="music">Music</option>
+                <option value="map">Map</option>
               </select>
             </label>
             <label className="field">
@@ -2238,12 +2302,13 @@ function DesignSetupPanel({
 
           <div className="overflow-x-auto">
             {libraryMode === "designs" ? (
-              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                 <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
                   <tr>
                     <th className="px-4 py-3">Design</th>
                     <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Version</th>
+                    <th className="px-4 py-3">Features</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Owner</th>
                     <th className="px-4 py-3">Updated</th>
@@ -2274,6 +2339,9 @@ function DesignSetupPanel({
                         <td className="px-4 py-3 font-bold text-ink">
                           {current ? `v${current.versionNumber}` : "No current"}
                         </td>
+                        <td className="px-4 py-3">
+                          <FeatureBadges scanResult={current?.scanResult} compact />
+                        </td>
                         <td className="px-4 py-3 font-bold text-leaf">
                           {design.status}
                         </td>
@@ -2289,12 +2357,13 @@ function DesignSetupPanel({
                 </tbody>
               </table>
             ) : (
-              <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
                 <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
                   <tr>
                     <th className="px-4 py-3">Template</th>
                     <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Fields</th>
+                    <th className="px-4 py-3">Features</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Owner</th>
                     <th className="px-4 py-3">Updated</th>
@@ -2326,6 +2395,9 @@ function DesignSetupPanel({
                       <td className="px-4 py-3 text-ink/60">
                         {template.scanResult?.fields?.length ?? 0} fields ·{" "}
                         {template.scanResult?.sections?.length ?? 0} sections
+                      </td>
+                      <td className="px-4 py-3">
+                        <FeatureBadges scanResult={template.scanResult} compact />
                       </td>
                       <td className="px-4 py-3 font-bold text-marigold">
                         {template.status}
@@ -2413,6 +2485,7 @@ function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
               .filter(Boolean)
               .join(" / ") || "Uncategorized"}
           </p>
+          <FeatureBadges scanResult={current?.scanResult} />
           <div className="grid gap-3 border-t border-ink/10 pt-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
@@ -2498,6 +2571,88 @@ function groupedTemplateFields(fields: ScannedTemplateField[] = []) {
 function designHasCurrentFieldMetadata(design: InvitationDesign) {
   const current = design.versions.find((version) => version.status === "CURRENT");
   return Boolean(current?.scanResult?.fields || current?.rawHtml);
+}
+
+function matchesFeatureFilter(
+  scanResult: InvitationTemplate["scanResult"] | undefined,
+  feature: string,
+) {
+  if (!feature) return true;
+  const capabilities = scanCapabilities(scanResult);
+  return Boolean(capabilities[feature as keyof typeof capabilities]);
+}
+
+function scanCapabilities(scanResult: InvitationTemplate["scanResult"] | undefined) {
+  const fields = scanResult?.fields ?? [];
+  const capabilities = scanResult?.capabilities;
+
+  return {
+    countdown: Boolean(
+      capabilities?.supportsCountdown || scanResult?.countdownFieldKey,
+    ),
+    invitee: Boolean(
+      capabilities?.supportsInviteeName ||
+        fields.some((field) => field.key === "invitee_name") ||
+        (scanResult?.customNameFieldKeys ?? []).includes("invitee_name"),
+    ),
+    opening: Boolean(
+      capabilities?.supportsOpeningAnimation ||
+        scanResult?.hasOpeningSlot ||
+        scanResult?.openingSlots?.length,
+    ),
+    background: Boolean(
+      capabilities?.supportsBackgroundEffects ||
+        scanResult?.hasBackgroundEffectSlot ||
+        scanResult?.backgroundEffectSlots?.length ||
+        scanResult?.effectSlots?.length ||
+        scanResult?.effectAreas?.length,
+    ),
+    gallery: Boolean(capabilities?.supportsGallery || scanResult?.hasGallery),
+    music: Boolean(capabilities?.supportsMusic || scanResult?.hasMusic),
+    map: Boolean(capabilities?.supportsMap || scanResult?.hasMap),
+  };
+}
+
+function FeatureBadges({
+  compact = false,
+  scanResult,
+}: {
+  compact?: boolean;
+  scanResult: InvitationTemplate["scanResult"] | undefined;
+}) {
+  const capabilities = scanCapabilities(scanResult);
+  const badges = [
+    ["countdown", "Countdown"],
+    ["invitee", "Invitee"],
+    ["opening", "Opening"],
+    ["background", "Background"],
+    ["gallery", "Gallery"],
+    ["music", "Music"],
+    ["map", "Map"],
+  ].filter(([key]) => capabilities[key as keyof typeof capabilities]);
+
+  if (!badges.length) {
+    return (
+      <span className="text-xs font-bold text-ink/40">
+        {compact ? "None" : "No capabilities detected"}
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {badges.map(([key, label]) => (
+        <span
+          className={`rounded-full border border-leaf/20 bg-leaf/10 font-black uppercase tracking-[0.1em] text-leaf ${
+            compact ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-xs"
+          }`}
+          key={key}
+        >
+          {label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function scanFieldsFromHtml(rawHtml?: string): ScannedTemplateField[] {
@@ -2807,6 +2962,7 @@ function TemplateDetailPanel({
               .filter(Boolean)
               .join(" / ") || "Uncategorized"}
           </p>
+          <FeatureBadges scanResult={template.scanResult} />
           <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-3">
             {canUpdateTemplates ? (
               <button
