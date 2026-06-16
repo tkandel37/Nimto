@@ -12,6 +12,8 @@ type InvitationEvent = {
     name: string;
   };
   designFieldValues?: Record<string, string> | null;
+  inviteeName?: string | null;
+  inviteeSlug?: string | null;
   designVersion?: {
     rawHtml: string;
     design?: { name: string; slug: string };
@@ -156,6 +158,7 @@ function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
     event_title: event.title,
     event_date: event.eventDate ? event.eventDate.slice(0, 10) : "",
     venue: event.venue ?? "",
+    invitee_name: event.inviteeName ?? "",
     description: event.description ?? "",
     ...(event.designFieldValues ?? {}),
   };

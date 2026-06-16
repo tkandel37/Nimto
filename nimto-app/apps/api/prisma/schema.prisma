@@ -61,6 +61,11 @@ enum DesignVersionStatus {
   SUPERSEDED
 }
 
+enum AnimationComponentType {
+  OPENING
+  BACKGROUND
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -88,6 +93,7 @@ model User {
   invitationTemplates InvitationTemplate[] @relation("InvitationTemplatesCreated")
   invitationDesigns   InvitationDesign[]   @relation("InvitationDesignsCreated")
   designVersions      DesignVersion[]      @relation("DesignVersionsPublished")
+  animationComponents  AnimationComponent[] @relation("AnimationComponentsCreated")
 
   @@index([status])
   @@index([createdAt])
@@ -324,6 +330,7 @@ model Event {
   designVersionId   String?
   designVersion     DesignVersion? @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
   designFieldValues Json?
+  invitees          InvitationInvitee[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -332,6 +339,39 @@ model Event {
   @@index([slug])
   @@index([isPublished])
   @@index([designVersionId])
+}
+
+model InvitationInvitee {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, name])
+  @@index([eventId])
+  @@index([slug])
+}
+
+model AnimationComponent {
+  id             String                 @id @default(cuid())
+  type           AnimationComponentType
+  name           String
+  slug           String                 @unique
+  rawHtml        String
+  sourceFileName String?
+  htmlSize       Int
+  scanResult     Json?
+  status         DesignCatalogStatus    @default(ACTIVE)
+  createdById    String?
+  createdBy      User?                  @relation("AnimationComponentsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([type, status])
+  @@index([createdById])
 }
 
 model PageContent {

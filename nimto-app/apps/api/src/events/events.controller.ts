@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { AuthenticatedRequest, JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { CreateInviteesDto } from "./dto/create-invitees.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EventsService } from "./events.service";
 
@@ -63,6 +64,60 @@ export class EventsController {
     return this.eventsService.remove(
       request.user!.sub,
       eventId,
+      this.context(request),
+    );
+  }
+
+  @Get(":eventId/invitees")
+  @UseGuards(JwtAuthGuard)
+  listInvitees(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.listInvitees(request.user!.sub, eventId);
+  }
+
+  @Post(":eventId/invitees")
+  @UseGuards(JwtAuthGuard)
+  createInvitees(
+    @Param("eventId") eventId: string,
+    @Body() dto: CreateInviteesDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.createInvitees(
+      request.user!.sub,
+      eventId,
+      dto,
+      this.context(request),
+    );
+  }
+
+  @Post(":eventId/invitees/:inviteeId/regenerate")
+  @UseGuards(JwtAuthGuard)
+  regenerateInviteeSlug(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.regenerateInviteeSlug(
+      request.user!.sub,
+      eventId,
+      inviteeId,
+      this.context(request),
+    );
+  }
+
+  @Delete(":eventId/invitees/:inviteeId")
+  @UseGuards(JwtAuthGuard)
+  deleteInvitee(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.deleteInvitee(
+      request.user!.sub,
+      eventId,
+      inviteeId,
       this.context(request),
     );
   }

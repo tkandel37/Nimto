@@ -9,11 +9,13 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { AnimationComponentType } from "@prisma/client";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { JwtAuthGuard, AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
 import { PERMISSIONS } from "../auth/permissions";
 import { CreateDesignCategoryDto } from "./dto/create-design-category.dto";
+import { CreateAnimationComponentDto } from "./dto/create-animation-component.dto";
 import { CreateDesignSubcategoryDto } from "./dto/create-design-subcategory.dto";
 import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dto";
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
@@ -41,6 +43,31 @@ export class TemplateDesignController {
       subcategoryId,
       search,
     });
+  }
+
+  @Get("public/animations")
+  listPublicAnimations(@Query("type") type?: AnimationComponentType) {
+    return this.templateDesign.listPublicAnimationComponents(type);
+  }
+
+  @Get("animations")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateViewAll)
+  listAnimations(@Query("type") type?: AnimationComponentType) {
+    return this.templateDesign.listAnimationComponents(type);
+  }
+
+  @Post("animations")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateCreate)
+  createAnimation(
+    @Body() dto: CreateAnimationComponentDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.createAnimationComponent(
+      dto,
+      this.context(request),
+    );
   }
 
   @Get("templates")

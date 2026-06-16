@@ -127,6 +127,7 @@ type InvitationTemplate = {
       key: string;
       label: string;
       type: string;
+      sectionKey?: string;
       required: boolean;
       paid: boolean;
       locked: boolean;
@@ -193,6 +194,26 @@ type InvitationDesign = {
     createdAt: string;
   }[];
   createdAt: string;
+  updatedAt: string;
+};
+
+type AnimationComponent = {
+  id: string;
+  type: "OPENING" | "BACKGROUND";
+  name: string;
+  slug: string;
+  rawHtml?: string;
+  sourceFileName?: string | null;
+  htmlSize: number;
+  scanResult?: {
+    hasOpeningSlot?: boolean;
+    openingSlots?: string[];
+    hasBackgroundEffectSlot?: boolean;
+    backgroundEffectSlots?: string[];
+    effectSlots?: string[];
+    effectAreas?: string[];
+  } | null;
+  status: DesignCatalogStatus;
   updatedAt: string;
 };
 
@@ -1793,6 +1814,23 @@ function DesignSetupPanel({
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [isCreatePanelCollapsed, setIsCreatePanelCollapsed] = useState(false);
   const [createPreviewHtml, setCreatePreviewHtml] = useState("");
+  const [animations, setAnimations] = useState<AnimationComponent[]>([]);
+  const [animationHtml, setAnimationHtml] = useState("");
+  const [isUploadingAnimation, setIsUploadingAnimation] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+    request<AnimationComponent[]>("/template-design/animations")
+      .then((items) => {
+        if (isActive) setAnimations(items);
+      })
+      .catch(() => {
+        if (isActive) setAnimations([]);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [request]);
 
   const filteredDesigns = designs.filter((design) => {
     const search = librarySearch.trim().toLowerCase();
@@ -2014,6 +2052,36 @@ function DesignSetupPanel({
       "Template duplicated as draft.",
       { refresh: false },
     );
+  }
+
+  async function createAnimationComponent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setIsUploadingAnimation(true);
+    const completed = await completeAction(
+      async () => {
+        const component = await request<AnimationComponent>(
+          "/template-design/animations",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              type: form.get("type"),
+              name: form.get("name"),
+              rawHtml: animationHtml,
+              sourceFileName: form.get("sourceFileName") || undefined,
+            }),
+          },
+        );
+        setAnimations((items) => [component, ...items]);
+      },
+      "Animation component uploaded.",
+      { refresh: false },
+    );
+    setIsUploadingAnimation(false);
+    if (completed) {
+      setAnimationHtml("");
+      event.currentTarget.reset();
+    }
   }
 
   function updateEditorField(
@@ -2417,6 +2485,14 @@ function DesignSetupPanel({
         </div>
       </div>
 
+      <AnimationLibraryPanel
+        animations={animations}
+        animationHtml={animationHtml}
+        isUploading={isUploadingAnimation}
+        onAnimationHtml={setAnimationHtml}
+        onSubmit={createAnimationComponent}
+      />
+
       {selectedTemplate ? (
         <TemplateEditorPanel
           canPublishTemplates={canPublishTemplates}
@@ -2549,6 +2625,133 @@ function DesignFieldMetric({ label, value }: { label: string; value: number }) {
       </p>
       <p className="mt-1 text-lg font-black text-ink">{value}</p>
     </div>
+  );
+}
+
+function AnimationLibraryPanel({
+  animations,
+  animationHtml,
+  isUploading,
+  onAnimationHtml,
+  onSubmit,
+}: {
+  animations: AnimationComponent[];
+  animationHtml: string;
+  isUploading: boolean;
+  onAnimationHtml: (html: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  async function readAnimationFile(file?: File) {
+    if (!file || file.size === 0) return;
+    onAnimationHtml(await file.text());
+  }
+
+  return (
+    <section className="border border-ink/10 bg-white p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+            Animation library
+          </p>
+          <h3 className="mt-1 text-xl font-black text-ink">
+            Reusable opening and background HTML
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Upload safe animation snippets once, then use template scan slots to
+            connect them in a later selection flow.
+          </p>
+        </div>
+      </div>
+
+      <form
+        className="mt-4 grid gap-3 rounded-xl border border-ink/10 bg-paper/60 p-4 lg:grid-cols-[260px_minmax(0,1fr)]"
+        onSubmit={onSubmit}
+      >
+        <div className="grid gap-3">
+          <label className="field">
+            <span className="text-sm font-bold text-ink">Name</span>
+            <input name="name" required />
+          </label>
+          <label className="field">
+            <span className="text-sm font-bold text-ink">Type</span>
+            <select
+              className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+              name="type"
+              required
+            >
+              <option value="OPENING">Opening animation</option>
+              <option value="BACKGROUND">Background effect</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="text-sm font-bold text-ink">HTML file</span>
+            <input
+              accept=".html,text/html"
+              onChange={(event) => readAnimationFile(event.target.files?.[0])}
+              type="file"
+            />
+          </label>
+          <input name="sourceFileName" type="hidden" />
+          <button
+            className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white"
+            disabled={isUploading || !animationHtml.trim()}
+            type="submit"
+          >
+            {isUploading ? "Uploading..." : "Upload animation"}
+          </button>
+        </div>
+        <textarea
+          className="min-h-52 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
+          onChange={(event) => onAnimationHtml(event.target.value)}
+          placeholder="<div class='petals'>...</div>"
+          required
+          value={animationHtml}
+        />
+      </form>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {animations.map((animation) => (
+          <article
+            className="rounded-xl border border-ink/10 bg-paper/60 p-4"
+            key={animation.id}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="font-black text-ink">{animation.name}</h4>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
+                  {animation.type} · {Math.ceil(animation.htmlSize / 1024)} KB
+                </p>
+              </div>
+              <span className="rounded-full bg-leaf/10 px-2 py-1 text-xs font-black text-leaf">
+                {animation.status}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(animation.scanResult?.openingSlots ?? []).map((slot) => (
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={slot}>
+                  Opening: {slot}
+                </span>
+              ))}
+              {(animation.scanResult?.backgroundEffectSlots ?? []).map((slot) => (
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={slot}>
+                  Background: {slot}
+                </span>
+              ))}
+              {animation.scanResult?.effectAreas?.map((area) => (
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={area}>
+                  Area: {area}
+                </span>
+              ))}
+            </div>
+          </article>
+        ))}
+        {!animations.length ? (
+          <p className="rounded-xl border border-dashed border-ink/15 p-4 text-sm leading-6 text-ink/55">
+            No animation components uploaded yet.
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -2963,6 +3166,7 @@ function TemplateDetailPanel({
               .join(" / ") || "Uncategorized"}
           </p>
           <FeatureBadges scanResult={template.scanResult} />
+          <TemplateScanReview template={template} />
           <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-3">
             {canUpdateTemplates ? (
               <button
@@ -3007,6 +3211,91 @@ function TemplateDetailPanel({
           Select a template row to view details.
         </p>
       )}
+    </div>
+  );
+}
+
+function TemplateScanReview({ template }: { template: InvitationTemplate }) {
+  const fields = template.scanResult?.fields ?? [];
+  const sections = template.scanResult?.sections ?? [];
+  const fieldsBySection = new Map<string, number>();
+  fields.forEach((field) => {
+    if (!field.sectionKey) return;
+    fieldsBySection.set(field.sectionKey, (fieldsBySection.get(field.sectionKey) ?? 0) + 1);
+  });
+  const isReady = Boolean(template.scanResult && fields.length);
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-ink/10 bg-paper/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+            Scan review
+          </p>
+          <p className="mt-1 text-sm font-bold text-ink/60">
+            {template.scannedAt ? `Scanned ${displayDate(template.scannedAt)}` : "Not scanned"}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.1em] ${
+            isReady ? "bg-leaf/10 text-leaf" : "bg-rose/10 text-rose"
+          }`}
+        >
+          {isReady ? "Ready to publish" : "Needs valid fields"}
+        </span>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-lg border border-ink/10 bg-white p-3">
+          <h4 className="text-sm font-black text-ink">Detected sections</h4>
+          <div className="mt-2 grid gap-2">
+            {sections.length ? (
+              sections.map((section) => (
+                <div
+                  className="flex items-center justify-between gap-3 rounded-lg bg-paper/70 px-3 py-2 text-sm"
+                  key={section.key}
+                >
+                  <span className="font-bold text-ink">{section.label}</span>
+                  <span className="text-xs font-black uppercase text-ink/45">
+                    {fieldsBySection.get(section.key) ?? 0} fields
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-ink/50">No sections detected.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-ink/10 bg-white p-3">
+          <h4 className="text-sm font-black text-ink">Detected fields</h4>
+          <div className="mt-2 max-h-56 overflow-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-ink/45">
+                <tr>
+                  <th className="py-2">Key</th>
+                  <th className="py-2">Type</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fields.map((field) => (
+                  <tr className="border-t border-ink/10" key={field.key}>
+                    <td className="py-2 font-bold text-ink">{field.key}</td>
+                    <td className="py-2 text-ink/60">{field.type}</td>
+                    <td className="py-2 text-ink/60">
+                      {field.locked ? "Locked" : field.required ? "Required" : "Editable"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!fields.length ? (
+              <p className="py-3 text-sm text-ink/50">No fields detected.</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

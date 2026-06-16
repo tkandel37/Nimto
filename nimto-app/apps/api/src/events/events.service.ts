@@ -4,10 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DesignStatus, DesignVersionStatus, Prisma } from "@prisma/client";
+import {
+  DesignStatus,
+  DesignVersionStatus,
+  InvitationInvitee,
+  Prisma,
+} from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEventDto } from "./dto/create-event.dto";
+import { CreateInviteesDto } from "./dto/create-invitees.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 
 type ActorContext = {
@@ -28,6 +34,7 @@ export class EventsService {
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
+        _count: { select: { invitees: true } },
         designVersion: {
           select: {
             id: true,
@@ -122,6 +129,140 @@ export class EventsService {
     return { success: true };
   }
 
+  async listInvitees(userId: string, eventId: string) {
+    await this.assertOwner(userId, eventId);
+    return this.prisma.invitationInvitee.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async createInvitees(
+    userId: string,
+    eventId: string,
+    dto: CreateInviteesDto,
+    context: ActorContext,
+  ) {
+    const event = await this.assertOwner(userId, eventId);
+    const names = this.normalizedInviteeNames(dto.names);
+    if (!names.length) {
+      throw new BadRequestException("Add at least one invitee name.");
+    }
+
+    const existingNames = new Set(
+      (
+        await this.prisma.invitationInvitee.findMany({
+          where: { eventId },
+          select: { name: true },
+        })
+      ).map((invitee) => invitee.name.toLowerCase()),
+    );
+    const created: InvitationInvitee[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+
+    for (const name of names) {
+      if (existingNames.has(name.toLowerCase())) {
+        skipped.push({ name, reason: "Duplicate" });
+        continue;
+      }
+
+      const invitee = await this.prisma.invitationInvitee.create({
+        data: {
+          eventId,
+          name,
+          slug: await this.uniqueInviteeSlug(event.slug, name),
+        },
+      });
+      existingNames.add(name.toLowerCase());
+      created.push(invitee);
+    }
+
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "eventInvitees.created",
+        entityType: "Event",
+        entityId: eventId,
+        metadata: {
+          created: created.length,
+          skipped: skipped.length,
+          title: event.title,
+        },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "invitee create audit",
+    );
+
+    return { created, skipped };
+  }
+
+  async regenerateInviteeSlug(
+    userId: string,
+    eventId: string,
+    inviteeId: string,
+    context: ActorContext,
+  ) {
+    const event = await this.assertOwner(userId, eventId);
+    const invitee = await this.prisma.invitationInvitee.findFirst({
+      where: { id: inviteeId, eventId },
+    });
+    if (!invitee) {
+      throw new NotFoundException("Invitee not found.");
+    }
+
+    const updated = await this.prisma.invitationInvitee.update({
+      where: { id: invitee.id },
+      data: { slug: await this.uniqueInviteeSlug(event.slug, invitee.name) },
+    });
+
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "eventInvitee.slugRegenerated",
+        entityType: "InvitationInvitee",
+        entityId: invitee.id,
+        metadata: { eventId },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "invitee slug audit",
+    );
+
+    return updated;
+  }
+
+  async deleteInvitee(
+    userId: string,
+    eventId: string,
+    inviteeId: string,
+    context: ActorContext,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const invitee = await this.prisma.invitationInvitee.findFirst({
+      where: { id: inviteeId, eventId },
+    });
+    if (!invitee) {
+      throw new NotFoundException("Invitee not found.");
+    }
+
+    await this.prisma.invitationInvitee.delete({ where: { id: invitee.id } });
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "eventInvitee.deleted",
+        entityType: "InvitationInvitee",
+        entityId: invitee.id,
+        metadata: { eventId, name: invitee.name },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "invitee delete audit",
+    );
+
+    return { success: true };
+  }
+
   async findPublished(slug: string) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
@@ -134,7 +275,30 @@ export class EventsService {
     });
 
     if (!event || !event.isPublished) {
-      throw new NotFoundException("Invitation not found.");
+      const invitee = await this.prisma.invitationInvitee.findUnique({
+        where: { slug },
+        include: {
+          event: {
+            include: {
+              user: { select: { id: true, name: true } },
+              designVersion: {
+                include: {
+                  design: { select: { id: true, name: true, slug: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!invitee?.event.isPublished) {
+        throw new NotFoundException("Invitation not found.");
+      }
+
+      return {
+        ...invitee.event,
+        inviteeName: invitee.name,
+        inviteeSlug: invitee.slug,
+      };
     }
 
     return event;
@@ -196,12 +360,49 @@ export class EventsService {
     let candidate = base;
     let suffix = 2;
 
-    while (await this.prisma.event.findUnique({ where: { slug: candidate } })) {
+    while (await this.slugExists(candidate)) {
       candidate = `${base}-${suffix}`;
       suffix += 1;
     }
 
     return candidate;
+  }
+
+  private async uniqueInviteeSlug(eventSlug: string, name: string) {
+    const base = this.slugify(`${eventSlug}-${name}`);
+    let candidate = base;
+    let suffix = 2;
+
+    while (await this.slugExists(candidate)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+
+    return candidate;
+  }
+
+  private async slugExists(slug: string) {
+    const [event, invitee] = await Promise.all([
+      this.prisma.event.findUnique({ where: { slug }, select: { id: true } }),
+      this.prisma.invitationInvitee.findUnique({
+        where: { slug },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(event || invitee);
+  }
+
+  private normalizedInviteeNames(names: string[]) {
+    const seen = new Set<string>();
+    return names
+      .map((name) => name.trim().replace(/\s+/g, " "))
+      .filter(Boolean)
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   private slugify(value: string) {

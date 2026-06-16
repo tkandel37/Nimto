@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  AnimationComponentType,
   DesignCatalogStatus,
   DesignStatus,
   DesignVersionStatus,
@@ -15,6 +16,7 @@ import { AuditService } from "../audit/audit.service";
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from "../auth/permissions";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateDesignCategoryDto } from "./dto/create-design-category.dto";
+import { CreateAnimationComponentDto } from "./dto/create-animation-component.dto";
 import { CreateDesignSubcategoryDto } from "./dto/create-design-subcategory.dto";
 import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dto";
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
@@ -64,6 +66,17 @@ type TemplateScanResult = {
     supportsOpeningAnimation: boolean;
     supportsBackgroundEffects: boolean;
   };
+};
+
+type AnimationScanResult = {
+  version: 1;
+  type: AnimationComponentType;
+  hasOpeningSlot: boolean;
+  openingSlots: string[];
+  hasBackgroundEffectSlot: boolean;
+  backgroundEffectSlots: string[];
+  effectSlots: string[];
+  effectAreas: string[];
 };
 
 type ScannedSection = { key: string; label: string; index: number };
@@ -152,6 +165,71 @@ export class TemplateDesignService {
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
+  }
+
+  listAnimationComponents(type?: AnimationComponentType) {
+    return this.prisma.animationComponent.findMany({
+      where: type ? { type } : undefined,
+      orderBy: { updatedAt: "desc" },
+      include: { createdBy: { select: { id: true, name: true, email: true } } },
+    });
+  }
+
+  listPublicAnimationComponents(type?: AnimationComponentType) {
+    return this.prisma.animationComponent.findMany({
+      where: {
+        status: DesignCatalogStatus.ACTIVE,
+        type: type || undefined,
+      },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        slug: true,
+        rawHtml: true,
+        sourceFileName: true,
+        htmlSize: true,
+        scanResult: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async createAnimationComponent(
+    dto: CreateAnimationComponentDto,
+    context: ActorContext,
+  ) {
+    this.assertSafeUploadedHtml(dto.rawHtml, { requireCompleteDocument: false });
+    const scanResult = this.scanAnimationHtml(dto.rawHtml, dto.type);
+
+    try {
+      const component = await this.prisma.animationComponent.create({
+        data: {
+          type: dto.type,
+          name: dto.name.trim(),
+          slug: await this.uniqueAnimationSlug(dto.name),
+          rawHtml: dto.rawHtml,
+          sourceFileName: dto.sourceFileName?.trim() || null,
+          htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
+          scanResult,
+          status: dto.status ?? DesignCatalogStatus.ACTIVE,
+          createdById: context.actorId,
+        },
+      });
+
+      await this.record(context, "animationComponent.created", component.id, {
+        name: component.name,
+        type: component.type,
+      });
+      return component;
+    } catch (error) {
+      this.throwIfUniqueConstraint(
+        error,
+        "An animation component with this slug exists.",
+      );
+      throw error;
+    }
   }
 
   listPublicCategories() {
@@ -890,14 +968,60 @@ export class TemplateDesignService {
   }
 
   private assertNimtoHtml(rawHtml: string) {
+    this.assertSafeUploadedHtml(rawHtml, { requireCompleteDocument: true });
+
     if (!/<html[\s>]/i.test(rawHtml)) {
       throw new BadRequestException("Template must be a complete HTML file.");
+    }
+
+    if (!/<!doctype\s+html/i.test(rawHtml)) {
+      throw new BadRequestException("Template must include <!doctype html>.");
+    }
+
+    if (!/<head[\s>]/i.test(rawHtml) || !/<body[\s>]/i.test(rawHtml)) {
+      throw new BadRequestException("Template must include head and body tags.");
     }
 
     if (!/<script\b[^>]*\bid\s*=\s*(["']?)nimto-template-meta\1[^>]*>/i.test(rawHtml)) {
       throw new BadRequestException(
         "Template must include nimto-template-meta metadata.",
       );
+    }
+  }
+
+  private assertSafeUploadedHtml(
+    rawHtml: string,
+    options: { requireCompleteDocument: boolean },
+  ) {
+    if (options.requireCompleteDocument && !/<html[\s>]/i.test(rawHtml)) {
+      throw new BadRequestException("Template must be a complete HTML file.");
+    }
+
+    for (const tag of rawHtml.matchAll(/<script\b[^>]*>/gis)) {
+      const attrs = this.attributes(tag[0]);
+      if (attrs.src) {
+        throw new BadRequestException(
+          "External scripts are not allowed in uploaded HTML.",
+        );
+      }
+    }
+
+    for (const tag of rawHtml.matchAll(/<iframe\b[^>]*>/gis)) {
+      const attrs = this.attributes(tag[0]);
+      if (attrs.src && /^(https?:)?\/\//i.test(attrs.src)) {
+        throw new BadRequestException(
+          "External iframes are not allowed in uploaded HTML.",
+        );
+      }
+    }
+
+    for (const tag of rawHtml.matchAll(/<form\b[^>]*>/gis)) {
+      const attrs = this.attributes(tag[0]);
+      if (attrs.action && /^(https?:)?\/\//i.test(attrs.action)) {
+        throw new BadRequestException(
+          "Forms with external action URLs are not allowed.",
+        );
+      }
     }
   }
 
@@ -981,6 +1105,37 @@ export class TemplateDesignService {
         supportsOpeningAnimation,
         supportsBackgroundEffects,
       },
+    };
+  }
+
+  private scanAnimationHtml(
+    rawHtml: string,
+    type: AnimationComponentType,
+  ): AnimationScanResult {
+    this.assertSafeUploadedHtml(rawHtml, { requireCompleteDocument: false });
+    const openingSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-opening-slot",
+    );
+    const backgroundEffectSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-bg-effect-slot",
+    );
+    const effectSlots = this.attributesByName(rawHtml, "data-nimto-effect-slot");
+    const effectAreas = this.attributesByName(rawHtml, "data-nimto-effect-area");
+
+    return {
+      version: 1,
+      type,
+      hasOpeningSlot: openingSlots.length > 0,
+      openingSlots,
+      hasBackgroundEffectSlot:
+        backgroundEffectSlots.length > 0 ||
+        effectSlots.includes("background") ||
+        effectAreas.length > 0,
+      backgroundEffectSlots,
+      effectSlots,
+      effectAreas,
     };
   }
 
@@ -1293,6 +1448,17 @@ export class TemplateDesignService {
     let slug = base;
     let suffix = 2;
     while (await tx.invitationDesign.findUnique({ where: { slug } })) {
+      slug = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return slug;
+  }
+
+  private async uniqueAnimationSlug(name: string) {
+    const base = this.slugify(name);
+    let slug = base;
+    let suffix = 2;
+    while (await this.prisma.animationComponent.findUnique({ where: { slug } })) {
       slug = `${base}-${suffix}`;
       suffix += 1;
     }
