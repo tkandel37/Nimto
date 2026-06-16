@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthAwareAccountLink } from "./auth-aware-account-link";
 
 type PageContent = {
   title: string;
@@ -48,9 +49,7 @@ export default async function Home() {
               {content.subtitle}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="site-button-secondary" href="/auth?mode=login">
-                Log in
-              </Link>
+              <AuthAwareAccountLink className="site-button-secondary" />
               <Link className="site-button-primary" href="/auth?mode=register">
                 Start creating
               </Link>
@@ -108,9 +107,7 @@ function SiteHeader() {
         <Link href="/features">Features</Link>
         <Link href="/blog">Blog</Link>
         <Link href="/about">About</Link>
-        <Link className="site-login-button" href="/auth?mode=login">
-          Log in
-        </Link>
+        <AuthAwareAccountLink className="site-login-button" />
       </nav>
     </header>
   );

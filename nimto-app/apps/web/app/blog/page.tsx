@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthAwareAccountLink } from "../auth-aware-account-link";
 
 type BlogPost = {
   id: string;
@@ -57,9 +58,7 @@ export default async function BlogPage() {
         <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
           <Link href="/features">Features</Link>
           <Link href="/about">About</Link>
-          <Link className="site-login-button" href="/auth?mode=login">
-            Log in
-          </Link>
+          <AuthAwareAccountLink className="site-login-button" />
         </nav>
       </header>
       <section className="mx-auto max-w-6xl px-5 py-16">
