@@ -1147,6 +1147,8 @@ export class TemplateDesignService {
   private clearTemplateListCaches() {
     templateListCache.clear();
     designListCache.clear();
+    publicDesignCache.clear();
+    publicCategoryCache.clear();
   }
 
   private async record(

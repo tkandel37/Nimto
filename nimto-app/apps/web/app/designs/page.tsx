@@ -50,15 +50,22 @@ type CreatedEvent = {
 };
 
 const CATALOG_CACHE_VERSION = 2;
+const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
 
 let catalogCache:
   | {
       version: number;
+      cachedAt: number;
       expiresAt: number;
       categories: PublicCategory[];
       designs: PublicDesign[];
     }
   | null = null;
+
+function readCatalogChangedAt() {
+  if (typeof window === "undefined") return 0;
+  return Number(localStorage.getItem(DESIGN_CATALOG_CHANGED_KEY) ?? 0) || 0;
+}
 
 export default function DesignsPage() {
   return (
@@ -88,12 +95,15 @@ function DesignsContent({
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [isLoading, setIsLoading] = useState(!catalogCache);
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
 
   useEffect(() => {
     let isActive = true;
+    const catalogChangedAt = readCatalogChangedAt();
     if (
       catalogCache &&
       catalogCache.version === CATALOG_CACHE_VERSION &&
+      catalogCache.cachedAt >= catalogChangedAt &&
       catalogCache.expiresAt > Date.now()
     ) {
       queueMicrotask(() => {
@@ -116,6 +126,7 @@ function DesignsContent({
         if (!isActive) return;
         catalogCache = {
           version: CATALOG_CACHE_VERSION,
+          cachedAt: Date.now(),
           expiresAt: Date.now() + 60_000,
           categories: nextCategories,
           designs: nextDesigns,
@@ -137,7 +148,19 @@ function DesignsContent({
     return () => {
       isActive = false;
     };
-  }, [showToast]);
+  }, [catalogRefreshKey, showToast]);
+
+  useEffect(() => {
+    function refreshCatalog(event: StorageEvent) {
+      if (event.key === DESIGN_CATALOG_CHANGED_KEY) {
+        catalogCache = null;
+        setCatalogRefreshKey((key) => key + 1);
+      }
+    }
+
+    window.addEventListener("storage", refreshCatalog);
+    return () => window.removeEventListener("storage", refreshCatalog);
+  }, []);
 
   const subcategories = useMemo(
     () =>

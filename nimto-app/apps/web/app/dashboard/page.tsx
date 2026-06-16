@@ -1889,29 +1889,31 @@ function DesignSetupPanel({
     setSelectedFieldKey(fields[0]?.key ?? "");
   }
 
-  async function saveTemplateDraft() {
-    if (!selectedTemplate || !editorRawHtml) return;
+  async function persistSelectedTemplateDraft() {
+    if (!selectedTemplate || !editorRawHtml) return null;
     const rawHtml = applyTemplateEditorFields(editorRawHtml, editorFields);
-
-    await completeAction(
-      async () => {
-        const template = await request<InvitationTemplate>(
-          `/template-design/templates/${selectedTemplate.id}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify({ rawHtml }),
-          },
-        );
-        const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
-        templateDetailCache.set(selectedTemplate.id, {
-          cachedAt: Date.now(),
-          template: nextTemplate,
-        });
-        setSelectedTemplate(nextTemplate);
-        setEditorRawHtml(rawHtml);
-        setEditorFields(extractTemplateEditorFields(nextTemplate));
-        upsertTemplateSummary(template);
+    const template = await request<InvitationTemplate>(
+      `/template-design/templates/${selectedTemplate.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ rawHtml }),
       },
+    );
+    const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
+    templateDetailCache.set(selectedTemplate.id, {
+      cachedAt: Date.now(),
+      template: nextTemplate,
+    });
+    setSelectedTemplate(nextTemplate);
+    setEditorRawHtml(rawHtml);
+    setEditorFields(extractTemplateEditorFields(nextTemplate));
+    upsertTemplateSummary(template);
+    return nextTemplate;
+  }
+
+  async function saveTemplateDraft() {
+    await completeAction(
+      () => persistSelectedTemplateDraft(),
       "Template draft saved.",
       { refresh: false },
     );
@@ -1919,10 +1921,16 @@ function DesignSetupPanel({
 
   async function publishTemplate(templateId: string) {
     await completeAction(
-      () =>
-        request(`/template-design/templates/${templateId}/publish`, {
+      async () => {
+        if (selectedTemplate?.id === templateId) {
+          await persistSelectedTemplateDraft();
+        }
+        const design = await request(`/template-design/templates/${templateId}/publish`, {
           method: "POST",
-        }),
+        });
+        localStorage.setItem("nimto_design_catalog_changed", String(Date.now()));
+        return design;
+      },
       "Template published as current design.",
       { refresh: false },
     );
@@ -2885,7 +2893,7 @@ function TemplateEditorPanel({
   );
   const previewHtml = useMemo(
     () => templateEditorPreviewHtml(editorRawHtml, editorFields, selectedFieldKey),
-    [editorRawHtml, selectedTemplate.id],
+    [editorFields, editorRawHtml, selectedFieldKey],
   );
 
   function moveSelection(direction: -1 | 1) {
