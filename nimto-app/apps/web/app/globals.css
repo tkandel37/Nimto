@@ -926,6 +926,7 @@ a {
 
 .user-panel,
 .user-auth-card {
+  min-width: 0;
   border: 1px solid rgba(23, 32, 51, 0.1);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.88);
@@ -1191,6 +1192,43 @@ a {
   background: white;
   color: var(--ink);
   box-shadow: 0 3px 12px rgba(23, 32, 51, 0.08);
+}
+
+.event-table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  border-radius: 10px;
+  background: white;
+}
+
+.event-overview-table {
+  min-width: 900px;
+}
+
+.event-overview-table tbody tr {
+  cursor: pointer;
+  outline: none;
+}
+
+.event-overview-table tbody tr:focus-visible {
+  background: rgba(22, 116, 94, 0.08);
+  box-shadow: inset 0 0 0 2px var(--leaf);
+}
+
+.event-overview-table .user-status {
+  display: inline-flex;
+  margin-top: 0;
+}
+
+.event-table-open {
+  width: 44px;
+  text-align: right;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--leaf) !important;
 }
 
 .event-card-grid {

@@ -127,7 +127,7 @@ function DesignsContent({
         catalogCache = {
           version: CATALOG_CACHE_VERSION,
           cachedAt: Date.now(),
-          expiresAt: Date.now() + 60_000,
+          expiresAt: Date.now() + 5 * 60_000,
           categories: nextCategories,
           designs: nextDesigns,
         };
@@ -272,6 +272,7 @@ function DesignsContent({
             <article className="user-design-card" key={design.id}>
               <div className="user-design-preview">
                 <iframe
+                  loading="lazy"
                   sandbox="allow-scripts"
                   srcDoc={current?.rawHtml ?? ""}
                   title={`${design.name} preview`}

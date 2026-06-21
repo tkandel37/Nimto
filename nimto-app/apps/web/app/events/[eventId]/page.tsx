@@ -16,6 +16,14 @@ import {
   validateInviteeDrafts,
 } from "../invitee-manager";
 
+type EventWorkspaceCache = {
+  event: UserEvent;
+  invitees: InvitationInvitee[];
+  expiresAt: number;
+};
+
+const eventWorkspaceCache = new Map<string, EventWorkspaceCache>();
+
 export default function EventDetailPage() {
   return (
     <UserWorkspace activePage="events">
@@ -38,32 +46,52 @@ function EventDetailContent({
 }) {
   const params = useParams<{ eventId: string }>();
   const eventId = params.eventId;
-  const [event, setEvent] = useState<UserEvent | null>(null);
-  const [invitees, setInvitees] = useState<InvitationInvitee[]>([]);
+  const cacheKey = `${authHeaders.Authorization ?? "anonymous"}:${eventId}`;
+  const cachedWorkspace = eventWorkspaceCache.get(cacheKey);
+  const [event, setEvent] = useState<UserEvent | null>(
+    cachedWorkspace?.event ?? null,
+  );
+  const [invitees, setInvitees] = useState<InvitationInvitee[]>(
+    cachedWorkspace?.invitees ?? [],
+  );
   const [inviteeInput, setInviteeInput] = useState("");
   const [inviteePaste, setInviteePaste] = useState("");
   const [inviteeSearch, setInviteeSearch] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isInviteeLoading, setIsInviteeLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!cachedWorkspace);
+  const [isInviteeLoading, setIsInviteeLoading] = useState(!cachedWorkspace);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let isActive = true;
-    setIsLoading(true);
+    const cached = eventWorkspaceCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setEvent(cached.event);
+      setInvitees(cached.invitees);
+      setIsLoading(false);
+      setIsInviteeLoading(false);
+      return;
+    }
 
-    apiRequest<UserEvent>(`/events/${eventId}`, { headers: authHeaders })
-      .then((item) => {
-        if (!isActive) return;
-        setEvent(item);
-        setIsInviteeLoading(true);
-        return apiRequest<InvitationInvitee[]>(
+    setIsLoading(true);
+    setIsInviteeLoading(true);
+
+    Promise.all([
+      apiRequest<UserEvent>(`/events/${eventId}`, { headers: authHeaders }),
+      apiRequest<InvitationInvitee[]>(
           `/events/${eventId}/invitees`,
           { headers: authHeaders },
-        );
-      })
-      .then((items) => {
-        if (isActive && items) setInvitees(items);
+      ),
+    ])
+      .then(([item, items]) => {
+        if (!isActive) return;
+        eventWorkspaceCache.set(cacheKey, {
+          event: item,
+          invitees: items,
+          expiresAt: Date.now() + 5 * 60_000,
+        });
+        setEvent(item);
+        setInvitees(items);
       })
       .catch((error) => {
         if (!isActive) return;
@@ -81,7 +109,16 @@ function EventDetailContent({
     return () => {
       isActive = false;
     };
-  }, [authHeaders, eventId, showToast]);
+  }, [authHeaders, cacheKey, eventId, showToast]);
+
+  useEffect(() => {
+    if (!event) return;
+    eventWorkspaceCache.set(cacheKey, {
+      event,
+      invitees,
+      expiresAt: Date.now() + 5 * 60_000,
+    });
+  }, [cacheKey, event, invitees]);
 
   const draftInvitees = useMemo(
     () =>

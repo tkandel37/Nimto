@@ -28,6 +28,10 @@ type DesignHistoryItem = {
   };
 };
 
+let designHistoryCache:
+  | { expiresAt: number; changeToken: string; items: DesignHistoryItem[] }
+  | null = null;
+
 export default function MyDesignsPage() {
   return (
     <UserWorkspace activePage="myDesigns">
@@ -45,17 +49,37 @@ function MyDesignsContent({
   authHeaders: Record<string, string>;
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
-  const [items, setItems] = useState<DesignHistoryItem[]>([]);
+  const [items, setItems] = useState<DesignHistoryItem[]>(
+    designHistoryCache?.items ?? [],
+  );
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!designHistoryCache);
 
   useEffect(() => {
     let isActive = true;
+    const changeToken = localStorage.getItem("nimto_events_changed") ?? "";
+    if (
+      designHistoryCache &&
+      designHistoryCache.changeToken === changeToken &&
+      designHistoryCache.expiresAt > Date.now()
+    ) {
+      setItems(designHistoryCache.items);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!designHistoryCache) setIsLoading(true);
     apiRequest<DesignHistoryItem[]>("/events/design-history", {
       headers: authHeaders,
     })
       .then((history) => {
-        if (isActive) setItems(history);
+        if (!isActive) return;
+        designHistoryCache = {
+          changeToken,
+          expiresAt: Date.now() + 5 * 60_000,
+          items: history,
+        };
+        setItems(history);
       })
       .catch((error) => {
         if (!isActive) return;
@@ -142,6 +166,7 @@ function MyDesignsContent({
             <article className="user-design-card user-history-card" key={item.id}>
               <div className="user-design-preview">
                 <iframe
+                  loading="lazy"
                   sandbox="allow-scripts"
                   srcDoc={item.lastUsedVersion.rawHtml}
                   title={`${item.design.name} history preview`}
@@ -238,7 +263,9 @@ function MyDesignsContent({
         })}
       </div>
 
-      {isLoading ? <p className="user-empty">Loading your design history...</p> : null}
+      {isLoading && !items.length ? (
+        <p className="user-empty">Loading your design history...</p>
+      ) : null}
       {!isLoading && !items.length ? (
         <div className="user-empty user-history-empty">
           <h2>No design history yet</h2>

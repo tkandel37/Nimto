@@ -4,6 +4,10 @@ import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
+import {
+  clearAuthSession,
+  saveAuthSession,
+} from "@/lib/auth-session";
 
 type Mode = "login" | "register";
 
@@ -48,13 +52,12 @@ function AuthForm() {
     })
       .then((response) => {
         if (!isActive) return;
-        localStorage.setItem("nimto_user", JSON.stringify(response.user));
+        saveAuthSession(token, response.user);
         router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
       })
       .catch(() => {
         if (!isActive) return;
-        localStorage.removeItem("nimto_token");
-        localStorage.removeItem("nimto_user");
+        clearAuthSession();
       });
 
     return () => {
@@ -95,8 +98,7 @@ function AuthForm() {
         body: JSON.stringify(payload),
       });
 
-      localStorage.setItem("nimto_token", response.token);
-      localStorage.setItem("nimto_user", JSON.stringify(response.user));
+      saveAuthSession(response.token, response.user);
       router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
     } catch (caughtError) {
       setError(

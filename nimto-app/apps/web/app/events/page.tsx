@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
@@ -26,6 +27,7 @@ function EventsContent({
   authHeaders: Record<string, string>;
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
+  const router = useRouter();
   const [events, setEvents] = useState<UserEvent[]>(eventCache?.items ?? []);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "published" | "draft">("all");
@@ -49,7 +51,7 @@ function EventsContent({
       .then((items) => {
         if (!isActive) return;
         eventCacheToken = latestCacheToken;
-        eventCache = { expiresAt: Date.now() + 30_000, items };
+        eventCache = { expiresAt: Date.now() + 5 * 60_000, items };
         setEvents(items);
       })
       .catch((error) => {
@@ -151,49 +153,63 @@ function EventsContent({
           </div>
         </div>
 
-        {isLoading ? <p className="user-empty">Loading events...</p> : null}
+        {isLoading && !events.length ? (
+          <p className="user-empty">Loading events...</p>
+        ) : null}
 
-        {!isLoading && visibleEvents.length ? (
-          <div className="event-card-grid">
-            {visibleEvents.map((event) => (
-              <Link
-                className="event-card"
-                href={`/events/${event.id}`}
-                key={event.id}
-              >
-                <div className="event-card-topline">
-                  <span
-                    className={
-                      event.isPublished
-                        ? "user-status published"
-                        : "user-status"
-                    }
+        {visibleEvents.length ? (
+          <div className="event-table-wrap">
+            <table className="user-table event-overview-table">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Design</th>
+                  <th>Date</th>
+                  <th>Invitees</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th aria-label="Open event" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibleEvents.map((event) => (
+                  <tr
+                    key={event.id}
+                    onClick={() => router.push(`/events/${event.id}`)}
+                    onKeyDown={(keyEvent) => {
+                      if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                        keyEvent.preventDefault();
+                        router.push(`/events/${event.id}`);
+                      }
+                    }}
+                    tabIndex={0}
                   >
-                    {event.isPublished ? "Shareable" : "Draft"}
-                  </span>
-                  <span>{formatEventDate(event.updatedAt, "Updated")}</span>
-                </div>
-                <h2>{event.title}</h2>
-                <p>{event.venue || event.type}</p>
-                <dl>
-                  <div>
-                    <dt>Date</dt>
-                    <dd>{formatEventDate(event.eventDate)}</dd>
-                  </div>
-                  <div>
-                    <dt>Design</dt>
-                    <dd>{event.designVersion?.design?.name ?? "Custom"}</dd>
-                  </div>
-                  <div>
-                    <dt>Invitees</dt>
-                    <dd>{event._count?.invitees ?? 0}</dd>
-                  </div>
-                </dl>
-                <span className="event-card-open">
-                  Manage event <span aria-hidden="true">→</span>
-                </span>
-              </Link>
-            ))}
+                    <td>
+                      <strong>{event.title}</strong>
+                      <span>{event.venue || event.type}</span>
+                    </td>
+                    <td>{event.designVersion?.design?.name ?? "Custom"}</td>
+                    <td>{formatEventDate(event.eventDate)}</td>
+                    <td>{event._count?.invitees ?? 0}</td>
+                    <td>
+                      <span
+                        className={
+                          event.isPublished
+                            ? "user-status published"
+                            : "user-status"
+                        }
+                      >
+                        {event.isPublished ? "Shareable" : "Draft"}
+                      </span>
+                    </td>
+                    <td>{formatEventDate(event.updatedAt)}</td>
+                    <td className="event-table-open" aria-hidden="true">
+                      →
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : null}
 

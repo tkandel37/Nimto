@@ -11,6 +11,12 @@ import {
   useState,
 } from "react";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
+import {
+  clearAuthSession,
+  isSessionFresh,
+  readAuthSession,
+  saveAuthSession,
+} from "@/lib/auth-session";
 
 type WorkspacePage = "events" | "designs" | "myDesigns" | "profile";
 
@@ -81,6 +87,9 @@ const pageLinks: {
   },
 ];
 
+let userRefreshPromise: Promise<{ user: AuthUser }> | null = null;
+let workspaceHasMounted = false;
+
 export function UserWorkspace({
   activePage,
   children,
@@ -95,10 +104,11 @@ export function UserWorkspace({
   }) => ReactNode;
 }) {
   const router = useRouter();
-  const [authState, setAuthState] = useState<AuthState>({
-    isChecking: true,
-    token: "",
-    user: null,
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    const session = workspaceHasMounted ? readAuthSession() : null;
+    return session
+      ? { isChecking: false, token: session.token, user: session.user }
+      : { isChecking: true, token: "", user: null };
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const { isChecking, token, user } = authState;
@@ -118,19 +128,22 @@ export function UserWorkspace({
   }, [token]);
 
   const refreshUser = useCallback(async () => {
-    const savedToken = localStorage.getItem("nimto_token");
-    if (!savedToken) {
+    const session = readAuthSession();
+    if (!session?.token) {
       setAuthState({ isChecking: false, token: "", user: null });
       return null;
     }
 
-    const response = await apiRequest<{ user: AuthUser }>("/auth/me", {
-      headers: { Authorization: `Bearer ${savedToken}` },
+    userRefreshPromise ??= apiRequest<{ user: AuthUser }>("/auth/me", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    }).finally(() => {
+      userRefreshPromise = null;
     });
-    localStorage.setItem("nimto_user", JSON.stringify(response.user));
+    const response = await userRefreshPromise;
+    saveAuthSession(session.token, response.user);
     setAuthState({
       isChecking: false,
-      token: savedToken,
+      token: session.token,
       user: response.user,
     });
     return response.user;
@@ -138,23 +151,28 @@ export function UserWorkspace({
 
   useEffect(() => {
     let isActive = true;
-    const storedAuth = readStoredAuth();
+    workspaceHasMounted = true;
+    const storedAuth = readAuthSession();
 
-    if (!storedAuth.token) {
+    if (!storedAuth?.token) {
       setAuthState({ isChecking: false, token: "", user: null });
       return;
     }
 
     setAuthState({
       ...storedAuth,
-      isChecking: !storedAuth.user,
+      isChecking: false,
     });
+
+    if (isSessionFresh()) {
+      return;
+    }
 
     refreshUser()
       .catch((error) => {
         if (!isActive) return;
         if (isAuthFailure(error)) {
-          clearStoredAuth();
+          clearAuthSession();
           setAuthState({ isChecking: false, token: "", user: null });
           return;
         }
@@ -177,7 +195,7 @@ export function UserWorkspace({
   }, [refreshUser]);
 
   function logout() {
-    clearStoredAuth();
+    clearAuthSession();
     setAuthState({ isChecking: false, token: "", user: null });
     router.replace("/");
   }
@@ -237,7 +255,7 @@ export function UserWorkspace({
                 setAuthState((current) => ({ ...current, isChecking: true }));
                 refreshUser().catch((error) => {
                   if (isAuthFailure(error)) {
-                    clearStoredAuth();
+                    clearAuthSession();
                     setAuthState({ isChecking: false, token: "", user: null });
                     return;
                   }
@@ -362,7 +380,10 @@ export function ProfileForm({
         headers: authHeaders,
         body: JSON.stringify({ name, email, phone }),
       });
-      localStorage.setItem("nimto_user", JSON.stringify(response.user));
+      saveAuthSession(
+        localStorage.getItem("nimto_token") ?? "",
+        response.user,
+      );
       await refreshUser();
       showToast("Profile updated.");
     } catch (error) {
@@ -430,31 +451,6 @@ export function Icon({ children }: { children: ReactNode }) {
       {children}
     </svg>
   );
-}
-
-function readStoredAuth(): Pick<AuthState, "token" | "user"> {
-  if (typeof window === "undefined") {
-    return { token: "", user: null };
-  }
-
-  const token = localStorage.getItem("nimto_token") ?? "";
-  const savedUser = localStorage.getItem("nimto_user");
-
-  if (!savedUser) {
-    return { token, user: null };
-  }
-
-  try {
-    return { token, user: JSON.parse(savedUser) as AuthUser };
-  } catch {
-    localStorage.removeItem("nimto_user");
-    return { token, user: null };
-  }
-}
-
-function clearStoredAuth() {
-  localStorage.removeItem("nimto_token");
-  localStorage.removeItem("nimto_user");
 }
 
 function isAuthFailure(error: unknown) {

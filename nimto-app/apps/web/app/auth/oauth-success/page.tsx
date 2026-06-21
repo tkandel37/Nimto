@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { apiRequest, AuthUser } from "@/lib/api";
+import {
+  clearAuthSession,
+  saveAuthSession,
+  saveAuthToken,
+} from "@/lib/auth-session";
 
 function OAuthSuccessContent() {
   const router = useRouter();
@@ -22,7 +27,7 @@ function OAuthSuccessContent() {
     }
 
     // Save token and fetch user details
-    localStorage.setItem("nimto_token", token);
+    saveAuthToken(token);
 
     apiRequest<{ user: AuthUser }>("/auth/me", {
       headers: {
@@ -30,11 +35,11 @@ function OAuthSuccessContent() {
       },
     })
       .then((response) => {
-        localStorage.setItem("nimto_user", JSON.stringify(response.user));
+        saveAuthSession(token, response.user);
         router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
       })
       .catch(() => {
-        localStorage.removeItem("nimto_token");
+        clearAuthSession();
         setStatus("error");
         setMessage("Failed to verify your session. Please try again.");
       });
