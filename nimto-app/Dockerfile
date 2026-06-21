@@ -27,8 +27,10 @@ CMD ["npm", "run", "start:prod", "--workspace", "@nimto/api"]
 FROM dependencies AS web-build
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
 COPY apps/web apps/web
 RUN npm run build --workspace @nimto/web
 

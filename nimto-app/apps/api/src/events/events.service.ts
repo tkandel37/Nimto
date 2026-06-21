@@ -47,21 +47,101 @@ export class EventsService {
     });
   }
 
+  async listDesignHistory(userId: string) {
+    const history = await this.prisma.userDesignUsage.findMany({
+      where: { userId },
+      orderBy: { lastUsedAt: "desc" },
+      include: {
+        design: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            category: { select: { id: true, name: true, slug: true } },
+            subcategory: { select: { id: true, name: true, slug: true } },
+            versions: {
+              orderBy: { versionNumber: "desc" },
+              select: {
+                id: true,
+                versionNumber: true,
+                status: true,
+                _count: { select: { events: { where: { userId } } } },
+              },
+            },
+          },
+        },
+        lastUsedVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            name: true,
+            rawHtml: true,
+          },
+        },
+      },
+    });
+
+    return history.map((item) => ({
+      ...item,
+      design: {
+        ...item.design,
+        activeEventCount: item.design.versions.reduce(
+          (count, version) => count + version._count.events,
+          0,
+        ),
+        versions: item.design.versions
+          .filter((version) => version.status === DesignVersionStatus.CURRENT)
+          .map((version) => ({
+            id: version.id,
+            versionNumber: version.versionNumber,
+          })),
+      },
+    }));
+  }
+
   async create(userId: string, dto: CreateEventDto, context: ActorContext) {
     const designData = await this.designEventData(dto);
-    const event = await this.prisma.event.create({
-      data: {
-        title: dto.title.trim(),
-        type: dto.type,
-        eventDate: dto.eventDate ? new Date(dto.eventDate) : undefined,
-        venue: dto.venue?.trim() || undefined,
-        description: dto.description?.trim() || undefined,
-        coverImage: dto.coverImage?.trim() || undefined,
-        isPublished: dto.isPublished,
-        ...designData,
-        userId,
-        slug: await this.uniqueSlug(dto.title),
-      },
+    const slug = await this.uniqueSlug(dto.title);
+    const event = await this.prisma.$transaction(async (transaction) => {
+      const createdEvent = await transaction.event.create({
+        data: {
+          title: dto.title.trim(),
+          type: dto.type,
+          eventDate: dto.eventDate ? new Date(dto.eventDate) : undefined,
+          venue: dto.venue?.trim() || undefined,
+          description: dto.description?.trim() || undefined,
+          coverImage: dto.coverImage?.trim() || undefined,
+          isPublished: dto.isPublished,
+          designVersionId: designData.designVersionId,
+          designFieldValues: designData.designFieldValues,
+          userId,
+          slug,
+        },
+      });
+
+      if (designData.designVersionId && designData.designId) {
+        await transaction.userDesignUsage.upsert({
+          where: {
+            userId_designId: {
+              userId,
+              designId: designData.designId,
+            },
+          },
+          create: {
+            userId,
+            designId: designData.designId,
+            lastUsedVersionId: designData.designVersionId,
+          },
+          update: {
+            lastUsedVersionId: designData.designVersionId,
+            lastUsedAt: new Date(),
+            usageCount: { increment: 1 },
+          },
+        });
+      }
+
+      return createdEvent;
     });
 
     this.runAfterResponse(
@@ -86,11 +166,44 @@ export class EventsService {
     dto: UpdateEventDto,
     context: ActorContext,
   ) {
-    await this.assertOwner(userId, eventId);
+    const existing = await this.assertOwner(userId, eventId);
     const designData = await this.designEventData(dto);
-    const event = await this.prisma.event.update({
-      where: { id: eventId },
-      data: { ...this.eventData(dto), ...designData },
+    const event = await this.prisma.$transaction(async (transaction) => {
+      const updatedEvent = await transaction.event.update({
+        where: { id: eventId },
+        data: {
+          ...this.eventData(dto),
+          designVersionId: designData.designVersionId,
+          designFieldValues: designData.designFieldValues,
+        },
+      });
+
+      if (
+        designData.designVersionId &&
+        designData.designId &&
+        designData.designId !== existing.designVersion?.designId
+      ) {
+        await transaction.userDesignUsage.upsert({
+          where: {
+            userId_designId: {
+              userId,
+              designId: designData.designId,
+            },
+          },
+          create: {
+            userId,
+            designId: designData.designId,
+            lastUsedVersionId: designData.designVersionId,
+          },
+          update: {
+            lastUsedVersionId: designData.designVersionId,
+            lastUsedAt: new Date(),
+            usageCount: { increment: 1 },
+          },
+        });
+      }
+
+      return updatedEvent;
     });
 
     this.runAfterResponse(
@@ -316,7 +429,13 @@ export class EventsService {
     };
   }
 
-  private async designEventData(dto: CreateEventDto | UpdateEventDto) {
+  private async designEventData(
+    dto: CreateEventDto | UpdateEventDto,
+  ): Promise<{
+    designVersionId?: string;
+    designId?: string;
+    designFieldValues?: Prisma.InputJsonObject;
+  }> {
     if (!dto.designVersionId && dto.designFieldValues === undefined) {
       return {};
     }
@@ -338,12 +457,18 @@ export class EventsService {
 
     return {
       designVersionId: version.id,
+      designId: version.designId,
       designFieldValues: (dto.designFieldValues ?? {}) as Prisma.InputJsonObject,
     };
   }
 
   private async assertOwner(userId: string, eventId: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        designVersion: { select: { designId: true } },
+      },
+    });
     if (!event) {
       throw new NotFoundException("Event not found.");
     }

@@ -30,6 +30,12 @@ export class EventsController {
     return this.eventsService.listForUser(request.user!.sub);
   }
 
+  @Get("design-history")
+  @UseGuards(JwtAuthGuard)
+  listDesignHistory(@Req() request: AuthenticatedRequest) {
+    return this.eventsService.listDesignHistory(request.user!.sub);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateEventDto, @Req() request: AuthenticatedRequest) {

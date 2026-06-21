@@ -93,7 +93,8 @@ model User {
   invitationTemplates InvitationTemplate[] @relation("InvitationTemplatesCreated")
   invitationDesigns   InvitationDesign[]   @relation("InvitationDesignsCreated")
   designVersions      DesignVersion[]      @relation("DesignVersionsPublished")
-  animationComponents  AnimationComponent[] @relation("AnimationComponentsCreated")
+  animationComponents AnimationComponent[] @relation("AnimationComponentsCreated")
+  designUsageHistory  UserDesignUsage[]
 
   @@index([status])
   @@index([createdAt])
@@ -211,21 +212,22 @@ model InvitationTemplate {
 }
 
 model InvitationDesign {
-  id            String               @id @default(cuid())
-  templateId    String?
-  name          String
-  slug          String               @unique
-  status        DesignStatus         @default(ACTIVE)
-  categoryId    String?
-  category      DesignCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  subcategoryId String?
-  subcategory   DesignSubcategory?   @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
-  createdById   String?
-  createdBy     User?                @relation("InvitationDesignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
-  templates     InvitationTemplate[]
-  versions      DesignVersion[]
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id               String               @id @default(cuid())
+  templateId       String?
+  name             String
+  slug             String               @unique
+  status           DesignStatus         @default(ACTIVE)
+  categoryId       String?
+  category         DesignCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subcategoryId    String?
+  subcategory      DesignSubcategory?   @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  createdById      String?
+  createdBy        User?                @relation("InvitationDesignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  templates        InvitationTemplate[]
+  versions         DesignVersion[]
+  userUsageHistory UserDesignUsage[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   @@index([status, createdAt])
   @@index([categoryId])
@@ -234,20 +236,21 @@ model InvitationDesign {
 }
 
 model DesignVersion {
-  id            String              @id @default(cuid())
-  designId      String
-  design        InvitationDesign    @relation(fields: [designId], references: [id], onDelete: Cascade)
-  templateId    String?
-  versionNumber Int
-  status        DesignVersionStatus @default(CURRENT)
-  name          String
-  rawHtml       String
-  htmlSize      Int
-  scanResult    Json?
-  publishedById String?
-  publishedBy   User?               @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
-  events        Event[]
-  createdAt     DateTime            @default(now())
+  id               String              @id @default(cuid())
+  designId         String
+  design           InvitationDesign    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  templateId       String?
+  versionNumber    Int
+  status           DesignVersionStatus @default(CURRENT)
+  name             String
+  rawHtml          String
+  htmlSize         Int
+  scanResult       Json?
+  publishedById    String?
+  publishedBy      User?               @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
+  events           Event[]
+  userUsageHistory UserDesignUsage[]
+  createdAt        DateTime            @default(now())
 
   @@unique([designId, versionNumber])
   @@index([status, createdAt])
@@ -317,23 +320,23 @@ model PasswordResetToken {
 }
 
 model Event {
-  id                String         @id @default(cuid())
+  id                String              @id @default(cuid())
   userId            String
   title             String
-  type              EventType      @default(WEDDING)
+  type              EventType           @default(WEDDING)
   eventDate         DateTime?
   venue             String?
   description       String?
-  slug              String         @unique
+  slug              String              @unique
   coverImage        String?
-  isPublished       Boolean        @default(false)
+  isPublished       Boolean             @default(false)
   designVersionId   String?
-  designVersion     DesignVersion? @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
+  designVersion     DesignVersion?      @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
   designFieldValues Json?
   invitees          InvitationInvitee[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([slug])
@@ -353,6 +356,24 @@ model InvitationInvitee {
   @@unique([eventId, name])
   @@index([eventId])
   @@index([slug])
+}
+
+model UserDesignUsage {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  designId          String
+  design            InvitationDesign @relation(fields: [designId], references: [id], onDelete: Restrict)
+  lastUsedVersionId String
+  lastUsedVersion   DesignVersion    @relation(fields: [lastUsedVersionId], references: [id], onDelete: Restrict)
+  usageCount        Int              @default(1)
+  firstUsedAt       DateTime         @default(now())
+  lastUsedAt        DateTime         @default(now())
+
+  @@unique([userId, designId])
+  @@index([userId, lastUsedAt])
+  @@index([designId])
+  @@index([lastUsedVersionId])
 }
 
 model AnimationComponent {

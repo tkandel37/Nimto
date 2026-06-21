@@ -31,6 +31,8 @@ function AuthForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isGoogleEnabled =
+    process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "false";
 
   useEffect(() => {
     setMode(searchParams.get("mode") === "login" ? "login" : "register");
@@ -38,16 +40,26 @@ function AuthForm() {
 
   useEffect(() => {
     const token = localStorage.getItem("nimto_token");
-    const storedUser = localStorage.getItem("nimto_user");
-    if (!token || !storedUser) return;
+    if (!token) return;
 
-    try {
-      const user = JSON.parse(storedUser) as AuthResponse["user"];
-      router.replace(isAdminUser(user) ? "/dashboard" : "/events");
-    } catch {
-      localStorage.removeItem("nimto_token");
-      localStorage.removeItem("nimto_user");
-    }
+    let isActive = true;
+    apiRequest<{ user: AuthResponse["user"] }>("/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => {
+        if (!isActive) return;
+        localStorage.setItem("nimto_user", JSON.stringify(response.user));
+        router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+      })
+      .catch(() => {
+        if (!isActive) return;
+        localStorage.removeItem("nimto_token");
+        localStorage.removeItem("nimto_user");
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, [router]);
 
   const copy = useMemo(
@@ -157,6 +169,7 @@ function AuthForm() {
               <span className="text-sm font-bold text-ink">Email</span>
               <input
                 name="email"
+                autoComplete="email"
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
                 required
@@ -169,6 +182,9 @@ function AuthForm() {
               <input
                 minLength={6}
                 name="password"
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="At least 6 characters"
                 required
@@ -186,17 +202,21 @@ function AuthForm() {
             </button>
           </form>
           
-          <div className="mt-6 flex items-center justify-between">
-            <span className="w-1/5 border-b border-ink/10 lg:w-1/4"></span>
-            <span className="text-xs text-center font-bold uppercase tracking-widest text-ink/40">or continue with</span>
-            <span className="w-1/5 border-b border-ink/10 lg:w-1/4"></span>
-          </div>
-          
-          <div className="mt-6">
-            <a 
-              href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/auth/google`}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink/15 bg-white px-5 py-4 font-bold text-ink transition-colors hover:bg-paper"
-            >
+          {isGoogleEnabled ? (
+            <>
+              <div className="mt-6 flex items-center justify-between">
+                <span className="w-1/5 border-b border-ink/10 lg:w-1/4"></span>
+                <span className="text-center text-xs font-bold uppercase tracking-widest text-ink/40">
+                  or continue with
+                </span>
+                <span className="w-1/5 border-b border-ink/10 lg:w-1/4"></span>
+              </div>
+
+              <div className="mt-6">
+                <a
+                  href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/auth/google`}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink/15 bg-white px-5 py-4 font-bold text-ink transition-colors hover:bg-paper"
+                >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -216,9 +236,11 @@ function AuthForm() {
                 />
                 <path d="M1 1h22v22H1z" fill="none" />
               </svg>
-              Google
-            </a>
-          </div>
+                  Google
+                </a>
+              </div>
+            </>
+          ) : null}
 
           <p className="mt-8 text-center text-sm text-ink/70">
             {copy.helper}{" "}

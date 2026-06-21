@@ -24,6 +24,7 @@ the event information and the name of the person or family being invited.
 - Create and manage guest names.
 - Generate a unique invitation link for each invitee.
 - Regenerate or remove invitee links.
+- Keep a permanent history of previously used designs and reuse active designs.
 - View and manage events from a personal workspace.
 
 ### For invited guests
@@ -169,10 +170,14 @@ The complete authoring specification is in
 The frontend, API, PostgreSQL database, migrations, authentication, email
 capture, and database manager work locally.
 
-Google OAuth still requires Google. Docker images and npm packages also require
-internet access the first time they are downloaded. Production deployment can
-still use hosted PostgreSQL, Vercel, Render, or equivalent providers through
-environment variables.
+Google OAuth remains available on the deployed website. It is intentionally
+hidden in the local Docker environment, where email/password authentication is
+the supported fallback. This avoids changing the existing production Google
+OAuth client just for localhost.
+
+Docker images and npm packages require internet access the first time they are
+downloaded. Production deployment can still use hosted PostgreSQL, Vercel,
+Render, or equivalent providers through environment variables.
 
 ## Roadmap
 

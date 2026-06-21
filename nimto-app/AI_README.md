@@ -31,6 +31,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Public design catalogue.
 - Opening and background animation-component catalogue.
 - User event creation, update, deletion, and design-field values.
+- Persistent per-user design history with usage counts, last-used version
+  previews, active-event counts, and reuse links.
 - Invitee creation, unique personalized slugs, slug regeneration, deletion, and
   public invitation rendering.
 - Complete local Docker stack using PostgreSQL, Mailpit, Adminer, API, and web.
@@ -128,7 +130,7 @@ Main Prisma models:
 - Authorization: `Role`, `Permission`, `UserRole`, `RolePermission`.
 - Designs: `DesignCategory`, `DesignSubcategory`, `InvitationTemplate`,
   `InvitationDesign`, `DesignVersion`, `AnimationComponent`.
-- Invitations: `Event`, `InvitationInvitee`.
+- Invitations: `Event`, `InvitationInvitee`, `UserDesignUsage`.
 - Content: `PageContent`, `BlogPost`.
 - Operations: `AuditLog`.
 
@@ -142,6 +144,8 @@ Read `apps/api/prisma/schema.prisma` before changing database behavior.
 - Published designs are versioned.
 - Existing events reference a specific `DesignVersion`; publishing a newer
   design must not silently change old invitations.
+- `UserDesignUsage` is lifetime history. Deleting an event must not remove its
+  design from the user's history.
 - Invitee slugs must remain unique.
 - Prisma migrations are the source of truth. Do not manually alter the local
   database as a substitute for a migration.
@@ -217,6 +221,10 @@ Safe templates:
 
 Google OAuth is optional for local work. Email/password authentication and
 Mailpit should remain functional without Google credentials.
+
+Google OAuth remains enabled for production deployments. Local Docker builds
+set `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false` and use email/password as the
+fallback, avoiding changes to the existing production OAuth client.
 
 ## 11. Standard commands
 

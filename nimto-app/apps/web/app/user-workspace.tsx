@@ -12,7 +12,7 @@ import {
 } from "react";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
 
-type WorkspacePage = "events" | "designs" | "profile";
+type WorkspacePage = "events" | "designs" | "myDesigns" | "profile";
 
 type Toast = {
   id: number;
@@ -53,6 +53,18 @@ const pageLinks: {
         <path d="M4 20h16" />
         <path d="m6 16 8.5-8.5 2 2L8 18H6v-2Z" />
         <path d="m13.5 7.5 1.8-1.8a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2l-1.8 1.8" />
+      </>
+    ),
+  },
+  {
+    key: "myDesigns",
+    label: "My Designs",
+    href: "/my-designs",
+    icon: (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="3" />
+        <path d="M8 8h8M8 12h5M8 16h3" />
+        <path d="m15 15 1.5 1.5L20 13" />
       </>
     ),
   },
