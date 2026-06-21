@@ -1,0 +1,13 @@
+.git
+.gitignore
+.next
+**/.next
+**/dist
+node_modules
+**/node_modules
+**/.env
+**/.env.*
+!.env.docker.example
+*.log
+.DS_Store
+coverage

@@ -88,6 +88,10 @@ export class AuthController {
       process.env.FRONTEND_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:3000";
-    res.redirect(`${frontendUrl}/auth/oauth-success?token=${token}`);
+    const primaryFrontendUrl = frontendUrl
+      .split(",")[0]
+      .trim()
+      .replace(/\/$/, "");
+    res.redirect(`${primaryFrontendUrl}/auth/oauth-success?token=${token}`);
   }
 }

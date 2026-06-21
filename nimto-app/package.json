@@ -10,7 +10,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "vercel-build": "npm run build"
+    "vercel-build": "npm run build",
+    "docker:up": "docker compose --env-file .env.docker up --build -d",
+    "docker:down": "docker compose --env-file .env.docker down",
+    "docker:logs": "docker compose --env-file .env.docker logs -f",
+    "docker:reset": "docker compose --env-file .env.docker down -v"
   },
   "engines": {
     "node": ">=20.11.0"

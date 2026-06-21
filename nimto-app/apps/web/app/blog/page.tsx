@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { serverApiUrl } from "@/lib/server-api";
 import { AuthAwareAccountLink } from "../auth-aware-account-link";
 
 type BlogPost = {
@@ -12,11 +13,9 @@ type BlogPost = {
   author?: { name: string };
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 async function getPosts(): Promise<BlogPost[]> {
   try {
-    const response = await fetch(`${API_URL}/cms/public/blog`, {
+    const response = await fetch(`${serverApiUrl}/cms/public/blog`, {
       next: { revalidate: 60 },
     });
     return response.ok ? response.json() : [];

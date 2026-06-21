@@ -1,99 +1,193 @@
-# Nimto
+# myNimto
 
-Nimto is a digital invitation platform. This first milestone is a deployment test that connects:
+myNimto is a digital invitation platform for weddings, birthdays, engagements,
+corporate events, and cultural celebrations.
 
-- Vercel frontend: Next.js app in `apps/web`
-- Render backend: NestJS API in `apps/api`
-- Supabase database: PostgreSQL accessed through Prisma
+Hosts choose a design, add their event details, create a guest list, and share
+personalized invitation links. Guests open a clean invitation page containing
+the event information and the name of the person or family being invited.
 
-## Local setup
+> Project status: active MVP development. Authentication, administration,
+> template publishing, event creation, invitee links, CMS pages, and local
+> Docker infrastructure are implemented. Payments, bulk PDF export, RSVP,
+> bilingual editing, QR generation, and production-ready sharing integrations
+> remain on the roadmap.
 
-1. Install dependencies:
+## Product experience
+
+### For event hosts
+
+- Register and manage a profile.
+- Browse published invitation designs.
+- Create wedding, birthday, corporate, or custom events.
+- Enter event date, venue, description, cover image, and design field values.
+- Create and manage guest names.
+- Generate a unique invitation link for each invitee.
+- Regenerate or remove invitee links.
+- View and manage events from a personal workspace.
+
+### For invited guests
+
+- Open an invitation without creating an account.
+- See the correct published design version.
+- See the personalized guest name.
+- View the host, date, venue, description, and invitation content.
+
+### For administrators and staff
+
+- Manage users, staff, roles, permissions, sessions, and audit logs.
+- Protect the root Super Admin role and account.
+- Upload and scan complete HTML invitation templates.
+- Organize templates into dynamic categories and subcategories.
+- Publish versioned designs without changing invitations already in use.
+- Manage reusable opening and background animation components.
+- Edit public website pages and blog posts from the CMS dashboard.
+
+## Architecture
+
+| Area | Technology |
+| --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Backend | NestJS 10, TypeScript |
+| Database | PostgreSQL 16 |
+| ORM and migrations | Prisma 6 |
+| Authentication | JWT, email/password, optional Google OAuth |
+| Local email | Mailpit |
+| Database browser | Adminer |
+| Local runtime | Docker Compose using Colima or Docker Desktop |
+
+The repository is an npm workspace:
+
+```text
+nimto-app/
+├── apps/
+│   ├── web/                 # Next.js frontend
+│   └── api/                 # NestJS API and Prisma schema
+├── docker/                  # Container startup scripts
+├── docs/                    # Product and module documentation
+├── AI_README.md             # Detailed handoff context for AI assistants
+├── Dockerfile
+└── docker-compose.yml
+```
+
+## Quick start with Docker
+
+### Requirements
+
+- Docker Desktop, or Docker CLI with Colima
+- Git
+
+On macOS, one lightweight option is:
+
+```bash
+brew install colima docker docker-compose docker-buildx
+colima start --cpu 4 --memory 6 --disk 40
+```
+
+### Start the application
+
+```bash
+git clone https://github.com/tkandel37/Nimto.git
+cd Nimto/nimto-app
+cp .env.docker.example .env.docker
+npm run docker:up
+```
+
+Open:
+
+| Service | URL |
+| --- | --- |
+| myNimto | http://localhost:3000 |
+| API health check | http://localhost:4000/health |
+| Local email inbox | http://localhost:8025 |
+| Database manager | http://localhost:8080 |
+
+The API container automatically applies Prisma migrations and seeds the local
+Super Admin. Development credentials are configured in `.env.docker`; change
+them before sharing your local environment.
+
+### Useful commands
+
+```bash
+npm run docker:up       # Build and start the complete stack
+npm run docker:logs     # Follow all container logs
+npm run docker:down     # Stop containers and preserve database data
+npm run docker:reset    # Stop containers and delete local database data
+```
+
+PostgreSQL data is stored in the `nimto_postgres_data` Docker volume.
+
+## Local email
+
+Registration verification messages are delivered to Mailpit instead of the
+internet. Register through myNimto, then open http://localhost:8025 to read the
+message and use its verification link.
+
+## Database access
+
+Open Adminer at http://localhost:8080 and use:
+
+- System: `PostgreSQL`
+- Server: `database`
+- Username, password, and database: values from `.env.docker`
+
+## Development with hot reload
+
+Start only the local infrastructure:
+
+```bash
+docker compose --env-file .env.docker up -d database mailpit adminer
+```
+
+Create `apps/api/.env` from `apps/api/.env.example` and
+`apps/web/.env.local` from `apps/web/.env.example`. Then run:
 
 ```bash
 npm install
+npm run prisma:migrate:deploy --workspace @nimto/api
+npm run start:dev --workspace @nimto/api
 ```
 
-2. Create backend env:
+In a second terminal:
 
 ```bash
-cp apps/api/.env.example apps/api/.env
+npm run dev --workspace @nimto/web
 ```
 
-Set `DATABASE_URL` to your Supabase PostgreSQL connection string and set a strong `JWT_SECRET`.
+## HTML invitation design format
 
-3. Create frontend env:
+Templates are complete HTML documents containing their own CSS and optional
+vanilla JavaScript. Editable content is marked with `data-nimto-field`, and
+template metadata is stored in a JSON block with the ID
+`nimto-template-meta`.
 
-```bash
-cp apps/web/.env.example apps/web/.env.local
-```
+The complete authoring specification is in
+[`docs/module-2-template-and-design-epics.md`](docs/module-2-template-and-design-epics.md).
 
-For local testing, keep:
+## What is local and what is online?
 
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
+The frontend, API, PostgreSQL database, migrations, authentication, email
+capture, and database manager work locally.
 
-4. Create the database table:
+Google OAuth still requires Google. Docker images and npm packages also require
+internet access the first time they are downloaded. Production deployment can
+still use hosted PostgreSQL, Vercel, Render, or equivalent providers through
+environment variables.
 
-```bash
-npm run prisma:migrate
-```
+## Roadmap
 
-5. Run both apps:
+- Paid guest-name personalization
+- Bulk invitation and PDF generation
+- English and Nepali editing
+- RSVP and attendance tracking
+- QR codes and calendar links
+- Maps, countdowns, galleries, and music controls
+- WhatsApp, Messenger, and email sharing workflows
+- Image uploads and managed media storage
+- Production payment, billing, and entitlement rules
 
-```bash
-npm run dev:api
-npm run dev:web
-```
+## AI contributors
 
-Open `http://localhost:3000`, register with name/email/password, then log in.
-
-## Deploy to Supabase, Render, and Vercel
-
-### Supabase
-
-1. In Supabase, create a project.
-2. Go to Project Settings -> Database.
-3. Copy the pooled connection string. It usually contains port `6543`.
-4. Replace the password placeholder in the URL with your real database password.
-
-### Render backend
-
-Create a new Web Service from this GitHub repo.
-
-- Root Directory: `nimto-app/apps/api`
-- Runtime: Node
-- Build Command: `npm install && npm run prisma:generate && npm run build`
-- Start Command: `npm run prisma:migrate:deploy && npm run start:prod`
-
-Environment variables:
-
-- `DATABASE_URL`: Supabase PostgreSQL URL
-- `JWT_SECRET`: long random secret
-- `FRONTEND_URL`: your Vercel app URL, for example `https://nimto.vercel.app`
-- `PORT`: Render sets this automatically, so you do not need to add it
-
-After deploy, test:
-
-```bash
-curl https://your-render-url.onrender.com/health
-```
-
-### Vercel frontend
-
-Create a new Vercel project from the same GitHub repo.
-
-- Root Directory: `nimto-app/apps/web`
-- Framework Preset: Next.js
-- Build Command: `npm run build`
-
-Environment variables:
-
-- `NEXT_PUBLIC_API_URL`: your Render backend URL, for example `https://nimto-api.onrender.com`
-
-Deploy, then register a user from the Vercel site. If the dashboard opens, all three services are connected.
-
-## About Supabase agent skills
-
-The command `npx skills add supabase/agent-skills` installs AI-assistant guidance for Supabase workflows. It is not required for the Nimto app code to run. This app connects to Supabase through Prisma using `DATABASE_URL`.
+Before changing the project, read [`AI_README.md`](AI_README.md). It explains
+the architecture, implemented features, important invariants, environment
+variables, verification steps, and current limitations.

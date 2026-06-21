@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { serverApiUrl } from "@/lib/server-api";
 import { AuthAwareAccountLink } from "./auth-aware-account-link";
 
 type PageContent = {
@@ -7,11 +8,9 @@ type PageContent = {
   body?: string | null;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 async function getLandingContent(): Promise<PageContent> {
   try {
-    const response = await fetch(`${API_URL}/cms/public/pages/landing`, {
+    const response = await fetch(`${serverApiUrl}/cms/public/pages/landing`, {
       next: { revalidate: 60 },
     });
 

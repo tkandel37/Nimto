@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { serverApiUrl } from "@/lib/server-api";
 
 type InvitationEvent = {
   title: string;
@@ -20,7 +21,6 @@ type InvitationEvent = {
   } | null;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 function displayDate(value?: string | null) {
@@ -35,7 +35,7 @@ function displayDate(value?: string | null) {
 }
 
 async function getInvitation(slug: string) {
-  const response = await fetch(`${API_URL}/events/public/${slug}`, {
+  const response = await fetch(`${serverApiUrl}/events/public/${slug}`, {
     next: { revalidate: 60 },
   });
 

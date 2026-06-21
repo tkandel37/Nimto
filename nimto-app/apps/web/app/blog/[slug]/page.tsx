@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { serverApiUrl } from "@/lib/server-api";
 
 type BlogPost = {
   title: string;
@@ -16,8 +17,6 @@ type BlogPost = {
   author?: { name: string };
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 export async function generateMetadata({
   params,
 }: {
@@ -25,7 +24,7 @@ export async function generateMetadata({
 }) {
   const { slug } = await params;
   try {
-    const response = await fetch(`${API_URL}/cms/public/blog/${slug}`, {
+    const response = await fetch(`${serverApiUrl}/cms/public/blog/${slug}`, {
       next: { revalidate: 60 },
     });
     if (!response.ok) {
@@ -56,7 +55,7 @@ export default async function BlogPostPage({
   const { slug } = await params;
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/cms/public/blog/${slug}`, {
+    response = await fetch(`${serverApiUrl}/cms/public/blog/${slug}`, {
       next: { revalidate: 60 },
     });
   } catch {
