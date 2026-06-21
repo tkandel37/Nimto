@@ -33,18 +33,65 @@ export class EventsService {
     return this.prisma.event.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        eventDate: true,
+        venue: true,
+        slug: true,
+        isPublished: true,
+        createdAt: true,
+        updatedAt: true,
         _count: { select: { invitees: true } },
         designVersion: {
           select: {
             id: true,
             versionNumber: true,
             status: true,
-            design: { select: { id: true, name: true, slug: true, status: true } },
+            design: {
+              select: { id: true, name: true, slug: true, status: true },
+            },
           },
         },
       },
     });
+  }
+
+  async findForUser(userId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, userId },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        eventDate: true,
+        venue: true,
+        description: true,
+        coverImage: true,
+        slug: true,
+        isPublished: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { invitees: true } },
+        designVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            status: true,
+            design: {
+              select: { id: true, name: true, slug: true, status: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException("Event not found.");
+    }
+
+    return event;
   }
 
   async listDesignHistory(userId: string) {
@@ -243,11 +290,20 @@ export class EventsService {
   }
 
   async listInvitees(userId: string, eventId: string) {
-    await this.assertOwner(userId, eventId);
-    return this.prisma.invitationInvitee.findMany({
-      where: { eventId },
-      orderBy: { createdAt: "asc" },
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, userId },
+      select: {
+        invitees: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
+
+    if (!event) {
+      throw new NotFoundException("Event not found.");
+    }
+
+    return event.invitees;
   }
 
   async createInvitees(

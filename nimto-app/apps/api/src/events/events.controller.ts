@@ -36,6 +36,15 @@ export class EventsController {
     return this.eventsService.listDesignHistory(request.user!.sub);
   }
 
+  @Get(":eventId")
+  @UseGuards(JwtAuthGuard)
+  findMine(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.findForUser(request.user!.sub, eventId);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateEventDto, @Req() request: AuthenticatedRequest) {
