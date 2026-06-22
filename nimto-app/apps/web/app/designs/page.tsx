@@ -52,15 +52,13 @@ type CreatedEvent = {
 const CATALOG_CACHE_VERSION = 2;
 const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
 
-let catalogCache:
-  | {
-      version: number;
-      cachedAt: number;
-      expiresAt: number;
-      categories: PublicCategory[];
-      designs: PublicDesign[];
-    }
-  | null = null;
+let catalogCache: {
+  version: number;
+  cachedAt: number;
+  expiresAt: number;
+  categories: PublicCategory[];
+  designs: PublicDesign[];
+} | null = null;
 
 function readCatalogChangedAt() {
   if (typeof window === "undefined") return 0;
@@ -90,12 +88,23 @@ function DesignsContent({
   const [categories, setCategories] = useState<PublicCategory[]>(
     catalogCache?.categories ?? [],
   );
-  const [designs, setDesigns] = useState<PublicDesign[]>(catalogCache?.designs ?? []);
+  const [designs, setDesigns] = useState<PublicDesign[]>(
+    catalogCache?.designs ?? [],
+  );
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [isLoading, setIsLoading] = useState(!catalogCache);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  const [previewDesign, setPreviewDesign] = useState<PublicDesign | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">(
+    "desktop",
+  );
+  const [recentDesignId, setRecentDesignId] = useState("");
+
+  useEffect(() => {
+    setRecentDesignId(localStorage.getItem("nimto_last_used_design") ?? "");
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -164,8 +173,8 @@ function DesignsContent({
 
   const subcategories = useMemo(
     () =>
-      categories.find((category) => category.id === categoryId)?.subcategories ??
-      [],
+      categories.find((category) => category.id === categoryId)
+        ?.subcategories ?? [],
     [categories, categoryId],
   );
 
@@ -173,7 +182,8 @@ function DesignsContent({
     const query = search.trim().toLowerCase();
     return designs.filter((design) => {
       if (categoryId && design.category?.id !== categoryId) return false;
-      if (subcategoryId && design.subcategory?.id !== subcategoryId) return false;
+      if (subcategoryId && design.subcategory?.id !== subcategoryId)
+        return false;
       if (!query) return true;
       return (
         design.name.toLowerCase().includes(query) ||
@@ -185,10 +195,11 @@ function DesignsContent({
   const selectedDesign = useMemo(
     () =>
       selectedTemplateSlug
-        ? designs.find(
+        ? (designs.find(
             (design) =>
-              design.slug === selectedTemplateSlug || design.id === selectedTemplateSlug,
-          ) ?? null
+              design.slug === selectedTemplateSlug ||
+              design.id === selectedTemplateSlug,
+          ) ?? null)
         : null,
     [designs, selectedTemplateSlug],
   );
@@ -217,20 +228,20 @@ function DesignsContent({
       <div className="user-panel">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="user-kicker">Designs</p>
+            <p className="user-kicker">Invitations</p>
             <h1 className="mt-2 text-3xl font-black text-ink">
               Pick an invitation design
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Browse published designs, preview the actual HTML, and create a
-              private event copy from the one you select.
+              Browse published invitations, preview the complete experience,
+              and create a private event draft from the one you select.
             </p>
           </div>
           <div className="user-filter-row">
             <input
-              aria-label="Search designs"
+              aria-label="Search invitations"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search designs"
+              placeholder="Search invitations"
               value={search}
             />
             <select
@@ -294,25 +305,95 @@ function DesignsContent({
                     v{current?.versionNumber ?? 1}
                   </span>
                 </div>
-                <button
-                  className="user-primary-button mt-5 w-full"
-                  disabled={!current}
-                  onClick={() => openDesignEditor(design)}
-                  type="button"
-                >
-                  Use this design
-                </button>
+                {recentDesignId === design.id ? (
+                  <span className="design-recent-pill">Recently used</span>
+                ) : null}
+                <div className="design-card-actions">
+                  <button
+                    className="user-secondary-button"
+                    disabled={!current}
+                    onClick={() => setPreviewDesign(design)}
+                    type="button"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    className="user-primary-button"
+                    disabled={!current}
+                    onClick={() => openDesignEditor(design)}
+                    type="button"
+                  >
+                    Use invitation
+                  </button>
+                </div>
               </div>
             </article>
           );
         })}
       </div>
 
-      {isLoading ? <p className="user-empty">Loading designs...</p> : null}
+      {isLoading ? <p className="user-empty">Loading invitations...</p> : null}
       {!isLoading && !filteredDesigns.length ? (
         <div className="user-empty">
-          <h2>No designs found</h2>
+          <h2>No invitations found</h2>
           <p>Try another category, subcategory, or search term.</p>
+        </div>
+      ) : null}
+      {previewDesign ? (
+        <div
+          className="design-preview-modal-backdrop"
+          onMouseDown={() => setPreviewDesign(null)}
+        >
+          <section
+            className="design-preview-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <p className="user-kicker">Invitation preview</p>
+                <h2>{previewDesign.name}</h2>
+                <p>
+                  {previewDesign.category?.name || "Invitation"} ·
+                  mobile-friendly preview
+                </p>
+              </div>
+              <div className="event-header-actions">
+                <div className="event-device-switcher">
+                  {(["mobile", "desktop"] as const).map((device) => (
+                    <button
+                      className={previewDevice === device ? "active" : ""}
+                      key={device}
+                      onClick={() => setPreviewDevice(device)}
+                      type="button"
+                    >
+                      {device}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="user-secondary-button"
+                  onClick={() => setPreviewDesign(null)}
+                  type="button"
+                >
+                  Close
+                </button>
+                <button
+                  className="user-primary-button"
+                  onClick={() => openDesignEditor(previewDesign)}
+                  type="button"
+                >
+                  Use invitation
+                </button>
+              </div>
+            </header>
+            <div className={`design-preview-stage ${previewDevice}`}>
+              <iframe
+                sandbox="allow-scripts"
+                srcDoc={previewDesign.versions[0]?.rawHtml ?? ""}
+                title={`${previewDesign.name} full preview`}
+              />
+            </div>
+          </section>
         </div>
       ) : null}
     </section>
@@ -348,12 +429,15 @@ function DesignEditor({
   const [draftStatus, setDraftStatus] = useState("Changes save automatically");
   const [previewEditFieldKey, setPreviewEditFieldKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [device, setDevice] = useState<"mobile" | "desktop">("desktop");
   const valuesRef = useRef(values);
   const activeFieldKeyRef = useRef(selectedFieldKey);
   const fieldsRef = useRef(fields);
   const lastSyncedActiveFieldKeyRef = useRef(selectedFieldKey);
   const previewEditorInputRef = useRef<HTMLInputElement | null>(null);
-  const previewEditField = fields.find((field) => field.key === previewEditFieldKey);
+  const previewEditField = fields.find(
+    (field) => field.key === previewEditFieldKey,
+  );
   const previewHtml = useMemo(
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
@@ -395,9 +479,15 @@ function DesignEditor({
     lastSyncedActiveFieldKeyRef.current = fieldKey;
     setValues(nextValues);
     setActiveFieldKey(fieldKey);
-    updatePreviewFrame(previewRef.current, nextValues, fieldKey, fieldsRef.current, {
-      shouldScroll: false,
-    });
+    updatePreviewFrame(
+      previewRef.current,
+      nextValues,
+      fieldKey,
+      fieldsRef.current,
+      {
+        shouldScroll: false,
+      },
+    );
     bindPreviewFrameEditing(
       previewRef.current,
       fieldsRef.current,
@@ -410,7 +500,9 @@ function DesignEditor({
   function openPreviewValueEditor(fieldKey: string) {
     setPreviewEditFieldKey(fieldKey);
     const frameDocument = previewRef.current?.contentDocument;
-    const field = fieldsRef.current.find((candidate) => candidate.key === fieldKey);
+    const field = fieldsRef.current.find(
+      (candidate) => candidate.key === fieldKey,
+    );
     if (!frameDocument || !field) return;
 
     const element = previewFieldElements(frameDocument, field)[0];
@@ -468,7 +560,10 @@ function DesignEditor({
         const fieldKey = String(event.data.fieldKey);
         const incomingValue = String(event.data.value ?? "");
         const field = fieldsRef.current.find((item) => item.key === fieldKey);
-        if (!incomingValue && (valuesRef.current[fieldKey] || field?.type === "date"))
+        if (
+          !incomingValue &&
+          (valuesRef.current[fieldKey] || field?.type === "date")
+        )
           return;
         applyPreviewFieldValue(fieldKey, incomingValue);
       }
@@ -486,9 +581,15 @@ function DesignEditor({
       valuesRef.current = nextValues;
       activeFieldKeyRef.current = key;
       lastSyncedActiveFieldKeyRef.current = key;
-      updatePreviewFrame(previewRef.current, nextValues, key, fieldsRef.current, {
-        shouldScroll: false,
-      });
+      updatePreviewFrame(
+        previewRef.current,
+        nextValues,
+        key,
+        fieldsRef.current,
+        {
+          shouldScroll: false,
+        },
+      );
       return nextValues;
     });
   }
@@ -497,9 +598,15 @@ function DesignEditor({
     activeFieldKeyRef.current = key;
     lastSyncedActiveFieldKeyRef.current = key;
     setActiveFieldKey(key);
-    updatePreviewFrame(previewRef.current, valuesRef.current, key, fieldsRef.current, {
-      shouldScroll: true,
-    });
+    updatePreviewFrame(
+      previewRef.current,
+      valuesRef.current,
+      key,
+      fieldsRef.current,
+      {
+        shouldScroll: true,
+      },
+    );
   }
 
   function moveField(offset: number) {
@@ -514,7 +621,9 @@ function DesignEditor({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const missingField = inputFields.find((field) => !values[field.key]?.trim());
+    const missingField = inputFields.find(
+      (field) => !values[field.key]?.trim(),
+    );
     if (missingField) {
       showToast(`${missingField.label} is required.`, "error");
       return;
@@ -550,14 +659,15 @@ function DesignEditor({
             "description",
             "note",
           ]),
-          isPublished: true,
+          isPublished: false,
           designVersionId: current.id,
           designFieldValues: values,
         }),
       });
       localStorage.setItem("nimto_events_changed", String(Date.now()));
+      localStorage.setItem("nimto_last_used_design", design.id);
       localStorage.removeItem(draftKey);
-      showToast("Event created and ready to share.");
+      showToast("Draft event created. Review it before publishing.");
       router.replace(`/events/${response.id}`);
     } catch (error) {
       showToast(
@@ -572,7 +682,11 @@ function DesignEditor({
   return (
     <section className="user-editor">
       <div className="user-editor-toolbar">
-        <button className="user-secondary-button" onClick={onBack} type="button">
+        <button
+          className="user-secondary-button"
+          onClick={onBack}
+          type="button"
+        >
           Back
         </button>
         <div>
@@ -580,19 +694,37 @@ function DesignEditor({
           <h1 className="text-2xl font-black text-ink">{design.name}</h1>
           <p className="design-draft-status">{draftStatus}</p>
         </div>
+        <div className="event-device-switcher">
+          {(["mobile", "desktop"] as const).map((option) => (
+            <button
+              className={device === option ? "active" : ""}
+              key={option}
+              onClick={() => setDevice(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="user-editor-grid">
-        <div className="user-live-preview">
+        <div className={`user-live-preview ${device}`}>
           <iframe
             ref={previewRef}
             sandbox="allow-scripts allow-same-origin"
             srcDoc={previewHtml}
             title={`${design.name} live preview`}
             onLoad={() => {
-              updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
-                shouldScroll: true,
-              });
+              updatePreviewFrame(
+                previewRef.current,
+                values,
+                selectedFieldKey,
+                fields,
+                {
+                  shouldScroll: true,
+                },
+              );
               bindPreviewFrameEditing(
                 previewRef.current,
                 fields,
@@ -600,25 +732,22 @@ function DesignEditor({
                 selectField,
                 openPreviewValueEditor,
               );
-              window.setTimeout(
-                () => {
-                  updatePreviewFrame(
-                    previewRef.current,
-                    valuesRef.current,
-                    activeFieldKeyRef.current,
-                    fieldsRef.current,
-                    { shouldScroll: true },
-                  );
-                  bindPreviewFrameEditing(
-                    previewRef.current,
-                    fieldsRef.current,
-                    applyPreviewFieldValue,
-                    selectField,
-                    openPreviewValueEditor,
-                  );
-                },
-                80,
-              );
+              window.setTimeout(() => {
+                updatePreviewFrame(
+                  previewRef.current,
+                  valuesRef.current,
+                  activeFieldKeyRef.current,
+                  fieldsRef.current,
+                  { shouldScroll: true },
+                );
+                bindPreviewFrameEditing(
+                  previewRef.current,
+                  fieldsRef.current,
+                  applyPreviewFieldValue,
+                  selectField,
+                  openPreviewValueEditor,
+                );
+              }, 80);
             }}
           />
           {previewEditField ? (
@@ -628,7 +757,10 @@ function DesignEditor({
                 <input
                   ref={previewEditorInputRef}
                   onChange={(event) =>
-                    applyPreviewFieldValue(previewEditField.key, event.target.value)
+                    applyPreviewFieldValue(
+                      previewEditField.key,
+                      event.target.value,
+                    )
                   }
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === "Escape") {
@@ -663,7 +795,9 @@ function DesignEditor({
             <span>
               {fields.length
                 ? `${Math.max(
-                    fields.findIndex((field) => field.key === selectedFieldKey) + 1,
+                    fields.findIndex(
+                      (field) => field.key === selectedFieldKey,
+                    ) + 1,
                     1,
                   )} / ${fields.length}`
                 : "0 / 0"}
@@ -684,19 +818,24 @@ function DesignEditor({
             title="Input fields"
             values={values}
           />
-          <FieldSection
-            fields={contentFields}
-            onChange={updateValue}
-            onSelect={selectField}
-            title="Content fields"
-            values={values}
-          />
+          <details className="user-optional-fields">
+            <summary>
+              Optional invitation fields ({contentFields.length})
+            </summary>
+            <FieldSection
+              fields={contentFields}
+              onChange={updateValue}
+              onSelect={selectField}
+              title="Optional fields"
+              values={values}
+            />
+          </details>
           <button
             className="user-primary-button w-full"
             disabled={isSaving || !current}
             type="submit"
           >
-            {isSaving ? "Creating..." : "Create shareable event"}
+            {isSaving ? "Creating..." : "Create draft event"}
           </button>
         </form>
       </div>
@@ -757,7 +896,9 @@ function FieldSection({
           ))}
         </div>
       ) : (
-        <p className="text-sm leading-6 text-ink/55">No editable fields here.</p>
+        <p className="text-sm leading-6 text-ink/55">
+          No editable fields here.
+        </p>
       )}
     </section>
   );
@@ -905,7 +1046,8 @@ function bindPreviewFrameEditing(
       element.setAttribute("data-nimto-user-edit-bound", "true");
 
       const startSvgEdit = (event: Event) => {
-        if (isPreviewFormElement(element) || isPreviewHtmlElement(element)) return;
+        if (isPreviewFormElement(element) || isPreviewHtmlElement(element))
+          return;
         event.preventDefault();
         event.stopPropagation();
         onSelect(field.key);
@@ -983,7 +1125,11 @@ function removePreviewHighlight(element: Element) {
 function stylePreviewHighlightElement(element: HTMLElement) {
   element.style.setProperty("outline", "2px solid #3f8f5f", "important");
   element.style.setProperty("outline-offset", "3px", "important");
-  element.style.setProperty("background-color", "rgba(63,143,95,.10)", "important");
+  element.style.setProperty(
+    "background-color",
+    "rgba(63,143,95,.10)",
+    "important",
+  );
 }
 
 function previewFieldElements(document: Document, field: NormalizedField) {
@@ -994,7 +1140,9 @@ function previewFieldElements(document: Document, field: NormalizedField) {
 
   const elements = new Set<Element>();
   selectors.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((element) => elements.add(element));
+    document
+      .querySelectorAll(selector)
+      .forEach((element) => elements.add(element));
   });
   return [...elements];
 }
@@ -1027,8 +1175,9 @@ function isPreviewFormElement(
   const view = element.ownerDocument.defaultView;
   return Boolean(
     (view?.HTMLInputElement && element instanceof view.HTMLInputElement) ||
-      (view?.HTMLTextAreaElement && element instanceof view.HTMLTextAreaElement) ||
-      (view?.HTMLSelectElement && element instanceof view.HTMLSelectElement),
+    (view?.HTMLTextAreaElement &&
+      element instanceof view.HTMLTextAreaElement) ||
+    (view?.HTMLSelectElement && element instanceof view.HTMLSelectElement),
   );
 }
 

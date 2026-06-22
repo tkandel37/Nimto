@@ -39,8 +39,9 @@ export function EventDesignEditor({
     event.draftDesignVersion ?? event.designVersion ?? designs[0]?.versions[0];
   const [versionId, setVersionId] = useState(initialVersion?.id ?? "");
   const version =
-    designs.flatMap((design) => design.versions).find((item) => item.id === versionId) ??
-    initialVersion;
+    designs
+      .flatMap((design) => design.versions)
+      .find((item) => item.id === versionId) ?? initialVersion;
   const fields = useMemo(
     () =>
       (version?.scanResult?.fields ?? []).filter(
@@ -48,6 +49,8 @@ export function EventDesignEditor({
       ),
     [version],
   );
+  const requiredFields = fields.filter((field) => field.required);
+  const optionalFields = fields.filter((field) => !field.required);
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(
       Object.entries(
@@ -66,7 +69,8 @@ export function EventDesignEditor({
   );
   const accessibilityWarnings = useMemo(() => {
     const warnings: string[] = [];
-    if (!/<html/i.test(version?.rawHtml ?? "")) warnings.push("HTML document wrapper is missing.");
+    if (!/<html/i.test(version?.rawHtml ?? ""))
+      warnings.push("HTML document wrapper is missing.");
     if (/<img\b(?![^>]*\balt=)/i.test(version?.rawHtml ?? ""))
       warnings.push("One or more images are missing alternative text.");
     if (/font-size\s*:\s*(?:[0-9]|1[01])px/i.test(version?.rawHtml ?? ""))
@@ -140,21 +144,6 @@ export function EventDesignEditor({
     }
   }
 
-  async function publishDraft() {
-    await saveDraft();
-    const updated = await apiRequest<UserEvent>(
-      `/events/${event.id}/design-draft/publish`,
-      { method: "POST", headers: authHeaders },
-    );
-    onEvent({ ...event, ...updated, designFieldValues: values });
-    const nextRevisions = await apiRequest<EventDesignRevision[]>(
-      `/events/${event.id}/design-revisions`,
-      { headers: authHeaders },
-    );
-    onRevisions(nextRevisions);
-    showToast("Invitation design published.");
-  }
-
   async function restore(revision: EventDesignRevision) {
     const updated = await apiRequest<UserEvent>(
       `/events/${event.id}/design-revisions/${revision.id}/restore`,
@@ -177,10 +166,11 @@ export function EventDesignEditor({
     <section className="user-panel event-design-editor">
       <div className="event-section-heading">
         <div>
-          <p className="user-kicker">Invitation design</p>
-          <h2>Edit safely, then publish</h2>
+          <p className="user-kicker">Invitation</p>
+          <h2>Edit safely, then review</h2>
           <p>
-            Draft changes are private. Publish only when the preview is ready.
+            Draft changes are private. Use the main Publish button when the
+            preview is ready.
           </p>
           <p className="design-draft-status">{connectionState}</p>
         </div>
@@ -192,14 +182,6 @@ export function EventDesignEditor({
             type="button"
           >
             Save draft
-          </button>
-          <button
-            className="user-primary-button"
-            disabled={saving || accessibilityWarnings.length > 2}
-            onClick={() => void publishDraft()}
-            type="button"
-          >
-            Publish changes
           </button>
         </div>
       </div>
@@ -219,7 +201,7 @@ export function EventDesignEditor({
               ))}
             </select>
           </label>
-          {fields.map((field) => (
+          {requiredFields.map((field) => (
             <label className="user-field" key={field.key}>
               <span>
                 {field.label}
@@ -237,10 +219,34 @@ export function EventDesignEditor({
               />
             </label>
           ))}
+          {optionalFields.length ? (
+            <details className="event-optional-fields">
+              <summary>Optional fields ({optionalFields.length})</summary>
+              <div>
+                {optionalFields.map((field) => (
+                  <label className="user-field" key={field.key}>
+                    <span>{field.label}</span>
+                    <input
+                      onChange={(changeEvent) =>
+                        setValues((current) => ({
+                          ...current,
+                          [field.key]: changeEvent.target.value,
+                        }))
+                      }
+                      type={field.type === "date" ? "date" : "text"}
+                      value={values[field.key] ?? ""}
+                    />
+                  </label>
+                ))}
+              </div>
+            </details>
+          ) : null}
           <div className="event-accessibility-check">
             <strong>Readiness and accessibility</strong>
             {accessibilityWarnings.length ? (
-              accessibilityWarnings.map((warning) => <p key={warning}>⚠ {warning}</p>)
+              accessibilityWarnings.map((warning) => (
+                <p key={warning}>⚠ {warning}</p>
+              ))
             ) : (
               <p>✓ No obvious invitation accessibility problems detected.</p>
             )}
@@ -250,7 +256,8 @@ export function EventDesignEditor({
             {revisions.map((revision) => (
               <div key={revision.id}>
                 <span>
-                  {revision.label ?? `Version ${revision.designVersion.versionNumber}`}
+                  {revision.label ??
+                    `Version ${revision.designVersion.versionNumber}`}
                 </span>
                 <button onClick={() => void restore(revision)} type="button">
                   Restore as draft

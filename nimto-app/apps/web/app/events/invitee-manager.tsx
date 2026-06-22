@@ -58,6 +58,9 @@ export function InviteeManager({
   const [page, setPage] = useState(1);
   const [selectedInvitee, setSelectedInvitee] =
     useState<InvitationInvitee | null>(null);
+  const [showAddGuests, setShowAddGuests] = useState(false);
+  const [addMode, setAddMode] = useState<"manual" | "paste" | "csv">("manual");
+  const [actionInviteeId, setActionInviteeId] = useState("");
   const pageSize = 15;
   const filteredInvitees = useMemo(
     () =>
@@ -90,7 +93,7 @@ export function InviteeManager({
 
   function downloadSampleCsv() {
     const csv = [
-      "Invitee Name,Email,Phone,Group,Meal Preference",
+      "Guest Name,Email,Phone,Group,Meal Preference",
       "Aarav Sharma,aarav@example.com,+9779800000000,Friends,Vegetarian",
       "Ishani Kandel,ishani@example.com,+9779811111111,Family,Vegan",
       "The Adhikari Family,,,Family,",
@@ -99,7 +102,7 @@ export function InviteeManager({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "nimto-invitee-sample.csv";
+    link.download = "nimto-guest-sample.csv";
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -109,116 +112,30 @@ export function InviteeManager({
       <section className="user-panel">
         <div className="event-section-heading">
           <div>
-            <p className="user-kicker">Add invitees</p>
-            <h2>Generate personalized links</h2>
+            <p className="user-kicker">Guests</p>
+            <h2>Guest list and personalized links</h2>
             <p>
-              Add names manually, paste a list, or upload a CSV. Each guest gets
-              a reusable link to this invitation.
+              Add guests when you need them. Each person receives a reusable,
+              trackable invitation link.
             </p>
           </div>
+          <button
+            className="user-primary-button"
+            onClick={() => setShowAddGuests(true)}
+            type="button"
+          >
+            Add guests
+          </button>
         </div>
-
-        <div className="invitee-input-grid">
-          <label className="user-field">
-            <span>
-              <span>Add manually</span>
-              <em>One or more names</em>
-            </span>
-            <textarea
-              onChange={(event) => onInput(event.target.value)}
-              placeholder={"Trilochan Kandel\nAsha Sharma"}
-              rows={5}
-              value={inviteeInput}
-            />
-          </label>
-          <label className="user-field">
-            <span>
-              <span>Paste a list</span>
-              <em>One name per line</em>
-            </span>
-            <textarea
-              onChange={(event) => onPaste(event.target.value)}
-              placeholder={"Nishwet Adhikari\nJoon Shakya"}
-              rows={5}
-              value={inviteePaste}
-            />
-          </label>
-          <div className="invitee-upload-field">
-            <label className="user-field">
-              <span>
-                <span>Upload CSV</span>
-                <em>You can map every column before importing</em>
-              </span>
-              <input
-                accept=".csv,text/csv"
-                onChange={(event) => onReadCsv(event.target.files?.[0])}
-                type="file"
-              />
-            </label>
-            <button
-              className="user-secondary-button"
-              onClick={downloadSampleCsv}
-              type="button"
-            >
-              Download sample CSV
-            </button>
-          </div>
-        </div>
-
-        {draftInvitees.length ? (
-          <div className="invitee-draft-panel">
-            <div className="overflow-x-auto">
-              <table className="user-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Invitee name</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draftInvitees.map((draft, index) => (
-                    <tr key={`${draft.name}-${index}`}>
-                      <td>{index + 1}</td>
-                      <td>{draft.name || "Empty"}</td>
-                      <td>
-                        <span
-                          className={
-                            draft.status === "Ready"
-                              ? "invitee-ready"
-                              : "invitee-warning"
-                          }
-                        >
-                          {draft.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="invitee-draft-action">
-              <span>
-                {readyCount} valid {readyCount === 1 ? "name" : "names"}
-              </span>
-              <button
-                className="user-primary-button"
-                disabled={!readyCount || isSaving}
-                onClick={onGenerate}
-                type="button"
-              >
-                {isSaving ? "Generating..." : `Generate ${readyCount} links`}
-              </button>
-            </div>
-          </div>
-        ) : null}
       </section>
 
       <section className="user-panel">
         <div className="event-section-heading event-links-heading">
           <div>
-            <p className="user-kicker">Invitee history</p>
-            <h2>Generated links</h2>
+            <p className="user-kicker">Guest history</p>
+            <h2>
+              {invitees.length ? `${invitees.length} guests` : "No guests yet"}
+            </h2>
             <p>
               Keep, copy, download, regenerate, or remove links whenever you
               need them.
@@ -246,19 +163,19 @@ export function InviteeManager({
 
         <div className="invitee-filter-row">
           <label className="event-search invitee-search">
-            <span className="sr-only">Search invitees</span>
+            <span className="sr-only">Search guests</span>
             <input
               onChange={(event) => onSearch(event.target.value)}
-              placeholder="Search invitee"
+              placeholder="Search guests"
               value={inviteeSearch}
             />
           </label>
           <select
             aria-label="Filter RSVP status"
-              onChange={(event) => {
-                setRsvpFilter(event.target.value);
-                setPage(1);
-              }}
+            onChange={(event) => {
+              setRsvpFilter(event.target.value);
+              setPage(1);
+            }}
             value={rsvpFilter}
           >
             <option value="ALL">All responses</option>
@@ -276,7 +193,9 @@ export function InviteeManager({
           >
             <option value="ALL">All groups</option>
             {Array.from(
-              new Set(invitees.map((invitee) => invitee.groupName ?? "Ungrouped")),
+              new Set(
+                invitees.map((invitee) => invitee.groupName ?? "Ungrouped"),
+              ),
             ).map((group) => (
               <option key={group} value={group}>
                 {group}
@@ -285,10 +204,10 @@ export function InviteeManager({
           </select>
           <select
             aria-label="Sort invitees"
-              onChange={(event) => {
-                setSort(event.target.value);
-                setPage(1);
-              }}
+            onChange={(event) => {
+              setSort(event.target.value);
+              setPage(1);
+            }}
             value={sort}
           >
             <option value="name">Name A–Z</option>
@@ -301,16 +220,20 @@ export function InviteeManager({
           <table className="user-table invitee-link-table">
             <thead>
               <tr>
-                <th>Invitee</th>
-                <th>Engagement</th>
+                <th>Guest</th>
+                <th>Group</th>
                 <th>RSVP</th>
-                <th className="text-right">Actions</th>
+                <th>Opens</th>
+                <th>Last shared</th>
+                <th className="text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {visibleInvitees.map((invitee) => (
                 <tr key={invitee.id}>
-                  <td>
+                  <td data-label="Guest">
                     <button
                       className="invitee-name-button"
                       onClick={() => setSelectedInvitee(invitee)}
@@ -318,75 +241,97 @@ export function InviteeManager({
                     >
                       <strong>{invitee.name}</strong>
                     </button>
-                    <span>{origin}/invite/{invitee.slug}</span>
-                    {invitee.groupName ? <span>{invitee.groupName}</span> : null}
-                  </td>
-                  <td>
-                    <strong>{invitee.openCount || 0} opens</strong>
                     <span>
-                      {invitee.lastOpenedAt
-                        ? `Last opened ${new Date(invitee.lastOpenedAt).toLocaleDateString()}`
-                        : "Not opened yet"}
+                      {invitee.email || invitee.phone || "Personal invitation"}
                     </span>
                   </td>
-                  <td>
-                    <span className={`rsvp-status ${invitee.rsvpStatus.toLowerCase()}`}>
+                  <td data-label="Group">
+                    <span>{invitee.groupName || "Ungrouped"}</span>
+                  </td>
+                  <td data-label="RSVP">
+                    <span
+                      className={`rsvp-status ${invitee.rsvpStatus.toLowerCase()}`}
+                    >
                       {invitee.rsvpStatus.toLowerCase()}
                     </span>
                     {invitee.rsvpStatus === "ATTENDING" ? (
                       <span>{invitee.partySize ?? 1} guest(s)</span>
                     ) : null}
                   </td>
-                  <td>
-                    <div className="invitee-row-actions">
-                      <Link
-                        className="user-secondary-button"
-                        href={`/invite/${invitee.slug}`}
-                        target="_blank"
-                      >
-                        Preview
-                      </Link>
+                  <td data-label="Opens">
+                    <strong>{invitee.openCount || 0}</strong>
+                  </td>
+                  <td data-label="Last shared">
+                    <span>
+                      {invitee.lastSharedAt
+                        ? new Date(invitee.lastSharedAt).toLocaleDateString()
+                        : "Not shared"}
+                    </span>
+                  </td>
+                  <td data-label="Actions">
+                    <div className="guest-action-menu">
                       <button
-                        className="user-secondary-button"
-                        onClick={() => onCopyOne(invitee)}
+                        aria-expanded={actionInviteeId === invitee.id}
+                        aria-label={`Actions for ${invitee.name}`}
+                        className="guest-action-trigger"
+                        onClick={() =>
+                          setActionInviteeId((current) =>
+                            current === invitee.id ? "" : invitee.id,
+                          )
+                        }
                         type="button"
                       >
-                        Copy
+                        •••
                       </button>
-                      <a
-                        className="user-secondary-button"
-                        href={`https://wa.me/?text=${encodeURIComponent(`${invitee.name}, your invitation: ${origin}/invite/${invitee.slug}`)}`}
-                        onClick={() => onShare(invitee, "WHATSAPP")}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        WhatsApp
-                      </a>
-                      <InvitationQrCode
-                        label={invitee.name}
-                        url={`${origin}/invite/${invitee.slug}`}
-                      />
-                      <button
-                        className="user-secondary-button"
-                        onClick={() => onRegenerate(invitee)}
-                        type="button"
-                      >
-                        Regenerate
-                      </button>
-                      <button
-                        className="user-secondary-button"
-                        onClick={() => onToggleLink(invitee)}
-                        type="button"
-                      >
-                        {invitee.linkDisabledAt ? "Enable" : "Disable"}
-                      </button>
-                      <button
-                        className="user-danger-button"
-                        onClick={() => onDelete(invitee)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
+                      {actionInviteeId === invitee.id ? (
+                        <div className="guest-action-popover">
+                          <Link
+                            href={`/invite/${invitee.slug}`}
+                            target="_blank"
+                          >
+                            Preview invitation
+                          </Link>
+                          <button
+                            onClick={() => onCopyOne(invitee)}
+                            type="button"
+                          >
+                            Copy link
+                          </button>
+                          <a
+                            href={`https://wa.me/?text=${encodeURIComponent(`${invitee.name}, your invitation: ${origin}/invite/${invitee.slug}`)}`}
+                            onClick={() => onShare(invitee, "WHATSAPP")}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Share on WhatsApp
+                          </a>
+                          <InvitationQrCode
+                            label={invitee.name}
+                            url={`${origin}/invite/${invitee.slug}`}
+                          />
+                          <button
+                            onClick={() => onRegenerate(invitee)}
+                            type="button"
+                          >
+                            Regenerate link
+                          </button>
+                          <button
+                            onClick={() => onToggleLink(invitee)}
+                            type="button"
+                          >
+                            {invitee.linkDisabledAt
+                              ? "Enable link"
+                              : "Disable link"}
+                          </button>
+                          <button
+                            className="danger"
+                            onClick={() => onDelete(invitee)}
+                            type="button"
+                          >
+                            Delete guest
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -399,8 +344,8 @@ export function InviteeManager({
           {!isLoading && !filteredInvitees.length ? (
             <p className="p-5 text-sm text-ink/55">
               {invitees.length
-                ? "No invitees match your search."
-                : "No invitee links yet. Add names above when you are ready."}
+                ? "No guests match your search."
+                : "No guests yet. Add your first guest to create a personalized invitation link."}
             </p>
           ) : null}
         </div>
@@ -438,6 +383,145 @@ export function InviteeManager({
           }}
         />
       ) : null}
+      {showAddGuests ? (
+        <div
+          className="invitee-drawer-backdrop"
+          onMouseDown={() => setShowAddGuests(false)}
+        >
+          <section
+            className="guest-add-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="event-section-heading">
+              <div>
+                <p className="user-kicker">Add guests</p>
+                <h2>How would you like to add them?</h2>
+              </div>
+              <button
+                className="user-secondary-button"
+                onClick={() => setShowAddGuests(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+            <div className="guest-add-tabs">
+              {(["manual", "paste", "csv"] as const).map((mode) => (
+                <button
+                  className={addMode === mode ? "active" : ""}
+                  key={mode}
+                  onClick={() => setAddMode(mode)}
+                  type="button"
+                >
+                  {mode === "csv"
+                    ? "Upload CSV"
+                    : mode === "paste"
+                      ? "Paste list"
+                      : "Add manually"}
+                </button>
+              ))}
+            </div>
+            {addMode === "manual" ? (
+              <label className="user-field">
+                <span>
+                  Guest names <em>One per line</em>
+                </span>
+                <textarea
+                  onChange={(event) => onInput(event.target.value)}
+                  placeholder={"Trilochan Kandel\nAsha Sharma"}
+                  rows={6}
+                  value={inviteeInput}
+                />
+              </label>
+            ) : null}
+            {addMode === "paste" ? (
+              <label className="user-field">
+                <span>
+                  Paste your list <em>One name per line</em>
+                </span>
+                <textarea
+                  onChange={(event) => onPaste(event.target.value)}
+                  placeholder={"Nishwet Adhikari\nJoon Shakya"}
+                  rows={6}
+                  value={inviteePaste}
+                />
+              </label>
+            ) : null}
+            {addMode === "csv" ? (
+              <div className="guest-csv-zone">
+                <label className="user-field">
+                  <span>
+                    Choose CSV{" "}
+                    <em>You can review and map columns before import</em>
+                  </span>
+                  <input
+                    accept=".csv,text/csv"
+                    onChange={(event) => onReadCsv(event.target.files?.[0])}
+                    type="file"
+                  />
+                </label>
+                <button
+                  className="user-secondary-button"
+                  onClick={downloadSampleCsv}
+                  type="button"
+                >
+                  Download sample CSV
+                </button>
+              </div>
+            ) : null}
+            {addMode !== "csv" && draftInvitees.length ? (
+              <div className="invitee-draft-panel">
+                <div className="overflow-x-auto">
+                  <table className="user-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Guest name</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {draftInvitees.map((draft, index) => (
+                        <tr key={`${draft.name}-${index}`}>
+                          <td>{index + 1}</td>
+                          <td>{draft.name}</td>
+                          <td>
+                            <span
+                              className={
+                                draft.status === "Ready"
+                                  ? "invitee-ready"
+                                  : "invitee-warning"
+                              }
+                            >
+                              {draft.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="invitee-draft-action">
+                  <span>
+                    {readyCount} valid {readyCount === 1 ? "guest" : "guests"}
+                  </span>
+                  <button
+                    className="user-primary-button"
+                    disabled={!readyCount || isSaving}
+                    onClick={() => {
+                      onGenerate();
+                      setShowAddGuests(false);
+                    }}
+                    type="button"
+                  >
+                    {isSaving ? "Adding…" : `Add ${readyCount} guests`}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -451,6 +535,8 @@ function InviteeDrawer({
   onClose: () => void;
   onSave: (values: Record<string, unknown>) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -479,9 +565,24 @@ function InviteeDrawer({
             <p className="user-kicker">Guest details</p>
             <h2>{invitee.name}</h2>
           </div>
-          <button className="user-secondary-button" onClick={onClose} type="button">
-            Close
-          </button>
+          <div className="event-header-actions">
+            {!isEditing ? (
+              <button
+                className="user-primary-button"
+                onClick={() => setIsEditing(true)}
+                type="button"
+              >
+                Edit
+              </button>
+            ) : null}
+            <button
+              className="user-secondary-button"
+              onClick={onClose}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
         </div>
         <div className="invitee-engagement-summary">
           <span>{invitee.openCount} opens</span>
@@ -496,26 +597,126 @@ function InviteeDrawer({
               : "No response yet"}
           </span>
         </div>
-        <form className="invitee-detail-form" onSubmit={submit}>
-          <label className="user-field"><span>Name</span><input defaultValue={invitee.name} name="name" required /></label>
-          <label className="user-field"><span>Email</span><input defaultValue={invitee.email ?? ""} name="email" type="email" /></label>
-          <label className="user-field"><span>Phone / WhatsApp</span><input defaultValue={invitee.phone ?? ""} name="phone" /></label>
-          <label className="user-field"><span>Group or family</span><input defaultValue={invitee.groupName ?? ""} name="groupName" /></label>
-          <label className="user-field">
-            <span>RSVP status</span>
-            <select defaultValue={invitee.rsvpStatus} name="rsvpStatus">
-              <option value="PENDING">Pending</option>
-              <option value="ATTENDING">Attending</option>
-              <option value="DECLINED">Declined</option>
-            </select>
-          </label>
-          <label className="user-field"><span>Party size</span><input defaultValue={invitee.partySize ?? 1} max={20} min={1} name="partySize" type="number" /></label>
-          <label className="user-field"><span>Meal preference</span><input defaultValue={invitee.mealPreference ?? ""} name="mealPreference" /></label>
-          <label className="user-field"><span>Guest message</span><textarea defaultValue={invitee.rsvpMessage ?? ""} name="rsvpMessage" rows={3} /></label>
-          <label className="user-field"><span>Private organizer notes</span><textarea defaultValue={invitee.organizerNotes ?? ""} name="organizerNotes" rows={3} /></label>
-          <label className="user-field"><span>Link expiry</span><input defaultValue={invitee.linkExpiresAt?.slice(0, 16) ?? ""} name="linkExpiresAt" type="datetime-local" /></label>
-          <button className="user-primary-button" type="submit">Save guest details</button>
-        </form>
+        {!isEditing ? (
+          <div className="guest-detail-summary">
+            <div>
+              <span>Email</span>
+              <strong>{invitee.email || "Not provided"}</strong>
+            </div>
+            <div>
+              <span>Phone / WhatsApp</span>
+              <strong>{invitee.phone || "Not provided"}</strong>
+            </div>
+            <div>
+              <span>Group</span>
+              <strong>{invitee.groupName || "Ungrouped"}</strong>
+            </div>
+            <div>
+              <span>RSVP</span>
+              <strong>{invitee.rsvpStatus.toLowerCase()}</strong>
+            </div>
+            <div>
+              <span>Party size</span>
+              <strong>{invitee.partySize ?? 1}</strong>
+            </div>
+            <div>
+              <span>Meal preference</span>
+              <strong>{invitee.mealPreference || "Not provided"}</strong>
+            </div>
+            <div className="full">
+              <span>Guest message</span>
+              <strong>{invitee.rsvpMessage || "No message"}</strong>
+            </div>
+            <div className="full">
+              <span>Private organizer notes</span>
+              <strong>{invitee.organizerNotes || "No notes"}</strong>
+            </div>
+          </div>
+        ) : (
+          <form className="invitee-detail-form" onSubmit={submit}>
+            <label className="user-field">
+              <span>Name</span>
+              <input defaultValue={invitee.name} name="name" required />
+            </label>
+            <label className="user-field">
+              <span>Email</span>
+              <input
+                defaultValue={invitee.email ?? ""}
+                name="email"
+                type="email"
+              />
+            </label>
+            <label className="user-field">
+              <span>Phone / WhatsApp</span>
+              <input defaultValue={invitee.phone ?? ""} name="phone" />
+            </label>
+            <label className="user-field">
+              <span>Group or family</span>
+              <input defaultValue={invitee.groupName ?? ""} name="groupName" />
+            </label>
+            <label className="user-field">
+              <span>RSVP status</span>
+              <select defaultValue={invitee.rsvpStatus} name="rsvpStatus">
+                <option value="PENDING">Pending</option>
+                <option value="ATTENDING">Attending</option>
+                <option value="DECLINED">Declined</option>
+              </select>
+            </label>
+            <label className="user-field">
+              <span>Party size</span>
+              <input
+                defaultValue={invitee.partySize ?? 1}
+                max={20}
+                min={1}
+                name="partySize"
+                type="number"
+              />
+            </label>
+            <label className="user-field">
+              <span>Meal preference</span>
+              <input
+                defaultValue={invitee.mealPreference ?? ""}
+                name="mealPreference"
+              />
+            </label>
+            <label className="user-field">
+              <span>Guest message</span>
+              <textarea
+                defaultValue={invitee.rsvpMessage ?? ""}
+                name="rsvpMessage"
+                rows={3}
+              />
+            </label>
+            <label className="user-field">
+              <span>Private organizer notes</span>
+              <textarea
+                defaultValue={invitee.organizerNotes ?? ""}
+                name="organizerNotes"
+                rows={3}
+              />
+            </label>
+            <label className="user-field">
+              <span>Link expiry</span>
+              <input
+                defaultValue={invitee.linkExpiresAt?.slice(0, 16) ?? ""}
+                name="linkExpiresAt"
+                type="datetime-local"
+              />
+            </label>
+            <div className="event-header-actions">
+              <button className="user-primary-button" type="submit">
+                Save guest details
+              </button>
+              <button
+                className="user-secondary-button"
+                onClick={() => setIsEditing(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </aside>
     </div>
   );

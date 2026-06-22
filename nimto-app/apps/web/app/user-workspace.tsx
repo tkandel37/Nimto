@@ -43,8 +43,9 @@ type UserWorkspaceContextValue = {
   user: AuthUser;
 };
 
-const UserWorkspaceContext =
-  createContext<UserWorkspaceContextValue | null>(null);
+const UserWorkspaceContext = createContext<UserWorkspaceContextValue | null>(
+  null,
+);
 
 const pageLinks: {
   key: WorkspacePage;
@@ -66,7 +67,7 @@ const pageLinks: {
   },
   {
     key: "designs",
-    label: "Designs",
+    label: "Invitations",
     href: "/designs",
     icon: (
       <>
@@ -78,7 +79,7 @@ const pageLinks: {
   },
   {
     key: "myDesigns",
-    label: "My Designs",
+    label: "My Invitations",
     href: "/my-designs",
     icon: (
       <>
@@ -118,13 +119,16 @@ export function UserFrame({ children }: { children: ReactNode }) {
   const isLoggingOutRef = useRef(false);
   const { isChecking, token, user } = authState;
 
-  const showToast = useCallback((message: string, tone: Toast["tone"] = "success") => {
-    const id = Date.now();
-    setToasts((current) => [...current, { id, message, tone }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 4200);
-  }, []);
+  const showToast = useCallback(
+    (message: string, tone: Toast["tone"] = "success") => {
+      const id = Date.now();
+      setToasts((current) => [...current, { id, message, tone }]);
+      window.setTimeout(() => {
+        setToasts((current) => current.filter((toast) => toast.id !== id));
+      }, 4200);
+    },
+    [],
+  );
 
   const authHeaders = useMemo<Record<string, string>>(() => {
     const headers: Record<string, string> = {};
@@ -283,7 +287,10 @@ export function UserFrame({ children }: { children: ReactNode }) {
                     setAuthState({ isChecking: false, token: "", user: null });
                     return;
                   }
-                  setAuthState((current) => ({ ...current, isChecking: false }));
+                  setAuthState((current) => ({
+                    ...current,
+                    isChecking: false,
+                  }));
                   showToast("Could not reconnect. Please try again.", "error");
                 });
               }}
@@ -291,7 +298,11 @@ export function UserFrame({ children }: { children: ReactNode }) {
             >
               Retry
             </button>
-            <button className="user-secondary-button" onClick={logout} type="button">
+            <button
+              className="user-secondary-button"
+              onClick={logout}
+              type="button"
+            >
               Log in again
             </button>
           </div>
@@ -340,7 +351,11 @@ export function UserFrame({ children }: { children: ReactNode }) {
               <span className="hidden text-sm font-bold text-ink/55 sm:inline">
                 {user.name}
               </span>
-              <button className="user-ghost-button" onClick={logout} type="button">
+              <button
+                className="user-ghost-button"
+                onClick={logout}
+                type="button"
+              >
                 Log out
               </button>
             </div>
@@ -433,14 +448,14 @@ export function ProfileForm({
         headers: authHeaders,
         body: JSON.stringify({ name, email, phone }),
       });
-      saveAuthSession(
-        localStorage.getItem("nimto_token") ?? "",
-        response.user,
-      );
+      saveAuthSession(localStorage.getItem("nimto_token") ?? "", response.user);
       await refreshUser();
       showToast("Profile updated.");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Profile update failed.", "error");
+      showToast(
+        error instanceof Error ? error.message : "Profile update failed.",
+        "error",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -482,7 +497,11 @@ export function ProfileForm({
           />
         </label>
       </div>
-      <button className="user-primary-button mt-7" disabled={isSaving} type="submit">
+      <button
+        className="user-primary-button mt-7"
+        disabled={isSaving}
+        type="submit"
+      >
         {isSaving ? "Saving..." : "Save profile"}
       </button>
     </form>
@@ -507,5 +526,7 @@ export function Icon({ children }: { children: ReactNode }) {
 }
 
 function isAuthFailure(error: unknown) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+  return (
+    error instanceof ApiError && (error.status === 401 || error.status === 403)
+  );
 }
