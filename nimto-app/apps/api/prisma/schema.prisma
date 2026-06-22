@@ -66,6 +66,12 @@ enum AnimationComponentType {
   BACKGROUND
 }
 
+enum RsvpStatus {
+  PENDING
+  ATTENDING
+  DECLINED
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String
@@ -201,6 +207,7 @@ model InvitationTemplate {
   subcategory    DesignSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
   createdById    String?
   createdBy      User?              @relation("InvitationTemplatesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  animationAssignments TemplateAnimationAssignment[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -330,6 +337,10 @@ model Event {
   slug              String              @unique
   coverImage        String?
   isPublished       Boolean             @default(false)
+  archivedAt        DateTime?
+  firstOpenedAt     DateTime?
+  lastOpenedAt      DateTime?
+  openCount         Int                 @default(0)
   designVersionId   String?
   designVersion     DesignVersion?      @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
   designFieldValues Json?
@@ -341,20 +352,30 @@ model Event {
   @@index([userId])
   @@index([slug])
   @@index([isPublished])
+  @@index([archivedAt])
   @@index([designVersionId])
 }
 
 model InvitationInvitee {
-  id        String   @id @default(cuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String     @id @default(cuid())
+  eventId        String
+  event          Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String     @unique
+  firstOpenedAt  DateTime?
+  lastOpenedAt   DateTime?
+  openCount      Int        @default(0)
+  rsvpStatus     RsvpStatus @default(PENDING)
+  partySize      Int?
+  mealPreference String?
+  rsvpMessage    String?
+  respondedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@unique([eventId, name])
   @@index([eventId])
+  @@index([eventId, rsvpStatus])
   @@index([slug])
 }
 
@@ -388,11 +409,26 @@ model AnimationComponent {
   status         DesignCatalogStatus    @default(ACTIVE)
   createdById    String?
   createdBy      User?                  @relation("AnimationComponentsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  templateAssignments TemplateAnimationAssignment[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
   @@index([type, status])
   @@index([createdById])
+}
+
+model TemplateAnimationAssignment {
+  id                   String             @id @default(cuid())
+  templateId           String
+  template             InvitationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  animationComponentId String
+  animationComponent   AnimationComponent @relation(fields: [animationComponentId], references: [id], onDelete: Cascade)
+  slotKey               String
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@unique([templateId, slotKey])
+  @@index([animationComponentId])
 }
 
 model PageContent {

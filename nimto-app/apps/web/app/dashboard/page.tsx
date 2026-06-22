@@ -174,6 +174,11 @@ type InvitationTemplate = {
   category?: Pick<DesignCategory, "id" | "name" | "slug"> | null;
   subcategory?: Pick<DesignSubcategory, "id" | "name" | "slug"> | null;
   createdBy?: Pick<AuthUser, "id" | "name" | "email"> | null;
+  animationAssignments?: {
+    id: string;
+    slotKey: string;
+    animationComponent: AnimationComponent;
+  }[];
 };
 
 type InvitationDesign = {
@@ -184,6 +189,7 @@ type InvitationDesign = {
   category?: Pick<DesignCategory, "id" | "name" | "slug"> | null;
   subcategory?: Pick<DesignSubcategory, "id" | "name" | "slug"> | null;
   createdBy?: Pick<AuthUser, "id" | "name" | "email"> | null;
+  templates?: { id: string; updatedAt: string }[];
   versions: {
     id: string;
     versionNumber: number;
@@ -192,6 +198,7 @@ type InvitationDesign = {
     htmlSize: number;
     scanResult?: InvitationTemplate["scanResult"];
     createdAt: string;
+    _count?: { events: number };
   }[];
   createdAt: string;
   updatedAt: string;
@@ -215,6 +222,7 @@ type AnimationComponent = {
   } | null;
   status: DesignCatalogStatus;
   updatedAt: string;
+  _count?: { templateAssignments: number };
 };
 
 type ScannedTemplateField = NonNullable<
@@ -2100,6 +2108,88 @@ function DesignSetupPanel({
     }
   }
 
+  async function updateAnimationStatus(animation: AnimationComponent) {
+    const nextStatus = animation.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    await completeAction(
+      async () => {
+        const updated = await request<AnimationComponent>(
+          `/template-design/animations/${animation.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ status: nextStatus }),
+          },
+        );
+        setAnimations((items) =>
+          items.map((item) => (item.id === updated.id ? updated : item)),
+        );
+      },
+      `Animation ${nextStatus === "ACTIVE" ? "activated" : "deactivated"}.`,
+      { refresh: false },
+    );
+  }
+
+  async function deleteAnimation(animation: AnimationComponent) {
+    if (!window.confirm(`Delete animation “${animation.name}”?`)) return;
+    await completeAction(
+      async () => {
+        await request(`/template-design/animations/${animation.id}`, {
+          method: "DELETE",
+        });
+        setAnimations((items) => items.filter((item) => item.id !== animation.id));
+      },
+      "Animation deleted.",
+      { refresh: false },
+    );
+  }
+
+  async function rollbackDesign(versionId: string) {
+    if (!selectedDesign) return;
+    if (!window.confirm("Create a new current version from this older version?"))
+      return;
+    await completeAction(
+      async () => {
+        await request(
+          `/template-design/designs/${selectedDesign.id}/versions/${versionId}/rollback`,
+          { method: "POST" },
+        );
+        await reloadDesignCatalog();
+        setSelectedDesignId("");
+      },
+      "Design rolled back as a new current version.",
+      { refresh: false },
+    );
+  }
+
+  async function assignAnimation(slotKey: string, animationComponentId: string) {
+    if (!selectedTemplate) return;
+    await completeAction(
+      async () => {
+        await request(`/template-design/templates/${selectedTemplate.id}/animations`, {
+          method: "POST",
+          body: JSON.stringify({ slotKey, animationComponentId }),
+        });
+        await reloadSelectedTemplate(selectedTemplate.id);
+      },
+      "Animation connected to template slot.",
+      { refresh: false },
+    );
+  }
+
+  async function removeAnimationAssignment(assignmentId: string) {
+    if (!selectedTemplate) return;
+    await completeAction(
+      async () => {
+        await request(
+          `/template-design/templates/${selectedTemplate.id}/animations/${assignmentId}`,
+          { method: "DELETE" },
+        );
+        await reloadSelectedTemplate(selectedTemplate.id);
+      },
+      "Animation removed from template.",
+      { refresh: false },
+    );
+  }
+
   function updateEditorField(
     key: string,
     patch: Partial<TemplateEditorField>,
@@ -2155,7 +2245,7 @@ function DesignSetupPanel({
         >
           Back to designs
         </button>
-        <DesignDetailPanel design={selectedDesign} />
+        <DesignDetailPanel design={selectedDesign} onRollback={rollbackDesign} />
       </section>
     );
   }
@@ -2184,12 +2274,15 @@ function DesignSetupPanel({
       <section className={selectedTemplate ? "mt-3" : "mt-7 grid gap-5"}>
         {selectedTemplate ? (
           <TemplateEditorPanel
+            animations={animations}
             canPublishTemplates={canPublishTemplates}
             canUnpublishTemplates={canUnpublishTemplates}
             editorRawHtml={editorRawHtml}
             editorFields={editorFields}
             onBack={() => setSelectedTemplateId("")}
+            onAssignAnimation={assignAnimation}
             onPublish={publishTemplate}
+            onRemoveAnimation={removeAnimationAssignment}
             onSave={saveTemplateDraft}
             onSelectField={setSelectedFieldKey}
             onUnpublish={unpublishTemplate}
@@ -2523,7 +2616,9 @@ function DesignSetupPanel({
                   animationHtml={animationHtml}
                   isUploading={isUploadingAnimation}
                   onAnimationHtml={setAnimationHtml}
+                  onDelete={deleteAnimation}
                   onSubmit={createAnimationComponent}
+                  onToggleStatus={updateAnimationStatus}
                 />
               </div>
             )}
@@ -2535,10 +2630,13 @@ function DesignSetupPanel({
         <TemplateEditorPanel
           canPublishTemplates={canPublishTemplates}
           canUnpublishTemplates={canUnpublishTemplates}
+          animations={animations}
           editorRawHtml={editorRawHtml}
           editorFields={editorFields}
           onBack={() => setSelectedTemplateId("")}
+          onAssignAnimation={assignAnimation}
           onPublish={publishTemplate}
+          onRemoveAnimation={removeAnimationAssignment}
           onSave={saveTemplateDraft}
           onSelectField={setSelectedFieldKey}
           onUnpublish={unpublishTemplate}
@@ -2553,7 +2651,13 @@ function DesignSetupPanel({
   );
 }
 
-function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
+function DesignDetailPanel({
+  design,
+  onRollback,
+}: {
+  design: InvitationDesign | null;
+  onRollback: (versionId: string) => void;
+}) {
   const current = design?.versions.find((version) => version.status === "CURRENT");
   const fields = useMemo(
     () => current?.scanResult?.fields ?? scanFieldsFromHtml(current?.rawHtml),
@@ -2600,6 +2704,67 @@ function DesignDetailPanel({ design }: { design: InvitationDesign | null }) {
               .join(" / ") || "Uncategorized"}
           </p>
           <FeatureBadges scanResult={current?.scanResult} />
+          <div className="rounded-xl border border-ink/10 bg-paper/60 p-3">
+            <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
+              Health and usage
+            </p>
+            <p className="mt-2 text-sm font-bold text-ink">
+              {current &&
+              design.templates?.[0] &&
+              new Date(design.templates[0].updatedAt) > new Date(current.createdAt)
+                ? "Outdated: template has newer unpublished changes"
+                : current && fields.length
+                ? "Healthy current design"
+                : current
+                  ? "Review required: no editable fields detected"
+                  : "Broken: no current version"}
+            </p>
+            <p className="mt-1 text-sm text-ink/55">
+              Used by{" "}
+              {design.versions.reduce(
+                (total, version) => total + (version._count?.events ?? 0),
+                0,
+              )}{" "}
+              events.
+            </p>
+          </div>
+          <div className="grid gap-2 border-t border-ink/10 pt-3">
+            <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
+              Version history
+            </p>
+            {design.versions.map((version) => (
+              <div
+                className="flex items-center justify-between gap-3 rounded-lg border border-ink/10 p-3"
+                key={version.id}
+              >
+                <div>
+                  <p className="font-black text-ink">v{version.versionNumber}</p>
+                  <p className="text-xs text-ink/50">
+                    {version.status} · {version._count?.events ?? 0} events ·{" "}
+                    {Math.ceil(version.htmlSize / 1024)} KB
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-lg border border-ink/15 px-3 py-2 text-xs font-bold"
+                    onClick={() => openDesignPreview(design.name, version.rawHtml)}
+                    type="button"
+                  >
+                    Compare
+                  </button>
+                  {version.status !== "CURRENT" ? (
+                    <button
+                      className="rounded-lg bg-ink px-3 py-2 text-xs font-bold text-white"
+                      onClick={() => onRollback(version.id)}
+                      type="button"
+                    >
+                      Roll back
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
           <div className="grid gap-3 border-t border-ink/10 pt-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
@@ -2671,13 +2836,17 @@ function AnimationLibraryPanel({
   animationHtml,
   isUploading,
   onAnimationHtml,
+  onDelete,
   onSubmit,
+  onToggleStatus,
 }: {
   animations: AnimationComponent[];
   animationHtml: string;
   isUploading: boolean;
   onAnimationHtml: (html: string) => void;
+  onDelete: (animation: AnimationComponent) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onToggleStatus: (animation: AnimationComponent) => void;
 }) {
   async function readAnimationFile(file?: File) {
     if (!file || file.size === 0) return;
@@ -2780,6 +2949,33 @@ function AnimationLibraryPanel({
                   Area: {area}
                 </span>
               ))}
+            </div>
+            {animation.rawHtml ? (
+              <iframe
+                className="mt-3 h-44 w-full rounded-lg border border-ink/10 bg-white"
+                sandbox="allow-scripts"
+                srcDoc={animation.rawHtml}
+                title={`${animation.name} preview`}
+              />
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-bold"
+                onClick={() => onToggleStatus(animation)}
+                type="button"
+              >
+                {animation.status === "ACTIVE" ? "Deactivate" : "Activate"}
+              </button>
+              <button
+                className="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white"
+                onClick={() => onDelete(animation)}
+                type="button"
+              >
+                Delete
+              </button>
+              <span className="self-center text-xs font-bold text-ink/45">
+                {animation._count?.templateAssignments ?? 0} template slots
+              </span>
             </div>
           </article>
         ))}
@@ -3339,12 +3535,15 @@ function TemplateScanReview({ template }: { template: InvitationTemplate }) {
 }
 
 function TemplateEditorPanel({
+  animations,
   canPublishTemplates,
   canUnpublishTemplates,
   editorRawHtml,
   editorFields,
   onBack,
+  onAssignAnimation,
   onPublish,
+  onRemoveAnimation,
   onSave,
   onSelectField,
   onUnpublish,
@@ -3354,12 +3553,15 @@ function TemplateEditorPanel({
   selectedFieldKey,
   selectedTemplate,
 }: {
+  animations: AnimationComponent[];
   canPublishTemplates: boolean;
   canUnpublishTemplates: boolean;
   editorRawHtml: string;
   editorFields: TemplateEditorField[];
   onBack: () => void;
+  onAssignAnimation: (slotKey: string, animationComponentId: string) => void;
   onPublish: (templateId: string) => void;
+  onRemoveAnimation: (assignmentId: string) => void;
   onSave: () => void;
   onSelectField: (fieldKey: string) => void;
   onUnpublish: (templateId: string) => void;
@@ -3370,6 +3572,10 @@ function TemplateEditorPanel({
   selectedTemplate: InvitationTemplate;
 }) {
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const animationSlots = [
+    ...(selectedTemplate.scanResult?.openingSlots ?? []),
+    ...(selectedTemplate.scanResult?.backgroundEffectSlots ?? []),
+  ];
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const selectedFieldIndex = editorFields.findIndex(
     (field) => field.key === selectedFieldKey,
@@ -3466,6 +3672,59 @@ function TemplateEditorPanel({
           ) : null}
         </div>
       </div>
+      {animationSlots.length ? (
+        <section className="grid gap-3 border-b border-ink/10 bg-paper/50 p-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
+              Template animations
+            </p>
+            <p className="mt-1 text-sm text-ink/55">
+              Connect an active reusable animation to each scanned template slot.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {animationSlots.map((slotKey) => {
+              const assignment = selectedTemplate.animationAssignments?.find(
+                (item) => item.slotKey === slotKey,
+              );
+              return (
+                <div
+                  className="rounded-xl border border-ink/10 bg-white p-3"
+                  key={slotKey}
+                >
+                  <p className="text-sm font-black text-ink">{slotKey}</p>
+                  <select
+                    className="mt-2 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"
+                    onChange={(event) => {
+                      if (event.target.value)
+                        onAssignAnimation(slotKey, event.target.value);
+                    }}
+                    value={assignment?.animationComponent.id ?? ""}
+                  >
+                    <option value="">No animation</option>
+                    {animations
+                      .filter((animation) => animation.status === "ACTIVE")
+                      .map((animation) => (
+                        <option key={animation.id} value={animation.id}>
+                          {animation.name} ({animation.type})
+                        </option>
+                      ))}
+                  </select>
+                  {assignment ? (
+                    <button
+                      className="mt-2 text-xs font-black text-red-700"
+                      onClick={() => onRemoveAnimation(assignment.id)}
+                      type="button"
+                    >
+                      Remove assignment
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="template-editor-workspace grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="template-editor-preview min-w-0">

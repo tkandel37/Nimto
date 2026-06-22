@@ -343,7 +343,9 @@ function DesignEditor({
   const contentFields = fields.filter((field) => !field.required);
   const [activeFieldKey, setActiveFieldKey] = useState(fields[0]?.key ?? "");
   const selectedFieldKey = activeFieldKey || fields[0]?.key || "";
+  const draftKey = `nimto_design_draft_${design.id}`;
   const [values, setValues] = useState<Record<string, string>>({});
+  const [draftStatus, setDraftStatus] = useState("Changes save automatically");
   const [previewEditFieldKey, setPreviewEditFieldKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const valuesRef = useRef(values);
@@ -356,6 +358,35 @@ function DesignEditor({
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
   );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const saved = localStorage.getItem(draftKey);
+      if (!saved) return;
+      try {
+        const restored = JSON.parse(saved) as Record<string, string>;
+        valuesRef.current = restored;
+        setValues(restored);
+        setDraftStatus("Draft restored");
+      } catch {
+        localStorage.removeItem(draftKey);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [draftKey]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(draftKey, JSON.stringify(values));
+      setDraftStatus(
+        `Saved ${new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`,
+      );
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, values]);
 
   function applyPreviewFieldValue(fieldKey: string, value: string) {
     const nextValues = { ...valuesRef.current, [fieldKey]: value };
@@ -508,6 +539,7 @@ function DesignEditor({
         }),
       });
       localStorage.setItem("nimto_events_changed", String(Date.now()));
+      localStorage.removeItem(draftKey);
       showToast("Event created and ready to share.");
       router.replace(`/events/${response.id}`);
     } catch (error) {
@@ -529,6 +561,7 @@ function DesignEditor({
         <div>
           <p className="user-kicker">Create event</p>
           <h1 className="text-2xl font-black text-ink">{design.name}</h1>
+          <p className="design-draft-status">{draftStatus}</p>
         </div>
       </div>
 

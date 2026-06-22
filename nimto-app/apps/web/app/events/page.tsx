@@ -30,7 +30,9 @@ function EventsContent({
   const router = useRouter();
   const [events, setEvents] = useState<UserEvent[]>(eventCache?.items ?? []);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "published" | "draft">("all");
+  const [status, setStatus] = useState<
+    "all" | "published" | "draft" | "archived"
+  >("all");
   const [isLoading, setIsLoading] = useState(!eventCache);
 
   useEffect(() => {
@@ -74,9 +76,10 @@ function EventsContent({
     const normalizedQuery = query.trim().toLowerCase();
     return events.filter((event) => {
       const matchesStatus =
-        status === "all" ||
-        (status === "published" && event.isPublished) ||
-        (status === "draft" && !event.isPublished);
+        (status === "all" && !event.archivedAt) ||
+        (status === "published" && event.isPublished && !event.archivedAt) ||
+        (status === "draft" && !event.isPublished && !event.archivedAt) ||
+        (status === "archived" && Boolean(event.archivedAt));
       const matchesQuery =
         !normalizedQuery ||
         [event.title, event.type, event.venue, event.designVersion?.design?.name]
@@ -112,7 +115,7 @@ function EventsContent({
       <section className="event-summary-grid" aria-label="Event summary">
         <article>
           <span>Events</span>
-          <strong>{events.length}</strong>
+          <strong>{events.filter((event) => !event.archivedAt).length}</strong>
         </article>
         <article>
           <span>Shareable</span>
@@ -135,7 +138,7 @@ function EventsContent({
             />
           </label>
           <div className="event-status-filter" aria-label="Filter events">
-            {(["all", "published", "draft"] as const).map((option) => (
+            {(["all", "published", "draft", "archived"] as const).map((option) => (
               <button
                 aria-pressed={status === option}
                 className={status === option ? "active" : ""}
@@ -147,14 +150,20 @@ function EventsContent({
                   ? "All"
                   : option === "published"
                     ? "Shareable"
-                    : "Drafts"}
+                    : option === "draft"
+                      ? "Drafts"
+                      : "Archived"}
               </button>
             ))}
           </div>
         </div>
 
         {isLoading && !events.length ? (
-          <p className="user-empty">Loading events...</p>
+          <div className="user-skeleton-list" aria-label="Loading events">
+            <span />
+            <span />
+            <span />
+          </div>
         ) : null}
 
         {visibleEvents.length ? (
@@ -194,12 +203,16 @@ function EventsContent({
                     <td>
                       <span
                         className={
-                          event.isPublished
+                          event.isPublished && !event.archivedAt
                             ? "user-status published"
                             : "user-status"
                         }
                       >
-                        {event.isPublished ? "Shareable" : "Draft"}
+                        {event.archivedAt
+                          ? "Archived"
+                          : event.isPublished
+                            ? "Shareable"
+                            : "Draft"}
                       </span>
                     </td>
                     <td>{formatEventDate(event.updatedAt)}</td>

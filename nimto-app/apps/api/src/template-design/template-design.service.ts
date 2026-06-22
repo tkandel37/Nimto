@@ -22,6 +22,8 @@ import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dt
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
 import { UpdateDesignSubcategoryDto } from "./dto/update-design-subcategory.dto";
 import { UpdateInvitationTemplateDto } from "./dto/update-invitation-template.dto";
+import { UpdateAnimationComponentDto } from "./dto/update-animation-component.dto";
+import { AssignTemplateAnimationDto } from "./dto/assign-template-animation.dto";
 
 type ActorContext = {
   actorId: string;
@@ -171,7 +173,10 @@ export class TemplateDesignService {
     return this.prisma.animationComponent.findMany({
       where: type ? { type } : undefined,
       orderBy: { updatedAt: "desc" },
-      include: { createdBy: { select: { id: true, name: true, email: true } } },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+        _count: { select: { templateAssignments: true } },
+      },
     });
   }
 
@@ -230,6 +235,46 @@ export class TemplateDesignService {
       );
       throw error;
     }
+  }
+
+  async updateAnimationComponent(
+    animationId: string,
+    dto: UpdateAnimationComponentDto,
+    context: ActorContext,
+  ) {
+    const existing = await this.prisma.animationComponent.findUnique({
+      where: { id: animationId },
+    });
+    if (!existing) throw new NotFoundException("Animation not found.");
+
+    const animation = await this.prisma.animationComponent.update({
+      where: { id: animationId },
+      data: {
+        name: dto.name?.trim(),
+        status: dto.status,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+        _count: { select: { templateAssignments: true } },
+      },
+    });
+    await this.record(context, "animationComponent.updated", animation.id, {
+      name: animation.name,
+      status: animation.status,
+    });
+    return animation;
+  }
+
+  async deleteAnimationComponent(animationId: string, context: ActorContext) {
+    const existing = await this.prisma.animationComponent.findUnique({
+      where: { id: animationId },
+    });
+    if (!existing) throw new NotFoundException("Animation not found.");
+    await this.prisma.animationComponent.delete({ where: { id: animationId } });
+    await this.record(context, "animationComponent.deleted", animationId, {
+      name: existing.name,
+    });
+    return { success: true };
   }
 
   listPublicCategories() {
@@ -366,6 +411,20 @@ export class TemplateDesignService {
             category: { select: { id: true, name: true, slug: true } },
             subcategory: { select: { id: true, name: true, slug: true } },
             createdBy: { select: { id: true, name: true, email: true } },
+            animationAssignments: {
+              orderBy: { slotKey: "asc" },
+              include: {
+                animationComponent: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true,
+                    status: true,
+                    rawHtml: true,
+                  },
+                },
+              },
+            },
           },
         });
       },
@@ -431,6 +490,11 @@ export class TemplateDesignService {
           category: { select: { id: true, name: true, slug: true } },
           subcategory: { select: { id: true, name: true, slug: true } },
           createdBy: { select: { id: true, name: true, email: true } },
+          templates: {
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+            select: { id: true, updatedAt: true },
+          },
           versions: {
             orderBy: { versionNumber: "desc" },
             select: {
@@ -441,11 +505,119 @@ export class TemplateDesignService {
               htmlSize: true,
               scanResult: true,
               createdAt: true,
+              _count: { select: { events: true } },
             },
           },
         },
       });
     });
+  }
+
+  async assignTemplateAnimation(
+    templateId: string,
+    dto: AssignTemplateAnimationDto,
+    context: ActorContext,
+  ) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!template) throw new NotFoundException("Template not found.");
+    const animation = await this.prisma.animationComponent.findUnique({
+      where: { id: dto.animationComponentId },
+    });
+    if (!animation) throw new NotFoundException("Animation not found.");
+
+    const assignment = await this.prisma.templateAnimationAssignment.upsert({
+      where: {
+        templateId_slotKey: {
+          templateId,
+          slotKey: dto.slotKey.trim(),
+        },
+      },
+      create: {
+        templateId,
+        slotKey: dto.slotKey.trim(),
+        animationComponentId: animation.id,
+      },
+      update: { animationComponentId: animation.id },
+      include: { animationComponent: true },
+    });
+    await this.record(context, "templateAnimation.assigned", assignment.id, {
+      templateId,
+      animationComponentId: animation.id,
+      slotKey: assignment.slotKey,
+    });
+    this.clearTemplateDetailCache(templateId);
+    return assignment;
+  }
+
+  async removeTemplateAnimation(
+    templateId: string,
+    assignmentId: string,
+    context: ActorContext,
+  ) {
+    const assignment = await this.prisma.templateAnimationAssignment.findFirst({
+      where: { id: assignmentId, templateId },
+    });
+    if (!assignment) throw new NotFoundException("Assignment not found.");
+    await this.prisma.templateAnimationAssignment.delete({
+      where: { id: assignment.id },
+    });
+    await this.record(context, "templateAnimation.removed", assignment.id, {
+      templateId,
+      slotKey: assignment.slotKey,
+    });
+    this.clearTemplateDetailCache(templateId);
+    return { success: true };
+  }
+
+  async rollbackDesignVersion(
+    designId: string,
+    versionId: string,
+    context: ActorContext,
+  ) {
+    const source = await this.prisma.designVersion.findFirst({
+      where: { id: versionId, designId },
+      include: { design: true },
+    });
+    if (!source) throw new NotFoundException("Design version not found.");
+
+    const version = await this.prisma.$transaction(async (transaction) => {
+      const latest = await transaction.designVersion.findFirst({
+        where: { designId },
+        orderBy: { versionNumber: "desc" },
+        select: { versionNumber: true },
+      });
+      await transaction.designVersion.updateMany({
+        where: { designId, status: DesignVersionStatus.CURRENT },
+        data: { status: DesignVersionStatus.SUPERSEDED },
+      });
+      await transaction.invitationDesign.update({
+        where: { id: designId },
+        data: { status: DesignStatus.ACTIVE },
+      });
+      return transaction.designVersion.create({
+        data: {
+          designId,
+          templateId: source.templateId,
+          versionNumber: (latest?.versionNumber ?? 0) + 1,
+          status: DesignVersionStatus.CURRENT,
+          name: source.name,
+          rawHtml: source.rawHtml,
+          htmlSize: source.htmlSize,
+          scanResult: source.scanResult ?? undefined,
+          publishedById: context.actorId,
+        },
+      });
+    });
+    await this.record(context, "invitationDesign.rolledBack", designId, {
+      sourceVersionId: versionId,
+      newVersionId: version.id,
+      versionNumber: version.versionNumber,
+    });
+    designListCache.clear();
+    publicDesignCache.clear();
+    return version;
   }
 
   async createTemplate(
@@ -610,12 +782,30 @@ export class TemplateDesignService {
   async publishTemplate(templateId: string, context: ActorContext) {
     const template = await this.prisma.invitationTemplate.findUnique({
       where: { id: templateId },
+      include: {
+        animationAssignments: {
+          include: { animationComponent: true },
+        },
+      },
     });
     if (!template) {
       throw new NotFoundException("Template not found.");
     }
 
-    const scanResult = this.scanTemplateHtml(template.rawHtml);
+    const publishedHtml = this.applyAnimationAssignments(
+      template.rawHtml,
+      template.animationAssignments
+        .filter(
+          (assignment) =>
+            assignment.animationComponent.status === DesignCatalogStatus.ACTIVE,
+        )
+        .map((assignment) => ({
+          slotKey: assignment.slotKey,
+          type: assignment.animationComponent.type,
+          rawHtml: assignment.animationComponent.rawHtml,
+        })),
+    );
+    const scanResult = this.scanTemplateHtml(publishedHtml);
     const design = await this.prisma.$transaction(async (tx) => {
       const existingDesign = template.designId
         ? await tx.invitationDesign.findUnique({ where: { id: template.designId } })
@@ -662,8 +852,8 @@ export class TemplateDesignService {
           versionNumber,
           status: DesignVersionStatus.CURRENT,
           name: template.name,
-          rawHtml: template.rawHtml,
-          htmlSize: template.htmlSize,
+          rawHtml: publishedHtml,
+          htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
           scanResult,
           publishedById: context.actorId,
         },
@@ -1395,6 +1585,28 @@ export class TemplateDesignService {
         templateDetailCache.delete(key);
       }
     }
+  }
+
+  private applyAnimationAssignments(
+    templateHtml: string,
+    assignments: {
+      slotKey: string;
+      type: AnimationComponentType;
+      rawHtml: string;
+    }[],
+  ) {
+    return assignments.reduce((html, assignment) => {
+      const attribute =
+        assignment.type === AnimationComponentType.OPENING
+          ? "data-nimto-opening-slot"
+          : "data-nimto-bg-effect-slot";
+      const slot = assignment.slotKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(
+        `(<[^>]+${attribute}\\s*=\\s*(["'])${slot}\\2[^>]*>)`,
+        "i",
+      );
+      return html.replace(pattern, `$1${assignment.rawHtml}`);
+    }, templateHtml);
   }
 
   private clearTemplateListCaches() {

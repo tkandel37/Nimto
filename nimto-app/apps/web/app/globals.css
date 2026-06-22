@@ -2340,3 +2340,119 @@ a {
     font-size: 0.875rem;
   }
 }
+.event-edit-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.event-edit-description {
+  grid-column: span 2;
+}
+
+.event-publish-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 800;
+}
+
+.event-share-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.event-share-panel p {
+  max-width: 46rem;
+  color: rgb(23 37 29 / 0.6);
+}
+
+.invitee-filter-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.invitee-filter-row select {
+  border: 1px solid rgb(23 37 29 / 0.14);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.65rem 0.9rem;
+  font-weight: 700;
+}
+
+.invitee-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.rsvp-status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.3rem 0.55rem;
+  background: rgb(23 37 29 / 0.08);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.rsvp-status.attending {
+  background: rgb(63 143 95 / 0.14);
+  color: #24663e;
+}
+
+.rsvp-status.declined {
+  background: rgb(185 58 58 / 0.12);
+  color: #9b2f2f;
+}
+
+.user-skeleton-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.user-skeleton-list span {
+  height: 4.25rem;
+  border-radius: 0.8rem;
+  background: linear-gradient(90deg, #f2eee5 25%, #fff 50%, #f2eee5 75%);
+  background-size: 200% 100%;
+  animation: user-skeleton 1.2s infinite;
+}
+
+@keyframes user-skeleton {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.design-draft-status {
+  margin-top: 0.2rem;
+  color: rgb(23 37 29 / 0.5);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .event-edit-form,
+  .invitee-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .event-edit-description {
+    grid-column: auto;
+  }
+
+  .event-share-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

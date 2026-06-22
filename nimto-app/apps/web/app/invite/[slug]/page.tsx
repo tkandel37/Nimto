@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { serverApiUrl } from "@/lib/server-api";
+import { RsvpForm } from "./rsvp-form";
 
 type InvitationEvent = {
   title: string;
@@ -15,6 +16,10 @@ type InvitationEvent = {
   designFieldValues?: Record<string, string> | null;
   inviteeName?: string | null;
   inviteeSlug?: string | null;
+  rsvpStatus?: "PENDING" | "ATTENDING" | "DECLINED";
+  partySize?: number | null;
+  mealPreference?: string | null;
+  rsvpMessage?: string | null;
   designVersion?: {
     rawHtml: string;
     design?: { name: string; slug: string };
@@ -34,10 +39,13 @@ function displayDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-async function getInvitation(slug: string) {
-  const response = await fetch(`${serverApiUrl}/events/public/${slug}`, {
-    next: { revalidate: 60 },
-  });
+async function getInvitation(slug: string, track = true) {
+  const response = await fetch(
+    `${serverApiUrl}/events/public/${slug}${track ? "" : "?track=false"}`,
+    {
+    cache: "no-store",
+    },
+  );
 
   if (!response.ok) {
     return null;
@@ -52,7 +60,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const event = await getInvitation(slug);
+  const event = await getInvitation(slug, false);
   if (!event) {
     return { title: "Invitation not found" };
   }
@@ -107,6 +115,16 @@ export default async function InvitationPage({
           srcDoc={renderedHtml}
           title={event.title}
         />
+        {event.inviteeSlug && event.inviteeName ? (
+          <RsvpForm
+            initialMealPreference={event.mealPreference}
+            initialMessage={event.rsvpMessage}
+            initialPartySize={event.partySize}
+            initialStatus={event.rsvpStatus}
+            inviteeName={event.inviteeName}
+            slug={event.inviteeSlug}
+          />
+        ) : null}
       </main>
     );
   }
@@ -147,6 +165,16 @@ export default async function InvitationPage({
             </p>
           ) : null}
         </article>
+        {event.inviteeSlug && event.inviteeName ? (
+          <RsvpForm
+            initialMealPreference={event.mealPreference}
+            initialMessage={event.rsvpMessage}
+            initialPartySize={event.partySize}
+            initialStatus={event.rsvpStatus}
+            inviteeName={event.inviteeName}
+            slug={event.inviteeSlug}
+          />
+        ) : null}
       </section>
     </main>
   );

@@ -8,6 +8,11 @@ export type UserEvent = {
   coverImage?: string | null;
   slug: string;
   isPublished: boolean;
+  archivedAt?: string | null;
+  openCount?: number;
+  firstOpenedAt?: string | null;
+  lastOpenedAt?: string | null;
+  designFieldValues?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   designVersion?: {
@@ -26,6 +31,24 @@ export type InvitationInvitee = {
   slug: string;
   createdAt: string;
   updatedAt: string;
+  firstOpenedAt?: string | null;
+  lastOpenedAt?: string | null;
+  openCount: number;
+  rsvpStatus: "PENDING" | "ATTENDING" | "DECLINED";
+  partySize?: number | null;
+  mealPreference?: string | null;
+  rsvpMessage?: string | null;
+  respondedAt?: string | null;
+};
+
+export type EventStatistics = {
+  totalInvitees: number;
+  invitationOpens: number;
+  openedInvitees: number;
+  pending: number;
+  attending: number;
+  declined: number;
+  expectedGuests: number;
 };
 
 export type InviteeDraft = {

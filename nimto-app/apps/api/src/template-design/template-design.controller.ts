@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -21,6 +22,8 @@ import { CreateInvitationTemplateDto } from "./dto/create-invitation-template.dt
 import { UpdateDesignCategoryDto } from "./dto/update-design-category.dto";
 import { UpdateDesignSubcategoryDto } from "./dto/update-design-subcategory.dto";
 import { UpdateInvitationTemplateDto } from "./dto/update-invitation-template.dto";
+import { UpdateAnimationComponentDto } from "./dto/update-animation-component.dto";
+import { AssignTemplateAnimationDto } from "./dto/assign-template-animation.dto";
 import { TemplateDesignService } from "./template-design.service";
 
 @Controller("template-design")
@@ -70,6 +73,34 @@ export class TemplateDesignController {
     );
   }
 
+  @Patch("animations/:animationId")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateCreate)
+  updateAnimation(
+    @Param("animationId") animationId: string,
+    @Body() dto: UpdateAnimationComponentDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.updateAnimationComponent(
+      animationId,
+      dto,
+      this.context(request),
+    );
+  }
+
+  @Delete("animations/:animationId")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templateCreate)
+  deleteAnimation(
+    @Param("animationId") animationId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.deleteAnimationComponent(
+      animationId,
+      this.context(request),
+    );
+  }
+
   @Get("templates")
   @UseGuards(JwtAuthGuard)
   listTemplates(@Req() request: AuthenticatedRequest) {
@@ -85,10 +116,53 @@ export class TemplateDesignController {
     return this.templateDesign.getTemplate(templateId, request.user!.sub);
   }
 
+  @Post("templates/:templateId/animations")
+  @UseGuards(JwtAuthGuard)
+  assignTemplateAnimation(
+    @Param("templateId") templateId: string,
+    @Body() dto: AssignTemplateAnimationDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.assignTemplateAnimation(
+      templateId,
+      dto,
+      this.context(request),
+    );
+  }
+
+  @Delete("templates/:templateId/animations/:assignmentId")
+  @UseGuards(JwtAuthGuard)
+  removeTemplateAnimation(
+    @Param("templateId") templateId: string,
+    @Param("assignmentId") assignmentId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.removeTemplateAnimation(
+      templateId,
+      assignmentId,
+      this.context(request),
+    );
+  }
+
   @Get("designs")
   @UseGuards(JwtAuthGuard)
   listDesigns(@Req() request: AuthenticatedRequest) {
     return this.templateDesign.listDesigns(request.user!.sub);
+  }
+
+  @Post("designs/:designId/versions/:versionId/rollback")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.templatePublish)
+  rollbackDesign(
+    @Param("designId") designId: string,
+    @Param("versionId") versionId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.templateDesign.rollbackDesignVersion(
+      designId,
+      versionId,
+      this.context(request),
+    );
   }
 
   @Post("templates")

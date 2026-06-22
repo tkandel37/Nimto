@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { InvitationInvitee, InviteeDraft } from "./event-types";
+import { InvitationQrCode } from "./qr-code";
 
 export function InviteeManager({
   draftInvitees,
@@ -43,8 +46,32 @@ export function InviteeManager({
   const readyCount = draftInvitees.filter(
     (draft) => draft.status === "Ready",
   ).length;
-  const filteredInvitees = invitees.filter((invitee) =>
-    invitee.name.toLowerCase().includes(inviteeSearch.trim().toLowerCase()),
+  const [rsvpFilter, setRsvpFilter] = useState("ALL");
+  const [sort, setSort] = useState("name");
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const filteredInvitees = useMemo(
+    () =>
+      invitees
+        .filter(
+          (invitee) =>
+            invitee.name
+              .toLowerCase()
+              .includes(inviteeSearch.trim().toLowerCase()) &&
+            (rsvpFilter === "ALL" || invitee.rsvpStatus === rsvpFilter),
+        )
+        .sort((left, right) => {
+          if (sort === "opened") return right.openCount - left.openCount;
+          if (sort === "recent")
+            return +new Date(right.updatedAt) - +new Date(left.updatedAt);
+          return left.name.localeCompare(right.name);
+        }),
+    [inviteeSearch, invitees, rsvpFilter, sort],
+  );
+  const pageCount = Math.max(1, Math.ceil(filteredInvitees.length / pageSize));
+  const visibleInvitees = filteredInvitees.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
   );
 
   function downloadSampleCsv() {
@@ -203,36 +230,84 @@ export function InviteeManager({
           </div>
         </div>
 
-        <label className="event-search invitee-search">
-          <span className="sr-only">Search invitees</span>
-          <input
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder="Search invitee"
-            value={inviteeSearch}
-          />
-        </label>
+        <div className="invitee-filter-row">
+          <label className="event-search invitee-search">
+            <span className="sr-only">Search invitees</span>
+            <input
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder="Search invitee"
+              value={inviteeSearch}
+            />
+          </label>
+          <select
+            aria-label="Filter RSVP status"
+              onChange={(event) => {
+                setRsvpFilter(event.target.value);
+                setPage(1);
+              }}
+            value={rsvpFilter}
+          >
+            <option value="ALL">All responses</option>
+            <option value="PENDING">Pending</option>
+            <option value="ATTENDING">Attending</option>
+            <option value="DECLINED">Declined</option>
+          </select>
+          <select
+            aria-label="Sort invitees"
+              onChange={(event) => {
+                setSort(event.target.value);
+                setPage(1);
+              }}
+            value={sort}
+          >
+            <option value="name">Name A–Z</option>
+            <option value="recent">Recently updated</option>
+            <option value="opened">Most opened</option>
+          </select>
+        </div>
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-ink/10 bg-white">
           <table className="user-table invitee-link-table">
             <thead>
               <tr>
                 <th>Invitee</th>
-                <th>Personalized URL</th>
+                <th>Engagement</th>
+                <th>RSVP</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredInvitees.map((invitee) => (
+              {visibleInvitees.map((invitee) => (
                 <tr key={invitee.id}>
                   <td>
                     <strong>{invitee.name}</strong>
-                    <span>Ready to share</span>
+                    <span>{origin}/invite/{invitee.slug}</span>
                   </td>
-                  <td className="invitee-url">
-                    {origin}/invite/{invitee.slug}
+                  <td>
+                    <strong>{invitee.openCount || 0} opens</strong>
+                    <span>
+                      {invitee.lastOpenedAt
+                        ? `Last opened ${new Date(invitee.lastOpenedAt).toLocaleDateString()}`
+                        : "Not opened yet"}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`rsvp-status ${invitee.rsvpStatus.toLowerCase()}`}>
+                      {invitee.rsvpStatus.toLowerCase()}
+                    </span>
+                    {invitee.rsvpStatus === "ATTENDING" ? (
+                      <span>{invitee.partySize ?? 1} guest(s)</span>
+                    ) : null}
                   </td>
                   <td>
                     <div className="invitee-row-actions">
+                      <Link
+                        className="user-secondary-button"
+                        href={`/invite/${invitee.slug}`}
+                        target="_blank"
+                      >
+                        Preview
+                      </Link>
                       <button
                         className="user-secondary-button"
                         onClick={() => onCopyOne(invitee)}
@@ -240,6 +315,18 @@ export function InviteeManager({
                       >
                         Copy
                       </button>
+                      <a
+                        className="user-secondary-button"
+                        href={`https://wa.me/?text=${encodeURIComponent(`${invitee.name}, your invitation: ${origin}/invite/${invitee.slug}`)}`}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        WhatsApp
+                      </a>
+                      <InvitationQrCode
+                        label={invitee.name}
+                        url={`${origin}/invite/${invitee.slug}`}
+                      />
                       <button
                         className="user-secondary-button"
                         onClick={() => onRegenerate(invitee)}
@@ -271,6 +358,29 @@ export function InviteeManager({
             </p>
           ) : null}
         </div>
+        {filteredInvitees.length > pageSize ? (
+          <div className="invitee-pagination">
+            <button
+              className="user-secondary-button"
+              disabled={page === 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              type="button"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {pageCount}
+            </span>
+            <button
+              className="user-secondary-button"
+              disabled={page === pageCount}
+              onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
       </section>
     </div>
   );

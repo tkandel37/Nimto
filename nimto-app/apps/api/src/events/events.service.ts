@@ -9,12 +9,14 @@ import {
   DesignVersionStatus,
   InvitationInvitee,
   Prisma,
+  RsvpStatus,
 } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { CreateInviteesDto } from "./dto/create-invitees.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
+import { SubmitRsvpDto } from "./dto/submit-rsvp.dto";
 
 type ActorContext = {
   actorId: string;
@@ -41,6 +43,10 @@ export class EventsService {
         venue: true,
         slug: true,
         isPublished: true,
+        archivedAt: true,
+        openCount: true,
+        firstOpenedAt: true,
+        lastOpenedAt: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { invitees: true } },
@@ -71,6 +77,11 @@ export class EventsService {
         coverImage: true,
         slug: true,
         isPublished: true,
+        archivedAt: true,
+        openCount: true,
+        firstOpenedAt: true,
+        lastOpenedAt: true,
+        designFieldValues: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { invitees: true } },
@@ -289,6 +300,158 @@ export class EventsService {
     return { success: true };
   }
 
+  async duplicate(userId: string, eventId: string, context: ActorContext) {
+    const source = await this.prisma.event.findFirst({
+      where: { id: eventId, userId },
+      include: { invitees: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!source) {
+      throw new NotFoundException("Event not found.");
+    }
+
+    const title = `${source.title} Copy`;
+    const slug = await this.uniqueSlug(title);
+    const duplicate = await this.prisma.$transaction(async (transaction) => {
+      const created = await transaction.event.create({
+        data: {
+          title,
+          type: source.type,
+          eventDate: source.eventDate,
+          venue: source.venue,
+          description: source.description,
+          coverImage: source.coverImage,
+          slug,
+          isPublished: false,
+          designVersionId: source.designVersionId,
+          designFieldValues:
+            (source.designFieldValues as Prisma.InputJsonValue | null) ??
+            undefined,
+          userId,
+        },
+      });
+
+      if (source.designVersionId) {
+        const version = await transaction.designVersion.findUnique({
+          where: { id: source.designVersionId },
+          select: { designId: true },
+        });
+        if (version) {
+          await transaction.userDesignUsage.upsert({
+            where: { userId_designId: { userId, designId: version.designId } },
+            create: {
+              userId,
+              designId: version.designId,
+              lastUsedVersionId: source.designVersionId,
+            },
+            update: {
+              lastUsedVersionId: source.designVersionId,
+              lastUsedAt: new Date(),
+              usageCount: { increment: 1 },
+            },
+          });
+        }
+      }
+
+      return created;
+    });
+
+    for (const invitee of source.invitees) {
+      await this.prisma.invitationInvitee.create({
+        data: {
+          eventId: duplicate.id,
+          name: invitee.name,
+          slug: await this.uniqueInviteeSlug(duplicate.slug, invitee.name),
+        },
+      });
+    }
+
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "event.duplicated",
+        entityType: "Event",
+        entityId: duplicate.id,
+        metadata: { sourceEventId: source.id, invitees: source.invitees.length },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "event duplicate audit",
+    );
+
+    return duplicate;
+  }
+
+  async setArchived(
+    userId: string,
+    eventId: string,
+    archived: boolean,
+    context: ActorContext,
+  ) {
+    const existing = await this.assertOwner(userId, eventId);
+    const event = await this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        archivedAt: archived ? new Date() : null,
+        isPublished: archived ? false : existing.isPublished,
+      },
+    });
+
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: archived ? "event.archived" : "event.restored",
+        entityType: "Event",
+        entityId: event.id,
+        metadata: { title: event.title },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "event archive audit",
+    );
+    return event;
+  }
+
+  async statistics(userId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, userId },
+      select: {
+        openCount: true,
+        invitees: {
+          select: {
+            openCount: true,
+            rsvpStatus: true,
+            partySize: true,
+          },
+        },
+      },
+    });
+    if (!event) {
+      throw new NotFoundException("Event not found.");
+    }
+
+    return {
+      totalInvitees: event.invitees.length,
+      invitationOpens: event.openCount,
+      openedInvitees: event.invitees.filter((item) => item.openCount > 0).length,
+      pending: event.invitees.filter(
+        (item) => item.rsvpStatus === RsvpStatus.PENDING,
+      ).length,
+      attending: event.invitees.filter(
+        (item) => item.rsvpStatus === RsvpStatus.ATTENDING,
+      ).length,
+      declined: event.invitees.filter(
+        (item) => item.rsvpStatus === RsvpStatus.DECLINED,
+      ).length,
+      expectedGuests: event.invitees.reduce(
+        (total, item) =>
+          item.rsvpStatus === RsvpStatus.ATTENDING
+            ? total + (item.partySize ?? 1)
+            : total,
+        0,
+      ),
+    };
+  }
+
   async listInvitees(userId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, userId },
@@ -432,7 +595,10 @@ export class EventsService {
     return { success: true };
   }
 
-  async findPublished(slug: string) {
+  async findPublished(
+    slug: string,
+    context?: { ipAddress?: string; userAgent?: string; track?: boolean },
+  ) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
       include: {
@@ -443,7 +609,7 @@ export class EventsService {
       },
     });
 
-    if (!event || !event.isPublished) {
+    if (!event || !event.isPublished || event.archivedAt) {
       const invitee = await this.prisma.invitationInvitee.findUnique({
         where: { slug },
         include: {
@@ -459,28 +625,102 @@ export class EventsService {
           },
         },
       });
-      if (!invitee?.event.isPublished) {
+      if (!invitee?.event.isPublished || invitee.event.archivedAt) {
         throw new NotFoundException("Invitation not found.");
+      }
+
+      if (context?.track !== false) {
+        const openedAt = new Date();
+        await this.prisma.$transaction([
+          this.prisma.event.update({
+            where: { id: invitee.eventId },
+            data: {
+              openCount: { increment: 1 },
+              firstOpenedAt: invitee.event.firstOpenedAt ?? openedAt,
+              lastOpenedAt: openedAt,
+            },
+          }),
+          this.prisma.invitationInvitee.update({
+            where: { id: invitee.id },
+            data: {
+              openCount: { increment: 1 },
+              firstOpenedAt: invitee.firstOpenedAt ?? openedAt,
+              lastOpenedAt: openedAt,
+            },
+          }),
+        ]);
       }
 
       return {
         ...invitee.event,
         inviteeName: invitee.name,
         inviteeSlug: invitee.slug,
+        rsvpStatus: invitee.rsvpStatus,
+        partySize: invitee.partySize,
+        mealPreference: invitee.mealPreference,
+        rsvpMessage: invitee.rsvpMessage,
       };
     }
 
+    if (context?.track !== false) {
+      const openedAt = new Date();
+      await this.prisma.event.update({
+        where: { id: event.id },
+        data: {
+          openCount: { increment: 1 },
+          firstOpenedAt: event.firstOpenedAt ?? openedAt,
+          lastOpenedAt: openedAt,
+        },
+      });
+    }
     return event;
+  }
+
+  async submitRsvp(slug: string, dto: SubmitRsvpDto) {
+    const invitee = await this.prisma.invitationInvitee.findUnique({
+      where: { slug },
+      include: { event: { select: { isPublished: true, archivedAt: true } } },
+    });
+    if (!invitee?.event.isPublished || invitee.event.archivedAt) {
+      throw new NotFoundException("Personalized invitation not found.");
+    }
+
+    return this.prisma.invitationInvitee.update({
+      where: { id: invitee.id },
+      data: {
+        rsvpStatus: dto.status,
+        partySize:
+          dto.status === RsvpStatus.ATTENDING ? (dto.partySize ?? 1) : null,
+        mealPreference:
+          dto.status === RsvpStatus.ATTENDING
+            ? dto.mealPreference?.trim() || null
+            : null,
+        rsvpMessage: dto.message?.trim() || null,
+        respondedAt: new Date(),
+      },
+    });
   }
 
   private eventData(dto: CreateEventDto | UpdateEventDto) {
     return {
       title: dto.title?.trim(),
       type: dto.type,
-      eventDate: dto.eventDate ? new Date(dto.eventDate) : undefined,
-      venue: dto.venue?.trim() || undefined,
-      description: dto.description?.trim() || undefined,
-      coverImage: dto.coverImage?.trim() || undefined,
+      eventDate:
+        dto.eventDate !== undefined
+          ? dto.eventDate
+            ? new Date(dto.eventDate)
+            : null
+          : undefined,
+      venue:
+        dto.venue !== undefined ? dto.venue.trim() || null : undefined,
+      description:
+        dto.description !== undefined
+          ? dto.description.trim() || null
+          : undefined,
+      coverImage:
+        dto.coverImage !== undefined
+          ? dto.coverImage.trim() || null
+          : undefined,
       isPublished: dto.isPublished,
     };
   }

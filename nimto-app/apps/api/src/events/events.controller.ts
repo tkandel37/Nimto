@@ -6,12 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
 import { AuthenticatedRequest, JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { CreateInviteesDto } from "./dto/create-invitees.dto";
+import { SubmitRsvpDto } from "./dto/submit-rsvp.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EventsService } from "./events.service";
 
@@ -20,8 +22,24 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get("public/:slug")
-  findPublished(@Param("slug") slug: string) {
-    return this.eventsService.findPublished(slug);
+  findPublished(
+    @Param("slug") slug: string,
+    @Query("track") track: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.findPublished(slug, {
+      ipAddress: request.ip,
+      userAgent: request.headers["user-agent"],
+      track: track !== "false",
+    });
+  }
+
+  @Post("public/:slug/rsvp")
+  submitRsvp(
+    @Param("slug") slug: string,
+    @Body() dto: SubmitRsvpDto,
+  ) {
+    return this.eventsService.submitRsvp(slug, dto);
   }
 
   @Get()
@@ -53,6 +71,56 @@ export class EventsController {
       dto,
       this.context(request),
     );
+  }
+
+  @Post(":eventId/duplicate")
+  @UseGuards(JwtAuthGuard)
+  duplicate(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.duplicate(
+      request.user!.sub,
+      eventId,
+      this.context(request),
+    );
+  }
+
+  @Post(":eventId/archive")
+  @UseGuards(JwtAuthGuard)
+  archive(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.setArchived(
+      request.user!.sub,
+      eventId,
+      true,
+      this.context(request),
+    );
+  }
+
+  @Post(":eventId/restore")
+  @UseGuards(JwtAuthGuard)
+  restore(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.setArchived(
+      request.user!.sub,
+      eventId,
+      false,
+      this.context(request),
+    );
+  }
+
+  @Get(":eventId/statistics")
+  @UseGuards(JwtAuthGuard)
+  statistics(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.statistics(request.user!.sub, eventId);
   }
 
   @Patch(":eventId")
