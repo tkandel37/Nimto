@@ -47,6 +47,22 @@ export function InviteeManager({
     invitee.name.toLowerCase().includes(inviteeSearch.trim().toLowerCase()),
   );
 
+  function downloadSampleCsv() {
+    const csv = [
+      "Invitee Name",
+      "Aarav Sharma",
+      "Ishani Kandel",
+      "The Adhikari Family",
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "nimto-invitee-sample.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="event-manager-stack">
       <section className="user-panel">
@@ -86,17 +102,26 @@ export function InviteeManager({
               value={inviteePaste}
             />
           </label>
-          <label className="user-field invitee-upload-field">
-            <span>
-              <span>Upload CSV</span>
-              <em>First column is used</em>
-            </span>
-            <input
-              accept=".csv,text/csv"
-              onChange={(event) => onReadCsv(event.target.files?.[0])}
-              type="file"
-            />
-          </label>
+          <div className="invitee-upload-field">
+            <label className="user-field">
+              <span>
+                <span>Upload CSV</span>
+                <em>First column is used</em>
+              </span>
+              <input
+                accept=".csv,text/csv"
+                onChange={(event) => onReadCsv(event.target.files?.[0])}
+                type="file"
+              />
+            </label>
+            <button
+              className="user-secondary-button"
+              onClick={downloadSampleCsv}
+              type="button"
+            >
+              Download sample CSV
+            </button>
+          </div>
         </div>
 
         {draftInvitees.length ? (

@@ -1800,9 +1800,9 @@ function DesignSetupPanel({
   const selectedField = editorFields.find(
     (field) => field.key === selectedFieldKey,
   );
-  const [libraryMode, setLibraryMode] = useState<"designs" | "templates">(
-    "designs",
-  );
+  const [libraryMode, setLibraryMode] = useState<
+    "designs" | "templates" | "animations"
+  >("designs");
   const [librarySearch, setLibrarySearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
@@ -1865,6 +1865,22 @@ function DesignSetupPanel({
       (!statusFilter || template.status === statusFilter) &&
       matchesFeatureFilter(template.scanResult, featureFilter) &&
       matchesDateFilter(template.updatedAt, dateFilter)
+    );
+  });
+  const filteredAnimations = animations.filter((animation) => {
+    const search = librarySearch.trim().toLowerCase();
+    return (
+      (!search ||
+        [
+          animation.name,
+          animation.slug,
+          animation.type,
+          animation.sourceFileName,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(search))) &&
+      (!statusFilter || animation.status === statusFilter) &&
+      matchesDateFilter(animation.updatedAt, dateFilter)
     );
   });
   const selectedDesign =
@@ -2207,7 +2223,8 @@ function DesignSetupPanel({
           <div>
             <h2 className="text-2xl font-black text-ink">Design Setup</h2>
             <p className="mt-1 text-sm text-ink/55">
-              Manage designs and templates from a scalable table view.
+              Manage designs, templates, and reusable animations from one
+              workspace.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-6 xl:min-w-[900px]">
@@ -2328,6 +2345,20 @@ function DesignSetupPanel({
               >
                 Templates ({filteredTemplates.length})
               </button>
+              <button
+                className={`rounded-lg px-4 py-2 text-sm font-bold ${
+                  libraryMode === "animations"
+                    ? "bg-ink text-white"
+                    : "border border-ink/15 bg-white text-ink"
+                }`}
+                onClick={() => {
+                  setLibraryMode("animations");
+                  setStatusFilter("");
+                }}
+                type="button"
+              >
+                Animations ({filteredAnimations.length})
+              </button>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm font-bold text-ink">
@@ -2343,16 +2374,21 @@ function DesignSetupPanel({
                       <option value="ACTIVE">Active</option>
                       <option value="UNPUBLISHED">Unpublished</option>
                     </>
-                  ) : (
+                  ) : libraryMode === "templates" ? (
                     <>
                       <option value="DRAFT">Draft</option>
                       <option value="PUBLISHED">Published</option>
                       <option value="UNPUBLISHED">Unpublished</option>
                     </>
+                  ) : (
+                    <>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </>
                   )}
                 </select>
               </label>
-              {canCreateTemplates ? (
+              {canCreateTemplates && libraryMode === "templates" ? (
                 <button
                   className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white"
                   onClick={() => {
@@ -2424,7 +2460,7 @@ function DesignSetupPanel({
                   })}
                 </tbody>
               </table>
-            ) : (
+            ) : libraryMode === "templates" ? (
               <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
                 <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
                   <tr>
@@ -2480,18 +2516,20 @@ function DesignSetupPanel({
                   ))}
                 </tbody>
               </table>
+            ) : (
+              <div className="p-4">
+                <AnimationLibraryPanel
+                  animations={filteredAnimations}
+                  animationHtml={animationHtml}
+                  isUploading={isUploadingAnimation}
+                  onAnimationHtml={setAnimationHtml}
+                  onSubmit={createAnimationComponent}
+                />
+              </div>
             )}
           </div>
         </div>
       </div>
-
-      <AnimationLibraryPanel
-        animations={animations}
-        animationHtml={animationHtml}
-        isUploading={isUploadingAnimation}
-        onAnimationHtml={setAnimationHtml}
-        onSubmit={createAnimationComponent}
-      />
 
       {selectedTemplate ? (
         <TemplateEditorPanel
@@ -3338,7 +3376,9 @@ function TemplateEditorPanel({
   );
   const previewHtml = useMemo(
     () => templateEditorPreviewHtml(editorRawHtml, editorFields, selectedFieldKey),
-    [editorFields, editorRawHtml, selectedFieldKey],
+    // Field edits are synchronized with postMessage. Keeping srcDoc stable
+    // prevents the iframe from reloading and stealing scroll/focus on typing.
+    [editorRawHtml],
   );
 
   function moveSelection(direction: -1 | 1) {
@@ -4194,7 +4234,11 @@ function templateEditorPreviewHtml(
             applyField(field);
           });
           if (event.data.selectedFieldKey) {
-            selectField(event.data.selectedFieldKey, false, true);
+            selectField(
+              event.data.selectedFieldKey,
+              false,
+              Boolean(event.data.shouldScroll)
+            );
           }
         });
         if (state.selectedFieldKey) selectField(state.selectedFieldKey, false, true);

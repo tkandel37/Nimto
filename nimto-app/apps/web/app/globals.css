@@ -849,9 +849,21 @@ a {
   color: var(--ink);
 }
 
+.user-auth-redirect {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  background: #f5f7f3;
+  font-weight: 900;
+  color: rgba(23, 32, 51, 0.55);
+}
+
 .user-sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  z-index: 30;
+  width: 220px;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -890,6 +902,7 @@ a {
 }
 
 .user-main {
+  grid-column: 2;
   min-width: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1469,7 +1482,11 @@ a {
 }
 
 .invitee-upload-field {
+  display: grid;
   grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
 }
 
 .invitee-draft-panel {
@@ -1850,7 +1867,7 @@ a {
   gap: 10px;
   border: 1px solid rgba(23, 32, 51, 0.1);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.94);
+  background: #fff;
   padding: 10px;
   box-shadow: 0 12px 30px rgba(23, 32, 51, 0.06);
   backdrop-filter: blur(12px);
@@ -2047,10 +2064,15 @@ a {
 
   .user-sidebar {
     position: static;
+    width: auto;
     height: auto;
     flex-direction: row;
     align-items: center;
     overflow-x: auto;
+  }
+
+  .user-main {
+    grid-column: auto;
   }
 
   .user-nav {
@@ -2139,6 +2161,10 @@ a {
 
   .invitee-upload-field {
     grid-column: auto;
+  }
+
+  .invitee-upload-field {
+    grid-template-columns: 1fr;
   }
 
   .event-status-filter {

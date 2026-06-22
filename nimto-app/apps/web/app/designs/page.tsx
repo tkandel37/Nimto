@@ -330,6 +330,7 @@ function DesignEditor({
   onBack: () => void;
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
+  const router = useRouter();
   const current = design.versions[0];
   const previewRef = useRef<HTMLIFrameElement | null>(null);
   const fields = useMemo(() => {
@@ -344,11 +345,7 @@ function DesignEditor({
   const selectedFieldKey = activeFieldKey || fields[0]?.key || "";
   const [values, setValues] = useState<Record<string, string>>({});
   const [previewEditFieldKey, setPreviewEditFieldKey] = useState("");
-  const [createdEvent, setCreatedEvent] = useState<CreatedEvent | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [origin] = useState(() =>
-    typeof window === "undefined" ? "" : window.location.origin,
-  );
   const valuesRef = useRef(values);
   const activeFieldKeyRef = useRef(selectedFieldKey);
   const fieldsRef = useRef(fields);
@@ -510,9 +507,9 @@ function DesignEditor({
           designFieldValues: values,
         }),
       });
-      setCreatedEvent(response);
       localStorage.setItem("nimto_events_changed", String(Date.now()));
       showToast("Event created and ready to share.");
+      router.replace(`/events/${response.id}`);
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Could not create event.",
@@ -521,12 +518,6 @@ function DesignEditor({
     } finally {
       setIsSaving(false);
     }
-  }
-
-  async function copyShareLink() {
-    if (!createdEvent || !origin) return;
-    await navigator.clipboard.writeText(`${origin}/invite/${createdEvent.slug}`);
-    showToast("Share link copied.");
   }
 
   return (
@@ -657,28 +648,6 @@ function DesignEditor({
           >
             {isSaving ? "Creating..." : "Create shareable event"}
           </button>
-          {createdEvent ? (
-            <div className="user-share-box">
-              <strong>{createdEvent.title}</strong>
-              <p>{`${origin}/invite/${createdEvent.slug}`}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  className="user-secondary-button"
-                  onClick={copyShareLink}
-                  type="button"
-                >
-                  Copy link
-                </button>
-                <Link
-                  className="user-secondary-button"
-                  href={`/invite/${createdEvent.slug}`}
-                  target="_blank"
-                >
-                  Open preview
-                </Link>
-              </div>
-            </div>
-          ) : null}
         </form>
       </div>
     </section>
@@ -713,7 +682,6 @@ function FieldSection({
               {field.control === "textarea" ? (
                 <textarea
                   onChange={(event) => {
-                    onSelect(field.key);
                     onChange(field.key, event.target.value);
                   }}
                   onFocus={() => onSelect(field.key)}
@@ -724,7 +692,6 @@ function FieldSection({
               ) : (
                 <input
                   onChange={(event) => {
-                    onSelect(field.key);
                     onChange(field.key, event.target.value);
                   }}
                   onFocus={() => onSelect(field.key)}

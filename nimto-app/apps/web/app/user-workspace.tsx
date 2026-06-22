@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
+  createContext,
   FormEvent,
   ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
@@ -31,6 +34,17 @@ type AuthState = {
   token: string;
   user: AuthUser | null;
 };
+
+type UserWorkspaceContextValue = {
+  authHeaders: Record<string, string>;
+  refreshUser: () => Promise<AuthUser | null>;
+  showToast: (message: string, tone?: Toast["tone"]) => void;
+  token: string;
+  user: AuthUser;
+};
+
+const UserWorkspaceContext =
+  createContext<UserWorkspaceContextValue | null>(null);
 
 const pageLinks: {
   key: WorkspacePage;
@@ -90,20 +104,10 @@ const pageLinks: {
 let userRefreshPromise: Promise<{ user: AuthUser }> | null = null;
 let workspaceHasMounted = false;
 
-export function UserWorkspace({
-  activePage,
-  children,
-}: {
-  activePage: WorkspacePage;
-  children: (context: {
-    authHeaders: Record<string, string>;
-    refreshUser: () => Promise<AuthUser | null>;
-    showToast: (message: string, tone?: Toast["tone"]) => void;
-    token: string;
-    user: AuthUser;
-  }) => ReactNode;
-}) {
-  const router = useRouter();
+export function UserFrame({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const activePage = workspacePage(pathname);
+  const isUserArea = activePage !== null;
   const [authState, setAuthState] = useState<AuthState>(() => {
     const session = workspaceHasMounted ? readAuthSession() : null;
     return session
@@ -111,6 +115,7 @@ export function UserWorkspace({
       : { isChecking: true, token: "", user: null };
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const isLoggingOutRef = useRef(false);
   const { isChecking, token, user } = authState;
 
   const showToast = useCallback((message: string, tone: Toast["tone"] = "success") => {
@@ -150,6 +155,7 @@ export function UserWorkspace({
   }, []);
 
   useEffect(() => {
+    if (!isUserArea) return;
     let isActive = true;
     workspaceHasMounted = true;
     const storedAuth = readAuthSession();
@@ -192,12 +198,48 @@ export function UserWorkspace({
     return () => {
       isActive = false;
     };
-  }, [refreshUser]);
+  }, [isUserArea, refreshUser]);
+
+  useEffect(() => {
+    if (!isUserArea) return;
+
+    function syncSession() {
+      const session = readAuthSession();
+      if (session) {
+        setAuthState({
+          isChecking: false,
+          token: session.token,
+          user: session.user,
+        });
+        return;
+      }
+      setAuthState({ isChecking: false, token: "", user: null });
+      if (window.location.pathname !== "/auth") {
+        window.location.replace("/auth?mode=login");
+      }
+    }
+
+    window.addEventListener("pageshow", syncSession);
+    window.addEventListener("storage", syncSession);
+    return () => {
+      window.removeEventListener("pageshow", syncSession);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, [isUserArea]);
+
+  useEffect(() => {
+    if (!isUserArea || isChecking || token || isLoggingOutRef.current) return;
+    window.location.replace("/auth?mode=login");
+  }, [isChecking, isUserArea, token]);
 
   function logout() {
+    isLoggingOutRef.current = true;
     clearAuthSession();
-    setAuthState({ isChecking: false, token: "", user: null });
-    router.replace("/");
+    window.location.replace("/");
+  }
+
+  if (!isUserArea || !activePage) {
+    return <>{children}</>;
   }
 
   if (isChecking && !user) {
@@ -210,26 +252,8 @@ export function UserWorkspace({
 
   if (!token) {
     return (
-      <main className="user-shell">
-        <section className="user-auth-card">
-          <Link className="text-xl font-black text-ink" href="/">
-            myNimto
-          </Link>
-          <h1 className="mt-6 text-3xl font-black text-ink">
-            Sign in to continue
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-ink/60">
-            Your events, saved designs, and profile are kept inside your account.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link className="user-primary-button" href="/auth?mode=login">
-              Log in
-            </Link>
-            <Link className="user-secondary-button" href="/designs">
-              Browse designs
-            </Link>
-          </div>
-        </section>
+      <main className="user-auth-redirect">
+        <p>Taking you to sign in...</p>
       </main>
     );
   }
@@ -277,76 +301,105 @@ export function UserWorkspace({
   }
 
   return (
-    <main className="user-shell">
-      <aside className="user-sidebar">
-        <Link className="user-logo" href="/events">
-          myNimto
-        </Link>
-        <nav className="user-nav">
-          {pageLinks.map((link) => (
-            <Link
-              aria-current={activePage === link.key ? "page" : undefined}
-              className={
-                activePage === link.key ? "user-nav-link active" : "user-nav-link"
-              }
-              href={link.href}
-              key={link.key}
-            >
-              <Icon>{link.icon}</Icon>
-              <span>{link.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      <section className="user-main">
-        <header className="user-topbar">
-          <nav className="user-site-links" aria-label="Website navigation">
-            <Link href="/events">Home</Link>
-            <Link href="/features">Features</Link>
-            <Link href="/about">About</Link>
-            <Link href="/blog">Blog</Link>
+    <UserWorkspaceContext.Provider
+      value={{ authHeaders, refreshUser, showToast, token, user }}
+    >
+      <main className="user-shell">
+        <aside className="user-sidebar">
+          <Link className="user-logo" href="/events">
+            myNimto
+          </Link>
+          <nav className="user-nav">
+            {pageLinks.map((link) => (
+              <Link
+                aria-current={activePage === link.key ? "page" : undefined}
+                className={
+                  activePage === link.key
+                    ? "user-nav-link active"
+                    : "user-nav-link"
+                }
+                href={link.href}
+                key={link.key}
+              >
+                <Icon>{link.icon}</Icon>
+                <span>{link.label}</span>
+              </Link>
+            ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm font-bold text-ink/55 sm:inline">
-              {user.name}
-            </span>
-            <button className="user-ghost-button" onClick={logout} type="button">
-              Log out
-            </button>
-          </div>
-        </header>
-        <div className="user-page">{children({ authHeaders, refreshUser, showToast, token, user })}</div>
-      </section>
+        </aside>
 
-      <div className="user-toast-region" role="status" aria-live="polite">
-        {toasts.map((toast) => (
-          <div
-            className={
-              toast.tone === "error"
-                ? "user-toast user-toast-error"
-                : "user-toast"
-            }
-            key={toast.id}
-          >
-            <span className="user-toast-dot" />
-            <p>{toast.message}</p>
-            <button
-              aria-label="Close notification"
-              onClick={() =>
-                setToasts((current) =>
-                  current.filter((item) => item.id !== toast.id),
-                )
+        <section className="user-main">
+          <header className="user-topbar">
+            <nav className="user-site-links" aria-label="Website navigation">
+              <Link href="/events">Home</Link>
+              <Link href="/features">Features</Link>
+              <Link href="/about">About</Link>
+              <Link href="/blog">Blog</Link>
+            </nav>
+            <div className="flex items-center gap-3">
+              <span className="hidden text-sm font-bold text-ink/55 sm:inline">
+                {user.name}
+              </span>
+              <button className="user-ghost-button" onClick={logout} type="button">
+                Log out
+              </button>
+            </div>
+          </header>
+          <div className="user-page">{children}</div>
+        </section>
+
+        <div className="user-toast-region" role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div
+              className={
+                toast.tone === "error"
+                  ? "user-toast user-toast-error"
+                  : "user-toast"
               }
-              type="button"
+              key={toast.id}
             >
-              x
-            </button>
-          </div>
-        ))}
-      </div>
-    </main>
+              <span className="user-toast-dot" />
+              <p>{toast.message}</p>
+              <button
+                aria-label="Close notification"
+                onClick={() =>
+                  setToasts((current) =>
+                    current.filter((item) => item.id !== toast.id),
+                  )
+                }
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      </main>
+    </UserWorkspaceContext.Provider>
   );
+}
+
+export function UserWorkspace({
+  children,
+}: {
+  activePage: WorkspacePage;
+  children: (context: UserWorkspaceContextValue) => ReactNode;
+}) {
+  const context = useContext(UserWorkspaceContext);
+  if (!context) {
+    return null;
+  }
+  return <>{children(context)}</>;
+}
+
+function workspacePage(pathname: string): WorkspacePage | null {
+  if (pathname === "/events" || pathname.startsWith("/events/")) {
+    return "events";
+  }
+  if (pathname === "/designs") return "designs";
+  if (pathname === "/my-designs") return "myDesigns";
+  if (pathname === "/profile") return "profile";
+  return null;
 }
 
 export function ProfileForm({
