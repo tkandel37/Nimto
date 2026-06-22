@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 
 export function RsvpForm({
@@ -9,6 +9,7 @@ export function RsvpForm({
   initialPartySize,
   initialStatus,
   inviteeName,
+  rsvpDeadline,
   slug,
 }: {
   initialMealPreference?: string | null;
@@ -16,6 +17,7 @@ export function RsvpForm({
   initialPartySize?: number | null;
   initialStatus?: "PENDING" | "ATTENDING" | "DECLINED";
   inviteeName: string;
+  rsvpDeadline?: string | null;
   slug: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -23,6 +25,19 @@ export function RsvpForm({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(initialStatus !== "PENDING");
   const [error, setError] = useState("");
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setDeadlinePassed(
+        Boolean(
+          rsvpDeadline &&
+            new Date(rsvpDeadline).getTime() < new Date().getTime(),
+        ),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [rsvpDeadline]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,6 +96,14 @@ export function RsvpForm({
               ×
             </button>
           </div>
+          {rsvpDeadline ? (
+            <p className="mt-2 text-xs font-bold text-slate-500">
+              Please respond by{" "}
+              {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
+                new Date(rsvpDeadline),
+              )}
+            </p>
+          ) : null}
           <div className="mt-4 grid grid-cols-2 gap-2">
             {(["ATTENDING", "DECLINED"] as const).map((option) => (
               <button
@@ -143,10 +166,11 @@ export function RsvpForm({
       ) : null}
       <button
         className="ml-auto block rounded-full bg-emerald-700 px-5 py-3 font-black text-white shadow-xl"
+        disabled={deadlinePassed}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        {saved ? "RSVP saved ✓" : "RSVP"}
+        {deadlinePassed ? "RSVP closed" : saved ? "RSVP saved ✓" : "RSVP"}
       </button>
     </div>
   );

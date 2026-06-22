@@ -17,6 +17,9 @@ import { CreateEventDto } from "./dto/create-event.dto";
 import { CreateInviteesDto } from "./dto/create-invitees.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { SubmitRsvpDto } from "./dto/submit-rsvp.dto";
+import { CreateGuestRecordsDto } from "./dto/create-guest-records.dto";
+import { UpdateInviteeDto } from "./dto/update-invitee.dto";
+import { SaveEventDesignDraftDto } from "./dto/save-event-design-draft.dto";
 
 type ActorContext = {
   actorId: string;
@@ -47,6 +50,7 @@ export class EventsService {
         openCount: true,
         firstOpenedAt: true,
         lastOpenedAt: true,
+        rsvpDeadline: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { invitees: true } },
@@ -81,7 +85,13 @@ export class EventsService {
         openCount: true,
         firstOpenedAt: true,
         lastOpenedAt: true,
+        rsvpDeadline: true,
+        organizerNotes: true,
+        checklist: true,
         designFieldValues: true,
+        draftDesignVersionId: true,
+        draftDesignFieldValues: true,
+        draftSavedAt: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { invitees: true } },
@@ -90,6 +100,19 @@ export class EventsService {
             id: true,
             versionNumber: true,
             status: true,
+            design: {
+              select: { id: true, name: true, slug: true, status: true },
+            },
+            rawHtml: true,
+            scanResult: true,
+          },
+        },
+        draftDesignVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            rawHtml: true,
+            scanResult: true,
             design: {
               select: { id: true, name: true, slug: true, status: true },
             },
@@ -124,7 +147,7 @@ export class EventsService {
                 id: true,
                 versionNumber: true,
                 status: true,
-                _count: { select: { events: { where: { userId } } } },
+                _count: { select: { publishedEvents: { where: { userId } } } },
               },
             },
           },
@@ -145,7 +168,7 @@ export class EventsService {
       design: {
         ...item.design,
         activeEventCount: item.design.versions.reduce(
-          (count, version) => count + version._count.events,
+          (count, version) => count + version._count.publishedEvents,
           0,
         ),
         versions: item.design.versions
@@ -173,6 +196,9 @@ export class EventsService {
           isPublished: dto.isPublished,
           designVersionId: designData.designVersionId,
           designFieldValues: designData.designFieldValues,
+          draftDesignVersionId: designData.designVersionId,
+          draftDesignFieldValues: designData.designFieldValues,
+          draftSavedAt: designData.designVersionId ? new Date() : undefined,
           userId,
           slug,
         },
@@ -202,6 +228,17 @@ export class EventsService {
       return createdEvent;
     });
 
+    if (designData.designVersionId) {
+      await this.prisma.eventDesignRevision.create({
+        data: {
+          eventId: event.id,
+          designVersionId: designData.designVersionId,
+          fieldValues: designData.designFieldValues ?? {},
+          label: "Initial invitation",
+        },
+      });
+    }
+
     this.runAfterResponse(
       this.audit.record({
         actorId: context.actorId,
@@ -216,6 +253,281 @@ export class EventsService {
     );
 
     return event;
+  }
+
+  async createGuestRecords(
+    userId: string,
+    eventId: string,
+    dto: CreateGuestRecordsDto,
+    context: ActorContext,
+  ) {
+    const event = await this.assertOwner(userId, eventId);
+    const existing = new Set(
+      (
+        await this.prisma.invitationInvitee.findMany({
+          where: { eventId },
+          select: { name: true },
+        })
+      ).map((item) => item.name.toLowerCase()),
+    );
+    const created: InvitationInvitee[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+    for (const record of dto.guests) {
+      const name = record.name.trim().replace(/\s+/g, " ");
+      if (!name || existing.has(name.toLowerCase())) {
+        skipped.push({ name: name || "Empty row", reason: "Duplicate or empty" });
+        continue;
+      }
+      const invitee = await this.prisma.invitationInvitee.create({
+        data: {
+          eventId,
+          name,
+          email: record.email?.trim().toLowerCase() || null,
+          phone: record.phone?.trim() || null,
+          groupName: record.groupName?.trim() || null,
+          mealPreference: record.mealPreference?.trim() || null,
+          slug: await this.uniqueInviteeSlug(event.slug, name),
+        },
+      });
+      existing.add(name.toLowerCase());
+      created.push(invitee);
+    }
+    await this.activity(
+      eventId,
+      "GUESTS_IMPORTED",
+      `${created.length} guest records imported`,
+      undefined,
+      { skipped: skipped.length },
+    );
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "eventInvitees.imported",
+        entityType: "Event",
+        entityId: eventId,
+        metadata: { created: created.length, skipped: skipped.length },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "guest import audit",
+    );
+    return { created, skipped };
+  }
+
+  async updateInvitee(
+    userId: string,
+    eventId: string,
+    inviteeId: string,
+    dto: UpdateInviteeDto,
+    context: ActorContext,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const invitee = await this.prisma.invitationInvitee.findFirst({
+      where: { id: inviteeId, eventId },
+    });
+    if (!invitee) throw new NotFoundException("Invitee not found.");
+    const updated = await this.prisma.invitationInvitee.update({
+      where: { id: inviteeId },
+      data: {
+        name: dto.name?.trim(),
+        email: dto.email !== undefined ? dto.email.trim().toLowerCase() || null : undefined,
+        phone: dto.phone !== undefined ? dto.phone.trim() || null : undefined,
+        groupName:
+          dto.groupName !== undefined ? dto.groupName.trim() || null : undefined,
+        organizerNotes:
+          dto.organizerNotes !== undefined
+            ? dto.organizerNotes.trim() || null
+            : undefined,
+        rsvpStatus: dto.rsvpStatus,
+        partySize:
+          dto.rsvpStatus === RsvpStatus.DECLINED
+            ? null
+            : dto.partySize,
+        mealPreference:
+          dto.mealPreference !== undefined
+            ? dto.mealPreference.trim() || null
+            : undefined,
+        rsvpMessage:
+          dto.rsvpMessage !== undefined
+            ? dto.rsvpMessage.trim() || null
+            : undefined,
+        respondedAt: dto.rsvpStatus ? new Date() : undefined,
+        linkExpiresAt:
+          dto.linkExpiresAt !== undefined
+            ? dto.linkExpiresAt
+              ? new Date(dto.linkExpiresAt)
+              : null
+            : undefined,
+      },
+    });
+    await this.activity(
+      eventId,
+      "GUEST_UPDATED",
+      `${updated.name}'s guest details were updated`,
+      inviteeId,
+      { rsvpStatus: updated.rsvpStatus },
+    );
+    this.runAfterResponse(
+      this.audit.record({
+        actorId: context.actorId,
+        action: "eventInvitee.updated",
+        entityType: "InvitationInvitee",
+        entityId: inviteeId,
+        metadata: { eventId, name: updated.name },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      }),
+      "guest update audit",
+    );
+    return updated;
+  }
+
+  async setInviteeLink(
+    userId: string,
+    eventId: string,
+    inviteeId: string,
+    disabled: boolean,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const invitee = await this.prisma.invitationInvitee.findFirst({
+      where: { id: inviteeId, eventId },
+    });
+    if (!invitee) throw new NotFoundException("Invitee not found.");
+    const updated = await this.prisma.invitationInvitee.update({
+      where: { id: inviteeId },
+      data: { linkDisabledAt: disabled ? new Date() : null },
+    });
+    await this.activity(
+      eventId,
+      disabled ? "LINK_DISABLED" : "LINK_ENABLED",
+      `${invitee.name}'s link was ${disabled ? "disabled" : "enabled"}`,
+      inviteeId,
+    );
+    return updated;
+  }
+
+  async logShare(
+    userId: string,
+    eventId: string,
+    inviteeId: string | undefined,
+    channel: string,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const invitee = inviteeId
+      ? await this.prisma.invitationInvitee.findFirst({
+          where: { id: inviteeId, eventId },
+        })
+      : null;
+    if (inviteeId && !invitee) throw new NotFoundException("Invitee not found.");
+    if (invitee) {
+      await this.prisma.invitationInvitee.update({
+        where: { id: invitee.id },
+        data: { lastSharedAt: new Date(), lastShareChannel: channel },
+      });
+    }
+    await this.activity(
+      eventId,
+      "INVITATION_SHARED",
+      `${invitee?.name ?? "Main invitation"} shared via ${channel.toLowerCase()}`,
+      invitee?.id,
+      { channel },
+    );
+    return { success: true };
+  }
+
+  async listActivity(userId: string, eventId: string) {
+    await this.assertOwner(userId, eventId);
+    return this.prisma.eventActivity.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: { invitee: { select: { id: true, name: true } } },
+    });
+  }
+
+  async listDesignRevisions(userId: string, eventId: string) {
+    await this.assertOwner(userId, eventId);
+    return this.prisma.eventDesignRevision.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        designVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            design: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async saveDesignDraft(
+    userId: string,
+    eventId: string,
+    dto: SaveEventDesignDraftDto,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const designData = await this.designEventData(dto);
+    return this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        draftDesignVersionId: designData.designVersionId,
+        draftDesignFieldValues: designData.designFieldValues,
+        draftSavedAt: new Date(),
+      },
+    });
+  }
+
+  async publishDesignDraft(userId: string, eventId: string) {
+    const event = await this.assertOwner(userId, eventId);
+    if (!event.draftDesignVersionId) {
+      throw new BadRequestException("Save a design draft before publishing.");
+    }
+    const fieldValues =
+      (event.draftDesignFieldValues as Prisma.InputJsonValue | null) ?? {};
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        designVersionId: event.draftDesignVersionId,
+        designFieldValues: fieldValues,
+        isPublished: true,
+      },
+    });
+    await this.prisma.eventDesignRevision.create({
+      data: {
+        eventId,
+        designVersionId: event.draftDesignVersionId,
+        fieldValues,
+        label: `Published ${new Date().toLocaleDateString("en")}`,
+      },
+    });
+    await this.activity(
+      eventId,
+      "DESIGN_PUBLISHED",
+      "A new invitation design revision was published",
+    );
+    return updated;
+  }
+
+  async restoreDesignRevision(
+    userId: string,
+    eventId: string,
+    revisionId: string,
+  ) {
+    await this.assertOwner(userId, eventId);
+    const revision = await this.prisma.eventDesignRevision.findFirst({
+      where: { id: revisionId, eventId },
+    });
+    if (!revision) throw new NotFoundException("Design revision not found.");
+    return this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        draftDesignVersionId: revision.designVersionId,
+        draftDesignFieldValues: revision.fieldValues as Prisma.InputJsonValue,
+        draftSavedAt: new Date(),
+      },
+    });
   }
 
   async update(
@@ -320,10 +632,19 @@ export class EventsService {
           venue: source.venue,
           description: source.description,
           coverImage: source.coverImage,
+          rsvpDeadline: source.rsvpDeadline,
+          organizerNotes: source.organizerNotes,
+          checklist: source.checklist as Prisma.InputJsonValue | undefined,
           slug,
           isPublished: false,
           designVersionId: source.designVersionId,
           designFieldValues:
+            (source.designFieldValues as Prisma.InputJsonValue | null) ??
+            undefined,
+          draftDesignVersionId:
+            source.draftDesignVersionId ?? source.designVersionId,
+          draftDesignFieldValues:
+            (source.draftDesignFieldValues as Prisma.InputJsonValue | null) ??
             (source.designFieldValues as Prisma.InputJsonValue | null) ??
             undefined,
           userId,
@@ -360,6 +681,11 @@ export class EventsService {
         data: {
           eventId: duplicate.id,
           name: invitee.name,
+          email: invitee.email,
+          phone: invitee.phone,
+          groupName: invitee.groupName,
+          organizerNotes: invitee.organizerNotes,
+          mealPreference: invitee.mealPreference,
           slug: await this.uniqueInviteeSlug(duplicate.slug, invitee.name),
         },
       });
@@ -421,6 +747,7 @@ export class EventsService {
             openCount: true,
             rsvpStatus: true,
             partySize: true,
+            mealPreference: true,
           },
         },
       },
@@ -433,6 +760,7 @@ export class EventsService {
       totalInvitees: event.invitees.length,
       invitationOpens: event.openCount,
       openedInvitees: event.invitees.filter((item) => item.openCount > 0).length,
+      unopenedInvitees: event.invitees.filter((item) => item.openCount === 0).length,
       pending: event.invitees.filter(
         (item) => item.rsvpStatus === RsvpStatus.PENDING,
       ).length,
@@ -449,6 +777,27 @@ export class EventsService {
             : total,
         0,
       ),
+      responseRate: event.invitees.length
+        ? Math.round(
+            (event.invitees.filter(
+              (item) => item.rsvpStatus !== RsvpStatus.PENDING,
+            ).length /
+              event.invitees.length) *
+              100,
+          )
+        : 0,
+      mealTotals: Object.entries(
+        event.invitees.reduce<Record<string, number>>((totals, item) => {
+          if (
+            item.rsvpStatus === RsvpStatus.ATTENDING &&
+            item.mealPreference
+          ) {
+            totals[item.mealPreference] =
+              (totals[item.mealPreference] ?? 0) + (item.partySize ?? 1);
+          }
+          return totals;
+        }, {}),
+      ).map(([meal, count]) => ({ meal, count })),
     };
   }
 
@@ -524,6 +873,13 @@ export class EventsService {
         userAgent: context.userAgent,
       }),
       "invitee create audit",
+    );
+    await this.activity(
+      eventId,
+      "GUESTS_ADDED",
+      `${created.length} personalized guest links created`,
+      undefined,
+      { skipped: skipped.length },
     );
 
     return { created, skipped };
@@ -625,7 +981,12 @@ export class EventsService {
           },
         },
       });
-      if (!invitee?.event.isPublished || invitee.event.archivedAt) {
+      if (
+        !invitee?.event.isPublished ||
+        invitee.event.archivedAt ||
+        invitee.linkDisabledAt ||
+        (invitee.linkExpiresAt && invitee.linkExpiresAt < new Date())
+      ) {
         throw new NotFoundException("Invitation not found.");
       }
 
@@ -649,6 +1010,12 @@ export class EventsService {
             },
           }),
         ]);
+        await this.activity(
+          invitee.eventId,
+          "INVITATION_OPENED",
+          `${invitee.name} opened the invitation`,
+          invitee.id,
+        );
       }
 
       return {
@@ -679,13 +1046,32 @@ export class EventsService {
   async submitRsvp(slug: string, dto: SubmitRsvpDto) {
     const invitee = await this.prisma.invitationInvitee.findUnique({
       where: { slug },
-      include: { event: { select: { isPublished: true, archivedAt: true } } },
+      include: {
+        event: {
+          select: {
+            isPublished: true,
+            archivedAt: true,
+            rsvpDeadline: true,
+          },
+        },
+      },
     });
-    if (!invitee?.event.isPublished || invitee.event.archivedAt) {
+    if (
+      !invitee?.event.isPublished ||
+      invitee.event.archivedAt ||
+      invitee.linkDisabledAt ||
+      (invitee.linkExpiresAt && invitee.linkExpiresAt < new Date())
+    ) {
       throw new NotFoundException("Personalized invitation not found.");
     }
+    if (
+      invitee.event.rsvpDeadline &&
+      invitee.event.rsvpDeadline < new Date()
+    ) {
+      throw new BadRequestException("The RSVP deadline has passed.");
+    }
 
-    return this.prisma.invitationInvitee.update({
+    const updated = await this.prisma.invitationInvitee.update({
       where: { id: invitee.id },
       data: {
         rsvpStatus: dto.status,
@@ -699,6 +1085,14 @@ export class EventsService {
         respondedAt: new Date(),
       },
     });
+    await this.activity(
+      invitee.eventId,
+      "RSVP_UPDATED",
+      `${invitee.name} responded ${dto.status.toLowerCase()}`,
+      invitee.id,
+      { partySize: updated.partySize, mealPreference: updated.mealPreference },
+    );
+    return updated;
   }
 
   private eventData(dto: CreateEventDto | UpdateEventDto) {
@@ -722,6 +1116,20 @@ export class EventsService {
           ? dto.coverImage.trim() || null
           : undefined,
       isPublished: dto.isPublished,
+      rsvpDeadline:
+        "rsvpDeadline" in dto && dto.rsvpDeadline !== undefined
+          ? dto.rsvpDeadline
+            ? new Date(dto.rsvpDeadline)
+            : null
+          : undefined,
+      organizerNotes:
+        "organizerNotes" in dto && dto.organizerNotes !== undefined
+          ? dto.organizerNotes.trim() || null
+          : undefined,
+      checklist:
+        "checklist" in dto && dto.checklist !== undefined
+          ? (dto.checklist as Prisma.InputJsonObject)
+          : undefined,
     };
   }
 
@@ -839,6 +1247,18 @@ export class EventsService {
   private runAfterResponse(work: Promise<unknown>, label: string) {
     void work.catch((error) => {
       console.error(`Failed to complete ${label}`, error);
+    });
+  }
+
+  private activity(
+    eventId: string,
+    type: string,
+    summary: string,
+    inviteeId?: string,
+    metadata?: Prisma.InputJsonObject,
+  ) {
+    return this.prisma.eventActivity.create({
+      data: { eventId, inviteeId, type, summary, metadata },
     });
   }
 }

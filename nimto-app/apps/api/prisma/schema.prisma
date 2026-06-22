@@ -255,7 +255,9 @@ model DesignVersion {
   scanResult       Json?
   publishedById    String?
   publishedBy      User?               @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
-  events           Event[]
+  publishedEvents  Event[]             @relation("PublishedEventDesign")
+  draftEvents      Event[]             @relation("DraftEventDesign")
+  eventRevisions   EventDesignRevision[]
   userUsageHistory UserDesignUsage[]
   createdAt        DateTime            @default(now())
 
@@ -341,10 +343,19 @@ model Event {
   firstOpenedAt     DateTime?
   lastOpenedAt      DateTime?
   openCount         Int                 @default(0)
+  rsvpDeadline      DateTime?
+  organizerNotes    String?
+  checklist         Json?
   designVersionId   String?
-  designVersion     DesignVersion?      @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
+  designVersion     DesignVersion?      @relation("PublishedEventDesign", fields: [designVersionId], references: [id], onDelete: Restrict)
   designFieldValues Json?
+  draftDesignVersionId String?
+  draftDesignVersion DesignVersion?     @relation("DraftEventDesign", fields: [draftDesignVersionId], references: [id], onDelete: Restrict)
+  draftDesignFieldValues Json?
+  draftSavedAt      DateTime?
   invitees          InvitationInvitee[]
+  designRevisions   EventDesignRevision[]
+  activities        EventActivity[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -354,6 +365,7 @@ model Event {
   @@index([isPublished])
   @@index([archivedAt])
   @@index([designVersionId])
+  @@index([draftDesignVersionId])
 }
 
 model InvitationInvitee {
@@ -361,7 +373,15 @@ model InvitationInvitee {
   eventId        String
   event          Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name           String
+  email          String?
+  phone          String?
+  groupName      String?
+  organizerNotes String?
   slug           String     @unique
+  linkDisabledAt DateTime?
+  linkExpiresAt  DateTime?
+  lastSharedAt   DateTime?
+  lastShareChannel String?
   firstOpenedAt  DateTime?
   lastOpenedAt   DateTime?
   openCount      Int        @default(0)
@@ -370,6 +390,7 @@ model InvitationInvitee {
   mealPreference String?
   rsvpMessage    String?
   respondedAt    DateTime?
+  activities     EventActivity[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -377,6 +398,37 @@ model InvitationInvitee {
   @@index([eventId])
   @@index([eventId, rsvpStatus])
   @@index([slug])
+  @@index([eventId, groupName])
+}
+
+model EventDesignRevision {
+  id              String        @id @default(cuid())
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  designVersionId String
+  designVersion   DesignVersion @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
+  fieldValues     Json
+  label           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([designVersionId])
+}
+
+model EventActivity {
+  id         String                @id @default(cuid())
+  eventId    String
+  event      Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  inviteeId  String?
+  invitee    InvitationInvitee?    @relation(fields: [inviteeId], references: [id], onDelete: SetNull)
+  type       String
+  summary    String
+  metadata   Json?
+  createdAt  DateTime              @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([inviteeId])
+  @@index([type])
 }
 
 model UserDesignUsage {

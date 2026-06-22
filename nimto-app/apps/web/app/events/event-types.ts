@@ -12,13 +12,41 @@ export type UserEvent = {
   openCount?: number;
   firstOpenedAt?: string | null;
   lastOpenedAt?: string | null;
+  rsvpDeadline?: string | null;
+  organizerNotes?: string | null;
+  checklist?: Record<string, boolean> | null;
   designFieldValues?: Record<string, unknown> | null;
+  draftDesignVersionId?: string | null;
+  draftDesignFieldValues?: Record<string, unknown> | null;
+  draftSavedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   designVersion?: {
     id: string;
     versionNumber: number;
     status?: string;
+    rawHtml?: string;
+    scanResult?: {
+      fields?: {
+        key: string;
+        label: string;
+        type: string;
+        required?: boolean;
+        locked?: boolean;
+        paid?: boolean;
+      }[];
+    } | null;
+    design?: { id: string; name: string; slug: string; status: string } | null;
+  } | null;
+  draftDesignVersion?: {
+    id: string;
+    versionNumber: number;
+    rawHtml: string;
+    scanResult?: UserEvent["designVersion"] extends infer T
+      ? T extends { scanResult?: infer S }
+        ? S
+        : never
+      : never;
     design?: { id: string; name: string; slug: string; status: string } | null;
   } | null;
   _count?: { invitees: number };
@@ -28,6 +56,10 @@ export type InvitationInvitee = {
   id: string;
   eventId: string;
   name: string;
+  email?: string | null;
+  phone?: string | null;
+  groupName?: string | null;
+  organizerNotes?: string | null;
   slug: string;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +71,10 @@ export type InvitationInvitee = {
   mealPreference?: string | null;
   rsvpMessage?: string | null;
   respondedAt?: string | null;
+  linkDisabledAt?: string | null;
+  linkExpiresAt?: string | null;
+  lastSharedAt?: string | null;
+  lastShareChannel?: string | null;
 };
 
 export type EventStatistics = {
@@ -49,6 +85,30 @@ export type EventStatistics = {
   attending: number;
   declined: number;
   expectedGuests: number;
+  unopenedInvitees: number;
+  responseRate: number;
+  mealTotals: { meal: string; count: number }[];
+};
+
+export type EventActivity = {
+  id: string;
+  type: string;
+  summary: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  invitee?: { id: string; name: string } | null;
+};
+
+export type EventDesignRevision = {
+  id: string;
+  fieldValues: Record<string, unknown>;
+  label?: string | null;
+  createdAt: string;
+  designVersion: {
+    id: string;
+    versionNumber: number;
+    design: { id: string; name: string };
+  };
 };
 
 export type InviteeDraft = {

@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../../user-workspace";
 import {
   formatEventDate,
   InvitationInvitee,
   EventStatistics,
+  EventActivity,
+  EventDesignRevision,
   UserEvent,
 } from "../event-types";
 import {
@@ -18,6 +20,27 @@ import {
   validateInviteeDrafts,
 } from "../invitee-manager";
 import { InvitationQrCode } from "../qr-code";
+import { EventDesignEditor } from "../event-design-editor";
+
+type PublicDesign = {
+  id: string;
+  name: string;
+  versions: {
+    id: string;
+    rawHtml: string;
+    scanResult?: UserEvent["designVersion"] extends infer T
+      ? T extends { scanResult?: infer S }
+        ? S
+        : never
+      : never;
+  }[];
+};
+
+type CsvImportState = {
+  headers: string[];
+  rows: string[][];
+  mapping: Record<string, number>;
+} | null;
 
 type EventWorkspaceCache = {
   event: UserEvent;
@@ -67,6 +90,14 @@ function EventDetailContent({
   const [isSaving, setIsSaving] = useState(false);
   const [statistics, setStatistics] = useState<EventStatistics | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [activity, setActivity] = useState<EventActivity[]>([]);
+  const [revisions, setRevisions] = useState<EventDesignRevision[]>([]);
+  const [designs, setDesigns] = useState<PublicDesign[]>([]);
+  const [showDesignEditor, setShowDesignEditor] = useState(false);
+  const [csvImport, setCsvImport] = useState<CsvImportState>(null);
+  const [deletedInvitee, setDeletedInvitee] =
+    useState<InvitationInvitee | null>(null);
+  const deleteTimer = useRef<number | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -91,8 +122,23 @@ function EventDetailContent({
       apiRequest<EventStatistics>(`/events/${eventId}/statistics`, {
         headers: authHeaders,
       }),
+      apiRequest<EventActivity[]>(`/events/${eventId}/activity`, {
+        headers: authHeaders,
+      }),
+      apiRequest<EventDesignRevision[]>(`/events/${eventId}/design-revisions`, {
+        headers: authHeaders,
+      }),
+      apiRequest<PublicDesign[]>("/template-design/public/designs"),
     ])
-      .then(([item, items, eventStatistics]) => {
+      .then(
+        ([
+          item,
+          items,
+          eventStatistics,
+          eventActivity,
+          designRevisions,
+          publicDesigns,
+        ]) => {
         if (!isActive) return;
         eventWorkspaceCache.set(cacheKey, {
           event: item,
@@ -102,7 +148,11 @@ function EventDetailContent({
         setEvent(item);
         setInvitees(items);
         setStatistics(eventStatistics);
-      })
+        setActivity(eventActivity);
+        setRevisions(designRevisions);
+        setDesigns(publicDesigns);
+        },
+      )
       .catch((error) => {
         if (!isActive) return;
         showToast(
@@ -138,12 +188,41 @@ function EventDetailContent({
       ),
     [inviteeInput, inviteePaste, invitees],
   );
+  const readiness = useMemo(
+    () => [
+      { label: "Event title", ready: (event?.title.trim().length ?? 0) >= 2 },
+      { label: "Date", ready: Boolean(event?.eventDate) },
+      { label: "Venue", ready: Boolean(event?.venue) },
+      { label: "Invitation design", ready: Boolean(event?.designVersion?.id) },
+      { label: "Guests", ready: invitees.length > 0 },
+      { label: "RSVP deadline", ready: Boolean(event?.rsvpDeadline) },
+    ],
+    [event, invitees.length],
+  );
+
+  async function refreshInsights() {
+    const [nextStatistics, nextActivity] = await Promise.all([
+      apiRequest<EventStatistics>(`/events/${eventId}/statistics`, {
+        headers: authHeaders,
+      }),
+      apiRequest<EventActivity[]>(`/events/${eventId}/activity`, {
+        headers: authHeaders,
+      }),
+    ]);
+    setStatistics(nextStatistics);
+    setActivity(nextActivity);
+  }
 
   async function copyShareLink() {
     if (!event) return;
     await navigator.clipboard.writeText(
       `${window.location.origin}/invite/${event.slug}`,
     );
+    await apiRequest(`/events/${event.id}/share`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ channel: "COPY" }),
+    });
     showToast("Event link copied.");
   }
 
@@ -181,6 +260,7 @@ function EventDetailContent({
       );
       setInviteeInput("");
       setInviteePaste("");
+      void refreshInsights();
       markEventsChanged();
       showToast(
         response.skipped.length
@@ -200,14 +280,15 @@ function EventDetailContent({
   async function deleteInvitee(invitee: InvitationInvitee) {
     if (!event) return;
     if (!window.confirm(`Delete ${invitee.name}'s personalized link?`)) return;
-    try {
-      await apiRequest(`/events/${event.id}/invitees/${invitee.id}`, {
-        method: "DELETE",
-        headers: authHeaders,
-      });
-      setInvitees((current) =>
-        current.filter((item) => item.id !== invitee.id),
-      );
+    setInvitees((current) => current.filter((item) => item.id !== invitee.id));
+    setDeletedInvitee(invitee);
+    if (deleteTimer.current) window.clearTimeout(deleteTimer.current);
+    deleteTimer.current = window.setTimeout(async () => {
+      try {
+        await apiRequest(`/events/${event.id}/invitees/${invitee.id}`, {
+          method: "DELETE",
+          headers: authHeaders,
+        });
       setEvent((current) =>
         current
           ? {
@@ -223,12 +304,24 @@ function EventDetailContent({
       );
       markEventsChanged();
       showToast("Invitee deleted.");
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Could not delete invitee.",
-        "error",
-      );
-    }
+        setDeletedInvitee(null);
+        void refreshInsights();
+      } catch (error) {
+        setInvitees((current) => [...current, invitee]);
+        showToast(
+          error instanceof Error ? error.message : "Could not delete invitee.",
+          "error",
+        );
+      }
+    }, 5000);
+  }
+
+  function undoDeleteInvitee() {
+    if (!deletedInvitee) return;
+    if (deleteTimer.current) window.clearTimeout(deleteTimer.current);
+    setInvitees((current) => [...current, deletedInvitee]);
+    setDeletedInvitee(null);
+    showToast("Guest deletion undone.");
   }
 
   async function regenerateInvitee(invitee: InvitationInvitee) {
@@ -247,6 +340,7 @@ function EventDetailContent({
       setInvitees((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
+      void refreshInsights();
       showToast("Invitee link regenerated.");
     } catch (error) {
       showToast(
@@ -260,6 +354,7 @@ function EventDetailContent({
     await navigator.clipboard.writeText(
       `${window.location.origin}/invite/${invitee.slug}`,
     );
+    await logInviteeShare(invitee, "COPY");
     showToast("Invitee link copied.");
   }
 
@@ -276,11 +371,42 @@ function EventDetailContent({
 
   function downloadInviteeCsv() {
     const rows = invitees.map((invitee) =>
-      [invitee.name, `${window.location.origin}/invite/${invitee.slug}`]
+      [
+        invitee.name,
+        invitee.email ?? "",
+        invitee.phone ?? "",
+        invitee.groupName ?? "",
+        invitee.rsvpStatus,
+        String(invitee.partySize ?? ""),
+        invitee.mealPreference ?? "",
+        invitee.rsvpMessage ?? "",
+        String(invitee.openCount),
+        invitee.lastOpenedAt ?? "",
+        invitee.lastShareChannel ?? "",
+        invitee.lastSharedAt ?? "",
+        `${window.location.origin}/invite/${invitee.slug}`,
+      ]
         .map(csvCell)
         .join(","),
     );
-    const csv = [["Invitee Name", "Link"].join(","), ...rows].join("\n");
+    const csv = [
+      [
+        "Invitee Name",
+        "Email",
+        "Phone",
+        "Group",
+        "RSVP",
+        "Party Size",
+        "Meal",
+        "Message",
+        "Opens",
+        "Last Opened",
+        "Last Share Channel",
+        "Last Shared",
+        "Link",
+      ].join(","),
+      ...rows,
+    ].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -298,23 +424,136 @@ function EventDetailContent({
         .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
         .map((cell) => cell.trim().replace(/^"|"$/g, "")),
     );
-    const headers = rows[0]?.map((header) => header.toLowerCase()) ?? [];
-    const nameColumn = headers.findIndex((header) =>
+    const headers = rows[0] ?? [];
+    const normalizedHeaders = headers.map((header) => header.toLowerCase());
+    const nameColumn = normalizedHeaders.findIndex((header) =>
       ["invitee name", "name", "full name", "guest name"].includes(header),
     );
-    const column = nameColumn >= 0 ? nameColumn : 0;
-    const names = rows
-      .slice(nameColumn >= 0 ? 1 : 0)
-      .map((row) => row[column]?.trim() ?? "")
-      .filter(Boolean);
-    setInviteePaste((current) => [current, ...names].filter(Boolean).join("\n"));
-    showToast(`Loaded ${names.length} names from “${headers[column] || "column 1"}”.`);
+    const guess = (candidates: string[]) =>
+      normalizedHeaders.findIndex((header) => candidates.includes(header));
+    setCsvImport({
+      headers,
+      rows: rows.slice(1).filter((row) => row.some(Boolean)),
+      mapping: {
+        name: nameColumn >= 0 ? nameColumn : 0,
+        email: guess(["email", "email address"]),
+        phone: guess(["phone", "mobile", "whatsapp"]),
+        groupName: guess(["group", "family", "category"]),
+        mealPreference: guess(["meal", "meal preference", "food"]),
+      },
+    });
+  }
+
+  async function importMappedCsv() {
+    if (!event || !csvImport) return;
+    const guests = csvImport.rows
+      .map((row) => ({
+        name: row[csvImport.mapping.name]?.trim() ?? "",
+        email:
+          csvImport.mapping.email >= 0
+            ? row[csvImport.mapping.email]?.trim() || undefined
+            : undefined,
+        phone:
+          csvImport.mapping.phone >= 0
+            ? row[csvImport.mapping.phone]?.trim() || undefined
+            : undefined,
+        groupName:
+          csvImport.mapping.groupName >= 0
+            ? row[csvImport.mapping.groupName]?.trim() || undefined
+            : undefined,
+        mealPreference:
+          csvImport.mapping.mealPreference >= 0
+            ? row[csvImport.mapping.mealPreference]?.trim() || undefined
+            : undefined,
+      }))
+      .filter((guest) => guest.name);
+    const response = await apiRequest<{
+      created: InvitationInvitee[];
+      skipped: { name: string; reason: string }[];
+    }>(`/events/${event.id}/invitees/import`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ guests }),
+    });
+    setInvitees((current) => [...current, ...response.created]);
+    setCsvImport(null);
+    showToast(
+      `Imported ${response.created.length} guests${response.skipped.length ? `; ${response.skipped.length} skipped` : ""}.`,
+    );
+    void refreshInsights();
+  }
+
+  async function updateInvitee(
+    invitee: InvitationInvitee,
+    values: Record<string, unknown>,
+  ) {
+    if (!event) return;
+    const updated = await apiRequest<InvitationInvitee>(
+      `/events/${event.id}/invitees/${invitee.id}`,
+      {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify(values),
+      },
+    );
+    setInvitees((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    showToast("Guest details saved.");
+    void refreshInsights();
+  }
+
+  async function toggleInviteeLink(invitee: InvitationInvitee) {
+    if (!event) return;
+    const action = invitee.linkDisabledAt ? "enable" : "disable";
+    const updated = await apiRequest<InvitationInvitee>(
+      `/events/${event.id}/invitees/${invitee.id}/${action}`,
+      { method: "POST", headers: authHeaders },
+    );
+    setInvitees((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    showToast(`Guest link ${action}d.`);
+  }
+
+  async function logInviteeShare(invitee: InvitationInvitee, channel: string) {
+    if (!event) return;
+    await apiRequest(`/events/${event.id}/invitees/${invitee.id}/share`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ channel }),
+    });
+    setInvitees((current) =>
+      current.map((item) =>
+        item.id === invitee.id
+          ? {
+              ...item,
+              lastSharedAt: new Date().toISOString(),
+              lastShareChannel: channel,
+            }
+          : item,
+      ),
+    );
+    void refreshInsights();
   }
 
   async function saveEventDetails(eventForm: FormEvent<HTMLFormElement>) {
     eventForm.preventDefault();
     if (!event) return;
     const form = new FormData(eventForm.currentTarget);
+    const wantsPublished = form.get("isPublished") === "on";
+    if (
+      wantsPublished &&
+      (!String(form.get("eventDate") || "") ||
+        !String(form.get("venue") || "").trim() ||
+        !event.designVersion?.id)
+    ) {
+      showToast(
+        "Add the event date, venue, and invitation design before publishing.",
+        "error",
+      );
+      return;
+    }
     setIsSaving(true);
     try {
       const updated = await apiRequest<UserEvent>(`/events/${event.id}`, {
@@ -325,7 +564,15 @@ function EventDetailContent({
           eventDate: form.get("eventDate") || undefined,
           venue: String(form.get("venue") || ""),
           description: String(form.get("description") || ""),
-          isPublished: form.get("isPublished") === "on",
+          rsvpDeadline: form.get("rsvpDeadline") || null,
+          organizerNotes: String(form.get("organizerNotes") || ""),
+          checklist: {
+            details: form.get("checklistDetails") === "on",
+            guests: form.get("checklistGuests") === "on",
+            reviewed: form.get("checklistReviewed") === "on",
+            shared: form.get("checklistShared") === "on",
+          },
+          isPublished: wantsPublished,
         }),
       });
       setEvent((current) => (current ? { ...current, ...updated } : updated));
@@ -389,6 +636,34 @@ function EventDetailContent({
           ? `https://wa.me/?text=${encodeURIComponent(message)}`
           : `fb-messenger://share/?link=${encodeURIComponent(url)}`;
     window.open(target, "_blank", "noopener,noreferrer");
+    void apiRequest(`/events/${event.id}/share`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        channel:
+          channel === "email"
+            ? "EMAIL"
+            : channel === "whatsapp"
+              ? "WHATSAPP"
+              : "MESSENGER",
+      }),
+    }).then(() => refreshInsights());
+  }
+
+  async function nativeShareEvent() {
+    if (!event) return;
+    const url = `${window.location.origin}/invite/${event.slug}`;
+    if (navigator.share) {
+      await navigator.share({ title: event.title, text: event.description ?? "", url });
+      await apiRequest(`/events/${event.id}/share`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ channel: "NATIVE" }),
+      });
+      void refreshInsights();
+    } else {
+      await copyShareLink();
+    }
   }
 
   if (isLoading && !event) {
@@ -436,6 +711,13 @@ function EventDetailContent({
           </button>
           <button
             className="user-secondary-button"
+            onClick={() => setShowDesignEditor((value) => !value)}
+            type="button"
+          >
+            {showDesignEditor ? "Close design editor" : "Edit design"}
+          </button>
+          <button
+            className="user-secondary-button"
             disabled={!event.isPublished}
             onClick={() => void copyShareLink()}
             type="button"
@@ -472,6 +754,29 @@ function EventDetailContent({
             <span>Description</span>
             <textarea defaultValue={event.description ?? ""} name="description" rows={3} />
           </label>
+          <label className="user-field">
+            <span>RSVP deadline</span>
+            <input
+              defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""}
+              name="rsvpDeadline"
+              type="datetime-local"
+            />
+          </label>
+          <label className="user-field event-edit-description">
+            <span>Private organizer notes</span>
+            <textarea
+              defaultValue={event.organizerNotes ?? ""}
+              name="organizerNotes"
+              rows={3}
+            />
+          </label>
+          <div className="event-checklist-edit">
+            <strong>Event checklist</strong>
+            <label><input defaultChecked={event.checklist?.details} name="checklistDetails" type="checkbox" /> Event details reviewed</label>
+            <label><input defaultChecked={event.checklist?.guests} name="checklistGuests" type="checkbox" /> Guest list prepared</label>
+            <label><input defaultChecked={event.checklist?.reviewed} name="checklistReviewed" type="checkbox" /> Invitation preview reviewed</label>
+            <label><input defaultChecked={event.checklist?.shared} name="checklistShared" type="checkbox" /> Invitations shared</label>
+          </div>
           <label className="event-publish-toggle">
             <input defaultChecked={event.isPublished} name="isPublished" type="checkbox" />
             Public and shareable
@@ -518,7 +823,59 @@ function EventDetailContent({
           <span>Expected guests</span>
           <strong>{statistics?.expectedGuests ?? 0}</strong>
         </article>
+        <article>
+          <span>Response rate</span>
+          <strong>{statistics?.responseRate ?? 0}%</strong>
+        </article>
+        <article>
+          <span>Unopened</span>
+          <strong>{statistics?.unopenedInvitees ?? 0}</strong>
+        </article>
       </section>
+
+      <section className="event-refinement-grid">
+        <article className="user-panel event-readiness-card">
+          <p className="user-kicker">Readiness check</p>
+          <h2>
+            {readiness.filter((item) => item.ready).length}/{readiness.length} ready
+          </h2>
+          {readiness.map((item) => (
+            <p className={item.ready ? "ready" : ""} key={item.label}>
+              {item.ready ? "✓" : "○"} {item.label}
+            </p>
+          ))}
+        </article>
+        <article className="user-panel">
+          <p className="user-kicker">Meal summary</p>
+          <h2>Expected meal requirements</h2>
+          {statistics?.mealTotals.length ? (
+            statistics.mealTotals.map((meal) => (
+              <p key={meal.meal}>
+                <strong>{meal.count}</strong> {meal.meal}
+              </p>
+            ))
+          ) : (
+            <p className="text-sm text-ink/55">No attending meal choices yet.</p>
+          )}
+        </article>
+        <article className="user-panel">
+          <p className="user-kicker">Organizer notes</p>
+          <h2>Private event notes</h2>
+          <p>{event.organizerNotes || "Add private notes from Edit event."}</p>
+        </article>
+      </section>
+
+      {showDesignEditor ? (
+        <EventDesignEditor
+          authHeaders={authHeaders}
+          designs={designs}
+          event={event}
+          onEvent={setEvent}
+          onRevisions={setRevisions}
+          revisions={revisions}
+          showToast={showToast}
+        />
+      ) : null}
 
       <section className="user-panel event-share-panel">
         <div>
@@ -530,6 +887,7 @@ function EventDetailContent({
           <button className="user-secondary-button" disabled={!event.isPublished} onClick={() => shareEvent("whatsapp")} type="button">WhatsApp</button>
           <button className="user-secondary-button" disabled={!event.isPublished} onClick={() => shareEvent("messenger")} type="button">Messenger</button>
           <button className="user-secondary-button" disabled={!event.isPublished} onClick={() => shareEvent("email")} type="button">Email</button>
+          <button className="user-secondary-button" disabled={!event.isPublished} onClick={() => void nativeShareEvent()} type="button">Share…</button>
           {event.isPublished ? (
             <InvitationQrCode label={event.title} url={`${typeof window === "undefined" ? "" : window.location.origin}/invite/${event.slug}`} />
           ) : null}
@@ -559,12 +917,15 @@ function EventDetailContent({
           onCopyOne={(invitee) => void copyInviteeLink(invitee)}
           onDelete={(invitee) => void deleteInvitee(invitee)}
           onDownload={downloadInviteeCsv}
+          onEdit={(invitee, values) => void updateInvitee(invitee, values)}
           onGenerate={() => void generateInviteeLinks()}
           onInput={setInviteeInput}
           onPaste={setInviteePaste}
           onReadCsv={(file) => void readInviteeCsv(file)}
           onRegenerate={(invitee) => void regenerateInvitee(invitee)}
+          onShare={(invitee, channel) => void logInviteeShare(invitee, channel)}
           onSearch={setInviteeSearch}
+          onToggleLink={(invitee) => void toggleInviteeLink(invitee)}
         />
 
         {showPreview ? (
@@ -597,10 +958,162 @@ function EventDetailContent({
           </aside>
         ) : null}
       </div>
+
+      <section className="event-refinement-grid">
+        <article className="user-panel event-reminder-panel">
+          <p className="user-kicker">Follow-up list</p>
+          <h2>Guests needing a reminder</h2>
+          {invitees
+            .filter(
+              (invitee) =>
+                invitee.rsvpStatus === "PENDING" || invitee.openCount === 0,
+            )
+            .slice(0, 8)
+            .map((invitee) => (
+              <div key={invitee.id}>
+                <span>
+                  <strong>{invitee.name}</strong>
+                  {invitee.openCount === 0 ? " · unopened" : " · awaiting RSVP"}
+                </span>
+                <a
+                  href={`https://wa.me/${invitee.phone?.replace(/\D/g, "") ?? ""}?text=${encodeURIComponent(`Reminder: please view and RSVP to ${event.title}: ${typeof window === "undefined" ? "" : window.location.origin}/invite/${invitee.slug}`)}`}
+                  onClick={() => void logInviteeShare(invitee, "WHATSAPP")}
+                  target="_blank"
+                >
+                  Remind
+                </a>
+              </div>
+            ))}
+          {!invitees.some(
+            (invitee) =>
+              invitee.rsvpStatus === "PENDING" || invitee.openCount === 0,
+          ) ? <p>Everyone is up to date.</p> : null}
+        </article>
+        <article className="user-panel event-message-templates">
+          <p className="user-kicker">Message templates</p>
+          <h2>Ready-to-copy messages</h2>
+          {[
+            `You are invited to ${event.title}. Please open your personal invitation and RSVP.`,
+            `Friendly reminder to RSVP for ${event.title}${event.rsvpDeadline ? ` by ${formatEventDate(event.rsvpDeadline)}` : ""}.`,
+            `Thank you for responding to ${event.title}. We look forward to celebrating together.`,
+          ].map((message) => (
+            <button
+              key={message}
+              onClick={() => {
+                void navigator.clipboard.writeText(message);
+                showToast("Message template copied.");
+              }}
+              type="button"
+            >
+              {message}
+            </button>
+          ))}
+        </article>
+        <article className="user-panel event-activity-panel">
+          <p className="user-kicker">Recent activity</p>
+          <h2>Invitation timeline</h2>
+          {activity.slice(0, 10).map((item) => (
+            <div key={item.id}>
+              <strong>{item.summary}</strong>
+              <span>{new Date(item.createdAt).toLocaleString()}</span>
+            </div>
+          ))}
+          {!activity.length ? <p>No guest activity yet.</p> : null}
+        </article>
+      </section>
+
+      {deletedInvitee ? (
+        <div className="event-undo-banner">
+          <span>{deletedInvitee.name} will be deleted in a few seconds.</span>
+          <button onClick={undoDeleteInvitee} type="button">Undo</button>
+        </div>
+      ) : null}
+
+      {csvImport ? (
+        <CsvMappingDialog
+          state={csvImport}
+          onCancel={() => setCsvImport(null)}
+          onChange={setCsvImport}
+          onImport={() => void importMappedCsv()}
+        />
+      ) : null}
     </div>
   );
 }
 
 function markEventsChanged() {
   localStorage.setItem("nimto_events_changed", String(Date.now()));
+}
+
+function CsvMappingDialog({
+  onCancel,
+  onChange,
+  onImport,
+  state,
+}: {
+  onCancel: () => void;
+  onChange: (state: CsvImportState) => void;
+  onImport: () => void;
+  state: NonNullable<CsvImportState>;
+}) {
+  const fields = [
+    ["name", "Guest name"],
+    ["email", "Email"],
+    ["phone", "Phone"],
+    ["groupName", "Group / family"],
+    ["mealPreference", "Meal preference"],
+  ] as const;
+  return (
+    <div className="invitee-drawer-backdrop">
+      <section className="csv-mapping-dialog">
+        <div className="event-section-heading">
+          <div>
+            <p className="user-kicker">CSV import</p>
+            <h2>Map columns and review</h2>
+          </div>
+          <button className="user-secondary-button" onClick={onCancel} type="button">Cancel</button>
+        </div>
+        <div className="csv-mapping-grid">
+          {fields.map(([key, label]) => (
+            <label className="user-field" key={key}>
+              <span>{label}</span>
+              <select
+                onChange={(changeEvent) =>
+                  onChange({
+                    ...state,
+                    mapping: {
+                      ...state.mapping,
+                      [key]: Number(changeEvent.target.value),
+                    },
+                  })
+                }
+                value={state.mapping[key]}
+              >
+                <option value={-1}>Do not import</option>
+                {state.headers.map((header, index) => (
+                  <option key={`${header}-${index}`} value={index}>
+                    {header || `Column ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="user-table">
+            <thead><tr>{state.headers.map((header, index) => <th key={`${header}-${index}`}>{header}</th>)}</tr></thead>
+            <tbody>
+              {state.rows.slice(0, 5).map((row, rowIndex) => (
+                <tr key={rowIndex}>{state.headers.map((_, index) => <td key={index}>{row[index] ?? ""}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p>{state.rows.length} rows detected. Rows without a guest name will be skipped.</p>
+        <button className="user-primary-button" disabled={state.mapping.name < 0} onClick={onImport} type="button">
+          Import guests
+        </button>
+      </section>
+    </div>
+  );
 }

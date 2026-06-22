@@ -465,10 +465,12 @@ function DesignEditor({
         );
       }
       if (event.data.type === "fieldValue" && event.data.fieldKey) {
-        applyPreviewFieldValue(
-          String(event.data.fieldKey),
-          String(event.data.value ?? ""),
-        );
+        const fieldKey = String(event.data.fieldKey);
+        const incomingValue = String(event.data.value ?? "");
+        const field = fieldsRef.current.find((item) => item.key === fieldKey);
+        if (!incomingValue && (valuesRef.current[fieldKey] || field?.type === "date"))
+          return;
+        applyPreviewFieldValue(fieldKey, incomingValue);
       }
     }
 
@@ -531,8 +533,18 @@ function DesignEditor({
           title: eventTitle(design.name, values),
           type: "WEDDING",
           eventDate: dateValue(values),
-          venue: fieldValue(values, ["venue", "location", "place"]),
-          description: fieldValue(values, ["message", "description", "note"]),
+          venue: fieldValue(values, [
+            "venue",
+            "venue_name",
+            "location",
+            "place",
+          ]),
+          description: fieldValue(values, [
+            "invitation_message",
+            "message",
+            "description",
+            "note",
+          ]),
           isPublished: true,
           designVersionId: current.id,
           designFieldValues: values,
@@ -727,6 +739,9 @@ function FieldSection({
                   onChange={(event) => {
                     onChange(field.key, event.target.value);
                   }}
+                  onInput={(event) => {
+                    onChange(field.key, event.currentTarget.value);
+                  }}
                   onFocus={() => onSelect(field.key)}
                   required={field.required}
                   type={field.inputType}
@@ -744,6 +759,9 @@ function FieldSection({
 }
 
 function eventTitle(designName: string, values: Record<string, string>) {
+  const bride = fieldValue(values, ["bride_name", "bride"]);
+  const groom = fieldValue(values, ["groom_name", "groom"]);
+  if (bride && groom) return `${bride} & ${groom}`;
   return (
     fieldValue(values, [
       "event_title",

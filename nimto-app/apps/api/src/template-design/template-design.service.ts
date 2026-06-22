@@ -505,7 +505,7 @@ export class TemplateDesignService {
               htmlSize: true,
               scanResult: true,
               createdAt: true,
-              _count: { select: { events: true } },
+              _count: { select: { publishedEvents: true } },
             },
           },
         },

@@ -198,7 +198,7 @@ type InvitationDesign = {
     htmlSize: number;
     scanResult?: InvitationTemplate["scanResult"];
     createdAt: string;
-    _count?: { events: number };
+    _count?: { publishedEvents: number };
   }[];
   createdAt: string;
   updatedAt: string;
@@ -2722,7 +2722,7 @@ function DesignDetailPanel({
             <p className="mt-1 text-sm text-ink/55">
               Used by{" "}
               {design.versions.reduce(
-                (total, version) => total + (version._count?.events ?? 0),
+                (total, version) => total + (version._count?.publishedEvents ?? 0),
                 0,
               )}{" "}
               events.
@@ -2740,7 +2740,7 @@ function DesignDetailPanel({
                 <div>
                   <p className="font-black text-ink">v{version.versionNumber}</p>
                   <p className="text-xs text-ink/50">
-                    {version.status} · {version._count?.events ?? 0} events ·{" "}
+                    {version.status} · {version._count?.publishedEvents ?? 0} events ·{" "}
                     {Math.ceil(version.htmlSize / 1024)} KB
                   </p>
                 </div>

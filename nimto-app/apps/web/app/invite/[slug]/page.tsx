@@ -20,6 +20,7 @@ type InvitationEvent = {
   partySize?: number | null;
   mealPreference?: string | null;
   rsvpMessage?: string | null;
+  rsvpDeadline?: string | null;
   designVersion?: {
     rawHtml: string;
     design?: { name: string; slug: string };
@@ -122,6 +123,7 @@ export default async function InvitationPage({
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
             inviteeName={event.inviteeName}
+            rsvpDeadline={event.rsvpDeadline}
             slug={event.inviteeSlug}
           />
         ) : null}
@@ -172,6 +174,7 @@ export default async function InvitationPage({
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
             inviteeName={event.inviteeName}
+            rsvpDeadline={event.rsvpDeadline}
             slug={event.inviteeSlug}
           />
         ) : null}

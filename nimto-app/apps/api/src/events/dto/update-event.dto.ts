@@ -52,4 +52,17 @@ export class UpdateEventDto {
   @IsObject()
   @IsOptional()
   designFieldValues?: Record<string, unknown>;
+
+  @IsDateString()
+  @IsOptional()
+  rsvpDeadline?: string;
+
+  @IsString()
+  @MaxLength(4000)
+  @IsOptional()
+  organizerNotes?: string;
+
+  @IsObject()
+  @IsOptional()
+  checklist?: Record<string, boolean>;
 }

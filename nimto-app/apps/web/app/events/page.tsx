@@ -34,6 +34,7 @@ function EventsContent({
     "all" | "published" | "draft" | "archived"
   >("all");
   const [isLoading, setIsLoading] = useState(!eventCache);
+  const [sort, setSort] = useState<"updated" | "date" | "title">("updated");
 
   useEffect(() => {
     let isActive = true;
@@ -86,8 +87,14 @@ function EventsContent({
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(normalizedQuery));
       return matchesStatus && matchesQuery;
+    }).sort((left, right) => {
+      if (sort === "title") return left.title.localeCompare(right.title);
+      if (sort === "date")
+        return +(new Date(left.eventDate ?? 8640000000000000)) -
+          +(new Date(right.eventDate ?? 8640000000000000));
+      return +new Date(right.updatedAt) - +new Date(left.updatedAt);
     });
-  }, [events, query, status]);
+  }, [events, query, sort, status]);
 
   const inviteeCount = events.reduce(
     (total, event) => total + (event._count?.invitees ?? 0),
@@ -156,6 +163,15 @@ function EventsContent({
               </button>
             ))}
           </div>
+          <select
+            className="event-sort-select"
+            onChange={(event) => setSort(event.target.value as typeof sort)}
+            value={sort}
+          >
+            <option value="updated">Recently updated</option>
+            <option value="date">Event date</option>
+            <option value="title">Event name</option>
+          </select>
         </div>
 
         {isLoading && !events.length ? (

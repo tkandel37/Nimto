@@ -16,6 +16,10 @@ import { CreateInviteesDto } from "./dto/create-invitees.dto";
 import { SubmitRsvpDto } from "./dto/submit-rsvp.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 import { EventsService } from "./events.service";
+import { CreateGuestRecordsDto } from "./dto/create-guest-records.dto";
+import { UpdateInviteeDto } from "./dto/update-invitee.dto";
+import { SaveEventDesignDraftDto } from "./dto/save-event-design-draft.dto";
+import { LogShareDto } from "./dto/log-share.dto";
 
 @Controller("events")
 export class EventsController {
@@ -123,6 +127,72 @@ export class EventsController {
     return this.eventsService.statistics(request.user!.sub, eventId);
   }
 
+  @Get(":eventId/activity")
+  @UseGuards(JwtAuthGuard)
+  activity(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.listActivity(request.user!.sub, eventId);
+  }
+
+  @Get(":eventId/design-revisions")
+  @UseGuards(JwtAuthGuard)
+  designRevisions(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.listDesignRevisions(request.user!.sub, eventId);
+  }
+
+  @Patch(":eventId/design-draft")
+  @UseGuards(JwtAuthGuard)
+  saveDesignDraft(
+    @Param("eventId") eventId: string,
+    @Body() dto: SaveEventDesignDraftDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.saveDesignDraft(request.user!.sub, eventId, dto);
+  }
+
+  @Post(":eventId/design-draft/publish")
+  @UseGuards(JwtAuthGuard)
+  publishDesignDraft(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.publishDesignDraft(request.user!.sub, eventId);
+  }
+
+  @Post(":eventId/design-revisions/:revisionId/restore")
+  @UseGuards(JwtAuthGuard)
+  restoreDesignRevision(
+    @Param("eventId") eventId: string,
+    @Param("revisionId") revisionId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.restoreDesignRevision(
+      request.user!.sub,
+      eventId,
+      revisionId,
+    );
+  }
+
+  @Post(":eventId/share")
+  @UseGuards(JwtAuthGuard)
+  logEventShare(
+    @Param("eventId") eventId: string,
+    @Body() dto: LogShareDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.logShare(
+      request.user!.sub,
+      eventId,
+      undefined,
+      dto.channel,
+    );
+  }
+
   @Patch(":eventId")
   @UseGuards(JwtAuthGuard)
   update(
@@ -172,6 +242,84 @@ export class EventsController {
       eventId,
       dto,
       this.context(request),
+    );
+  }
+
+  @Post(":eventId/invitees/import")
+  @UseGuards(JwtAuthGuard)
+  importInvitees(
+    @Param("eventId") eventId: string,
+    @Body() dto: CreateGuestRecordsDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.createGuestRecords(
+      request.user!.sub,
+      eventId,
+      dto,
+      this.context(request),
+    );
+  }
+
+  @Patch(":eventId/invitees/:inviteeId")
+  @UseGuards(JwtAuthGuard)
+  updateInvitee(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Body() dto: UpdateInviteeDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.updateInvitee(
+      request.user!.sub,
+      eventId,
+      inviteeId,
+      dto,
+      this.context(request),
+    );
+  }
+
+  @Post(":eventId/invitees/:inviteeId/disable")
+  @UseGuards(JwtAuthGuard)
+  disableInvitee(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.setInviteeLink(
+      request.user!.sub,
+      eventId,
+      inviteeId,
+      true,
+    );
+  }
+
+  @Post(":eventId/invitees/:inviteeId/enable")
+  @UseGuards(JwtAuthGuard)
+  enableInvitee(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.setInviteeLink(
+      request.user!.sub,
+      eventId,
+      inviteeId,
+      false,
+    );
+  }
+
+  @Post(":eventId/invitees/:inviteeId/share")
+  @UseGuards(JwtAuthGuard)
+  logInviteeShare(
+    @Param("eventId") eventId: string,
+    @Param("inviteeId") inviteeId: string,
+    @Body() dto: LogShareDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.logShare(
+      request.user!.sub,
+      eventId,
+      inviteeId,
+      dto.channel,
     );
   }
 
