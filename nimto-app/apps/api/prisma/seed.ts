@@ -73,6 +73,237 @@ function templateScanResult() {
   };
 }
 
+const simpleDesigns = [
+  {
+    file: "birthday-confetti.html",
+    name: "Birthday Confetti",
+    slug: "birthday-confetti",
+    category: "Birthday",
+    categorySlug: "birthday",
+    fields: [
+      ["event_label", "Event Label", "text", false],
+      ["age", "Age", "number", false],
+      ["celebrant_name", "Celebrant Name", "text", true],
+      ["event_message", "Event Message", "textarea", true],
+      ["event_date", "Event Date", "date", true],
+      ["event_time", "Event Time", "text", true],
+      ["venue_name", "Venue Name", "text", true],
+      ["invitee_name", "Invitee Name", "custom_name", false],
+    ],
+  },
+  {
+    file: "wedding-botanical.html",
+    name: "Botanical Wedding",
+    slug: "botanical-wedding",
+    category: "Wedding",
+    categorySlug: "wedding",
+    fields: [
+      ["event_label", "Event Label", "text", false],
+      ["bride_name", "Bride Name", "text", true],
+      ["groom_name", "Groom Name", "text", true],
+      ["event_message", "Event Message", "textarea", true],
+      ["event_date", "Event Date", "date", true],
+      ["event_time", "Event Time", "text", true],
+      ["venue_name", "Venue Name", "text", true],
+      ["invitee_name", "Invitee Name", "custom_name", false],
+    ],
+  },
+  {
+    file: "house-party-neon.html",
+    name: "Neon House Party",
+    slug: "neon-house-party",
+    category: "House Party",
+    categorySlug: "house-party",
+    fields: [
+      ["event_label", "Event Label", "text", false],
+      ["event_title", "Event Title", "text", true],
+      ["event_message", "Event Message", "textarea", true],
+      ["event_date", "Event Date", "date", true],
+      ["event_time", "Event Time", "text", true],
+      ["venue_name", "Venue Name", "text", true],
+      ["invitee_name", "Invitee Name", "custom_name", false],
+    ],
+  },
+  {
+    file: "business-opening-modern.html",
+    name: "Modern Business Opening",
+    slug: "modern-business-opening",
+    category: "Business Opening",
+    categorySlug: "business-opening",
+    fields: [
+      ["event_label", "Event Label", "text", false],
+      ["business_name", "Business Name", "text", true],
+      ["event_message", "Event Message", "textarea", true],
+      ["event_date", "Event Date", "date", true],
+      ["event_time", "Event Time", "text", true],
+      ["venue_name", "Venue Name", "text", true],
+      ["venue_address", "Venue Address", "text", false],
+      ["invitee_name", "Invitee Name", "custom_name", false],
+    ],
+  },
+  {
+    file: "family-gathering-warm.html",
+    name: "Warm Family Gathering",
+    slug: "warm-family-gathering",
+    category: "Family Gathering",
+    categorySlug: "family-gathering",
+    fields: [
+      ["event_label", "Event Label", "text", false],
+      ["event_title", "Event Title", "text", true],
+      ["event_message", "Event Message", "textarea", true],
+      ["event_date", "Event Date", "date", true],
+      ["event_time", "Event Time", "text", true],
+      ["venue_name", "Venue Name", "text", true],
+      ["invitee_name", "Invitee Name", "custom_name", false],
+    ],
+  },
+] as const;
+
+function simpleScanResult(
+  title: string,
+  categoryHint: string,
+  fields: readonly (readonly [string, string, string, boolean])[],
+) {
+  return {
+    version: 1,
+    title,
+    categoryHint,
+    sections: [],
+    fields: fields.map(([key, label, type, required]) => ({
+      key,
+      label,
+      type,
+      required,
+      paid: false,
+      locked: false,
+    })),
+    countdownFieldKey: "event_date",
+    countdownFieldStatus: "valid",
+    customNameFieldKeys: ["invitee_name"],
+    hasOpeningSlot: false,
+    openingSlots: [],
+    hasBackgroundEffectSlot: false,
+    backgroundEffectSlots: [],
+    effectAreas: [],
+    effectSlots: [],
+    hasGallery: false,
+    hasMusic: false,
+    hasMap: false,
+    capabilities: {
+      supportsCountdown: true,
+      supportsInviteeName: true,
+      supportsGallery: false,
+      supportsMusic: false,
+      supportsMap: false,
+      supportsOpeningAnimation: false,
+      supportsBackgroundEffects: false,
+    },
+  };
+}
+
+async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
+  for (const fixture of simpleDesigns) {
+    const rawHtml = readFileSync(join(fixtureDirectory, fixture.file), "utf8");
+    const scanResult = simpleScanResult(
+      fixture.name,
+      fixture.category,
+      fixture.fields,
+    );
+    const category = await prisma.designCategory.upsert({
+      where: { slug: fixture.categorySlug },
+      update: {
+        name: fixture.category,
+        status: DesignCatalogStatus.ACTIVE,
+      },
+      create: {
+        name: fixture.category,
+        slug: fixture.categorySlug,
+        status: DesignCatalogStatus.ACTIVE,
+        createdById: userId,
+      },
+    });
+    const existingTemplate = await prisma.invitationTemplate.findFirst({
+      where: { sourceFileName: fixture.file },
+    });
+    const template = existingTemplate
+      ? await prisma.invitationTemplate.update({
+          where: { id: existingTemplate.id },
+          data: {
+            name: fixture.name,
+            rawHtml,
+            htmlSize: Buffer.byteLength(rawHtml, "utf8"),
+            scanResult,
+            scannedAt: new Date(),
+            categoryId: category.id,
+            status: TemplateStatus.PUBLISHED,
+          },
+        })
+      : await prisma.invitationTemplate.create({
+          data: {
+            name: fixture.name,
+            rawHtml,
+            sourceFileName: fixture.file,
+            htmlSize: Buffer.byteLength(rawHtml, "utf8"),
+            scanResult,
+            scannedAt: new Date(),
+            categoryId: category.id,
+            status: TemplateStatus.PUBLISHED,
+            createdById: userId,
+          },
+        });
+    const design = await prisma.invitationDesign.upsert({
+      where: { slug: fixture.slug },
+      update: {
+        name: fixture.name,
+        status: DesignStatus.ACTIVE,
+        categoryId: category.id,
+        templateId: template.id,
+      },
+      create: {
+        name: fixture.name,
+        slug: fixture.slug,
+        status: DesignStatus.ACTIVE,
+        categoryId: category.id,
+        templateId: template.id,
+        createdById: userId,
+      },
+    });
+    const currentVersion = await prisma.designVersion.findFirst({
+      where: { designId: design.id, status: DesignVersionStatus.CURRENT },
+    });
+    if (currentVersion) {
+      await prisma.designVersion.update({
+        where: { id: currentVersion.id },
+        data: {
+          name: fixture.name,
+          rawHtml,
+          htmlSize: Buffer.byteLength(rawHtml, "utf8"),
+          scanResult,
+          templateId: template.id,
+        },
+      });
+    } else {
+      await prisma.designVersion.create({
+        data: {
+          designId: design.id,
+          templateId: template.id,
+          versionNumber: 1,
+          status: DesignVersionStatus.CURRENT,
+          name: fixture.name,
+          rawHtml,
+          htmlSize: Buffer.byteLength(rawHtml, "utf8"),
+          scanResult,
+          publishedById: userId,
+        },
+      });
+    }
+    await prisma.invitationTemplate.update({
+      where: { id: template.id },
+      data: { designId: design.id, status: TemplateStatus.PUBLISHED },
+    });
+  }
+}
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -328,9 +559,11 @@ async function main() {
     where: { id: template.id },
     data: { designId: design.id, status: TemplateStatus.PUBLISHED },
   });
+  await seedSimpleDesigns(user.id, fixtureDirectory);
 
   console.log(`Seeded Super Admin: ${email}`);
   console.log("Seeded Corporate Executive Forum design and opening animation.");
+  console.log("Seeded five additional invitation designs.");
 }
 
 main()
