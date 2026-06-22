@@ -1859,7 +1859,7 @@ a {
 
 .user-field-nav {
   position: sticky;
-  top: 76px;
+  top: 64px;
   z-index: 10;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
