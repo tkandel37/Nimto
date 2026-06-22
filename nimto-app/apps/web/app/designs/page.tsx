@@ -531,7 +531,12 @@ function DesignEditor({
         headers: authHeaders,
         body: JSON.stringify({
           title: eventTitle(design.name, values),
-          type: "WEDDING",
+          type:
+            design.category?.slug === "corporate"
+              ? "CORPORATE"
+              : design.category?.slug === "birthday"
+                ? "BIRTHDAY"
+                : "WEDDING",
           eventDate: dateValue(values),
           venue: fieldValue(values, [
             "venue",

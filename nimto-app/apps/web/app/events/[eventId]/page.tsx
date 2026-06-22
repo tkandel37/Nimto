@@ -561,6 +561,7 @@ function EventDetailContent({
         headers: authHeaders,
         body: JSON.stringify({
           title: String(form.get("title") || ""),
+          type: String(form.get("type") || event.type),
           eventDate: form.get("eventDate") || undefined,
           venue: String(form.get("venue") || ""),
           description: String(form.get("description") || ""),
@@ -741,6 +742,15 @@ function EventDetailContent({
           <label className="user-field">
             <span>Event title</span>
             <input defaultValue={event.title} minLength={2} name="title" required />
+          </label>
+          <label className="user-field">
+            <span>Event type</span>
+            <select defaultValue={event.type} name="type">
+              <option value="WEDDING">Wedding</option>
+              <option value="BIRTHDAY">Birthday</option>
+              <option value="CORPORATE">Corporate</option>
+              <option value="OTHER">Other</option>
+            </select>
           </label>
           <label className="user-field">
             <span>Date and time</span>

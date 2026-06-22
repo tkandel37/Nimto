@@ -1,0 +1,17 @@
+<div data-nimto-opening-slot="corporate-reveal" class="nimto-corporate-opening">
+  <style>
+    .nimto-corporate-opening{position:absolute;inset:0;display:grid;place-items:center;background:#061725;animation:nimtoOpeningAway 1.2s cubic-bezier(.7,0,.2,1) 2.1s forwards;pointer-events:auto}
+    .nimto-corporate-opening:before,.nimto-corporate-opening:after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,rgba(96,214,223,.12),transparent 65%);transform:translateX(-100%);animation:nimtoScan 1.2s ease .25s forwards}
+    .nimto-corporate-opening:after{animation-delay:.65s;opacity:.5}
+    .nimto-opening-lockup{text-align:center;animation:nimtoLockup 1.8s ease forwards}.nimto-opening-mark{display:grid;place-items:center;width:78px;height:78px;margin:auto;border:1px solid rgba(96,214,223,.65);border-radius:22px;background:rgba(255,255,255,.05);color:#60d6df;font:900 32px/1 system-ui;box-shadow:0 0 60px rgba(44,125,240,.25)}
+    .nimto-opening-line{width:0;height:1px;margin:24px auto 18px;background:linear-gradient(90deg,transparent,#60d6df,transparent);animation:nimtoLine 1s ease .35s forwards}.nimto-opening-title{color:white;font:800 12px/1.4 system-ui;letter-spacing:.32em;text-transform:uppercase}.nimto-opening-subtitle{margin-top:10px;color:#88a9c5;font:600 10px/1.4 system-ui;letter-spacing:.18em;text-transform:uppercase}
+    @keyframes nimtoLine{to{width:210px}}@keyframes nimtoScan{to{transform:translateX(100%)}}@keyframes nimtoLockup{0%{opacity:0;transform:translateY(18px) scale(.96)}25%,80%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-12px) scale(1.02)}}@keyframes nimtoOpeningAway{to{opacity:0;visibility:hidden;transform:scale(1.035)}}
+    @media(prefers-reduced-motion:reduce){.nimto-corporate-opening{animation-duration:.2s;animation-delay:.3s}.nimto-opening-lockup,.nimto-corporate-opening:before,.nimto-corporate-opening:after{animation:none}.nimto-opening-line{width:210px;animation:none}}
+  </style>
+  <div class="nimto-opening-lockup">
+    <div class="nimto-opening-mark">N</div>
+    <div class="nimto-opening-line"></div>
+    <div class="nimto-opening-title">Northstar Executive Forum</div>
+    <div class="nimto-opening-subtitle">Ideas into impact</div>
+  </div>
+</div>
