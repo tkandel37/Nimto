@@ -296,25 +296,25 @@ function EventsContent({
             <div className="first-invitation-art" aria-hidden="true">
               ✦
             </div>
-            <p className="user-kicker">Your first invitation</p>
-            <h2>Create something people will love opening</h2>
+            <p className="user-kicker">Nothing sent yet</p>
+            <h2>Start with one event you already have in mind</h2>
             <p>
-              Choose a design, add the details, invite your guests, and
-              share—all in a few calm steps.
+              Pick a design, write the date and place, then preview it like a
+              guest before you share the link.
             </p>
             <div className="first-invitation-steps">
               <span>
-                <b>1</b> Choose invitation
+                <b>1</b> Pick a design
               </span>
               <span>
-                <b>2</b> Personalize it
+                <b>2</b> Add details
               </span>
               <span>
-                <b>3</b> Publish and share
+                <b>3</b> Check and send
               </span>
             </div>
             <Link className="user-primary-button mt-4" href="/designs">
-              Choose an invitation
+              Browse designs
             </Link>
           </div>
         ) : null}

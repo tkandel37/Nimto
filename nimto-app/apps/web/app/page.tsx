@@ -22,10 +22,10 @@ async function getLandingContent(): Promise<PageContent> {
   }
 
   return {
-    title: "Digital invitations made simple",
+    title: "Invitations your guests will actually want to open",
     subtitle:
-      "Create beautiful invitations, personalize guest names, and share every event from one calm workspace.",
-    body: "myNimto is built for weddings, birthdays, engagements, and community celebrations.",
+      "Pick a design, add the little details, and send a link that feels made for the people you are inviting.",
+    body: "myNimto is built for weddings, birthdays, pujas, family gatherings, openings, and the small-big moments we end up remembering.",
   };
 }
 
@@ -40,29 +40,30 @@ export default async function Home() {
         <div className="landing-orb landing-orb-two" />
         <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[minmax(0,1fr)_460px] md:items-center md:py-20">
           <div className="landing-hero-copy">
-            <p className="hero-kicker">Digital invitations that feel personal</p>
+            <p className="hero-kicker">Made around real Nepali events</p>
             <h1 className="mt-5 max-w-3xl text-5xl font-black leading-tight text-ink md:text-7xl">
-              {content.title}
+              Invitations your guests will actually want to open.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
-              {content.subtitle}
+              {content.subtitle ||
+                "Pick a design, add the little details, and send a link that feels made for the people you are inviting."}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link className="site-button-primary" href="/auth?mode=register">
-                Start creating free
+                Make my first invite
               </Link>
               <AuthAwareAccountLink
                 className="site-button-secondary"
                 loggedOutLabel="Log in"
               />
               <Link className="site-button-ghost" href="/features">
-                See how it works
+                Take a quick look
               </Link>
             </div>
             <div className="landing-trust-row" aria-label="What myNimto helps with">
-              <span>✓ Guest names</span>
-              <span>✓ Share links</span>
-              <span>✓ RSVP tracking</span>
+              <span>Guest names, not “Dear all”</span>
+              <span>WhatsApp-friendly links</span>
+              <span>Events kept in one place</span>
             </div>
           </div>
 
@@ -73,37 +74,38 @@ export default async function Home() {
       <section className="mx-auto grid max-w-6xl gap-4 px-5 py-12 md:grid-cols-3">
         <FeatureCard
           eyebrow="01"
-          title="Choose a design"
-          body="Start with a clean template for weddings, birthdays, family events, launches, and more."
+          title="Start from the mood"
+          body="Wedding mandap, Dashain tika, business opening, birthday dinner — choose the design that already feels close."
         />
         <FeatureCard
           eyebrow="02"
-          title="Make it yours"
-          body="Add the event story, venue, time, custom guest names, and a beautiful share-ready preview."
+          title="Fill the real details"
+          body="Names, venue, time, message, guest names — the things people actually look for before they leave home."
         />
         <FeatureCard
           eyebrow="03"
-          title="Share with joy"
-          body="Publish a simple link, upload guests with CSV, and keep every invitation organised."
+          title="Send it without drama"
+          body="Publish a clean link, reuse a previous design, and keep the whole invite history where you can find it later."
         />
       </section>
 
       <section className="landing-section">
         <div className="landing-section-copy">
-          <p className="hero-kicker">Made for real hosts</p>
-          <h2>Less stress, more celebration.</h2>
+          <p className="hero-kicker">For the person arranging everything</p>
+          <h2>A little less “send me the details again.”</h2>
           <p>
-            myNimto keeps the full flow in one place: designs, events, guests,
-            invite links, history, and previews. No scattered files. No “which
-            link did I send?” panic. Just a calm workspace for happy moments.
+            myNimto keeps designs, event details, guests, links, and previous
+            invitations together. It is not trying to be fancy for the sake of
+            it — just useful when family, friends, and last-minute changes are
+            all happening at once.
           </p>
         </div>
         <div className="landing-flow-card">
           {[
-            ["Pick", "Browse simple invitation templates."],
-            ["Create", "Fill in event details and personalize the message."],
-            ["Invite", "Upload guests or add them one by one."],
-            ["Track", "Reuse designs and manage invitations later."],
+            ["Pick", "Choose something that matches the event, not a blank page."],
+            ["Write", "Add the date, venue, message, and the name your guest sees."],
+            ["Check", "Preview it once before you send the link around."],
+            ["Reuse", "Come back later and use a design again for another event."],
           ].map(([title, body]) => (
             <div className="landing-flow-step" key={title}>
               <span>{title}</span>
@@ -127,15 +129,15 @@ export default async function Home() {
       </section>
 
       <section className="landing-cta">
-        <p className="hero-kicker">Ready when you are</p>
-        <h2>Create your next invitation in minutes.</h2>
+        <p className="hero-kicker">No big setup</p>
+        <h2>Make one invite. Send one good link.</h2>
         <p>
-          Simple enough for a quick birthday invite, polished enough for a
-          wedding or corporate event.
+          Start small if you want. A birthday, a puja, a family dinner — the
+          flow stays the same when the event gets bigger.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Link className="site-button-primary" href="/auth?mode=register">
-            Create an invitation
+            Start an invite
           </Link>
           <AuthAwareAccountLink className="site-button-secondary" />
         </div>
@@ -154,15 +156,15 @@ function InvitationShowcase({ body }: { body?: string | null }) {
       <div className="landing-preview-card">
         <p className="landing-preview-label">Kathmandu • Saturday</p>
         <h2>Aarav & Sita</h2>
-        <p>Wedding celebration · 6:00 PM</p>
+        <p>Wedding bhoj · 6:00 PM</p>
         <div className="landing-preview-note">
           {body ||
-            "Create beautiful invitations, personalize guest names, and share every event from one calm workspace."}
+            "Come a little early if you can. Tika starts before dinner, and the family photo always takes longer than planned."}
         </div>
       </div>
       <div className="landing-preview-actions">
-        <span className="preview-chip">Dear Aama & Buwa</span>
-        <span className="preview-chip">Open invite →</span>
+        <span className="preview-chip">For: Aama & Buwa</span>
+        <span className="preview-chip">Open the invite →</span>
       </div>
       <div className="landing-mini-dashboard" aria-hidden="true">
         <span>Guests</span>

@@ -135,16 +135,16 @@ function MyDesignsContent({
           <div>
             <p className="user-kicker">Invitation history</p>
             <h1 className="mt-2 text-3xl font-black text-ink">
-              My Invitations
+              Designs I have used
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Invitations you have used stay here as a personal collection.
-              Reuse an available invitation for another event without searching
-              the full catalogue again.
+              The designs you actually used stay here. If one worked well for a
+              family event or office invite, you can pick it up again without
+              digging through the full catalogue.
             </p>
           </div>
           <Link className="user-primary-button" href="/designs">
-            Browse invitations
+            Find another design
           </Link>
         </div>
 
@@ -155,7 +155,7 @@ function MyDesignsContent({
               value={filteredItems.length}
             />
             <HistoryStat label="Total uses" value={totalUses} />
-            <HistoryStat label="Ready to reuse" value={reusableCount} />
+            <HistoryStat label="Can reuse" value={reusableCount} />
           </div>
         ) : null}
       </div>
@@ -171,7 +171,7 @@ function MyDesignsContent({
               value={search}
             />
           </label>
-          <p>Most recently used first · one card per design</p>
+          <p>Most recent first · hidden cards stay hidden on this browser</p>
         </div>
       ) : null}
 

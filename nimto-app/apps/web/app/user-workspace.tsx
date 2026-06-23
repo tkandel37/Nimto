@@ -249,7 +249,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
   if (isChecking && !user) {
     return (
       <main className="user-shell">
-        <div className="user-loading">Checking your workspace...</div>
+        <div className="user-loading">Opening your invitations...</div>
       </main>
     );
   }
@@ -257,7 +257,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
   if (!token) {
     return (
       <main className="user-auth-redirect">
-        <p>Taking you to sign in...</p>
+        <p>Taking you back to sign in...</p>
       </main>
     );
   }
@@ -270,11 +270,11 @@ export function UserFrame({ children }: { children: ReactNode }) {
             myNimto
           </Link>
           <h1 className="mt-6 text-3xl font-black text-ink">
-            Reconnecting your workspace
+            Getting your invitations back
           </h1>
           <p className="mt-3 text-sm leading-6 text-ink/60">
-            Your session is still saved. We just need a successful connection to
-            load your account details.
+            Your session is still saved. We just need the server to answer once
+            so we can bring your events back.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -339,8 +339,8 @@ export function UserFrame({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="user-sidebar-note">
-            <span>✦</span>
-            <p>Create with joy</p>
+            <span>✍</span>
+            <p>Draft, check, send</p>
           </div>
         </aside>
 
@@ -350,7 +350,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
               myNimto
             </Link>
             <div className="user-workspace-context">
-              <span>Your invitation workspace</span>
+              <span>Your invitation desk</span>
               <strong>
                 {pageLinks.find((link) => link.key === activePage)?.label}
               </strong>

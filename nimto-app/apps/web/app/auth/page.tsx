@@ -69,8 +69,8 @@ function AuthForm() {
     () =>
       mode === "register"
         ? {
-            title: "Create your account",
-            button: "Register",
+            title: "Save your invitations",
+            button: "Create account",
             helper: "Already have an account?",
             action: "Log in",
           }
@@ -78,7 +78,7 @@ function AuthForm() {
             title: "Welcome back",
             button: "Log in",
             helper: "New to Nimto?",
-            action: "Create account",
+            action: "Save your first invite",
           },
     [mode],
   );
@@ -128,14 +128,14 @@ function AuthForm() {
             </Link>
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
-                Preview
+                Sample invite
               </p>
               <h1 className="mt-5 text-5xl font-black leading-tight text-ink">
                 Aarav & Ishani
               </h1>
               <p className="mt-5 max-w-sm text-lg leading-8 text-ink/70">
-                Join us for a wedding celebration. RSVP, directions, and guest
-                details will live here soon.
+                Tika before dinner, photos after. Keep this link handy — the
+                venue details live here.
               </p>
             </div>
             <div className="flex items-center justify-between border-t border-ink/15 pt-5 text-sm font-bold text-ink/70">
@@ -149,7 +149,7 @@ function AuthForm() {
       <section className="auth-panel">
         <div className="form-card">
           <p className="text-sm font-bold uppercase tracking-[0.3em] text-leaf">
-            Account
+            Your account
           </p>
           <h2 className="mt-4 text-4xl font-black text-ink">{copy.title}</h2>
           <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
