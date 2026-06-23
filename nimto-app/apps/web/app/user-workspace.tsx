@@ -318,7 +318,8 @@ export function UserFrame({ children }: { children: ReactNode }) {
       <main className="user-shell">
         <aside className="user-sidebar">
           <Link className="user-logo" href="/events">
-            myNimto
+            <span className="user-logo-mark">N</span>
+            <span className="user-logo-word">Nimto</span>
           </Link>
           <nav className="user-nav">
             {pageLinks.map((link) => (
@@ -337,6 +338,10 @@ export function UserFrame({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
+          <div className="user-sidebar-note">
+            <span>✦</span>
+            <p>Create with joy</p>
+          </div>
         </aside>
 
         <section className="user-main">
