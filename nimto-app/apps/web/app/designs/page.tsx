@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
 
@@ -101,10 +102,28 @@ function DesignsContent({
     "desktop",
   );
   const [recentDesignId, setRecentDesignId] = useState("");
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
+    setHasMounted(true);
     setRecentDesignId(localStorage.getItem("nimto_last_used_design") ?? "");
   }, []);
+
+  useEffect(() => {
+    if (!previewDesign) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setPreviewDesign(null);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [previewDesign]);
 
   useEffect(() => {
     let isActive = true;
@@ -339,63 +358,74 @@ function DesignsContent({
           <p>Try another category, subcategory, or search term.</p>
         </div>
       ) : null}
-      {previewDesign ? (
-        <div
-          className="design-preview-modal-backdrop"
-          onMouseDown={() => setPreviewDesign(null)}
-        >
-          <section
-            className="design-preview-modal"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <p className="user-kicker">Invitation preview</p>
-                <h2>{previewDesign.name}</h2>
-                <p>
-                  {previewDesign.category?.name || "Invitation"} ·
-                  mobile-friendly preview
-                </p>
-              </div>
-              <div className="event-header-actions">
-                <div className="event-device-switcher">
-                  {(["mobile", "desktop"] as const).map((device) => (
+      {hasMounted && previewDesign
+        ? createPortal(
+            <div
+              aria-modal="true"
+              className="design-preview-modal-backdrop"
+              onMouseDown={() => setPreviewDesign(null)}
+              role="dialog"
+            >
+              <section
+                className="design-preview-modal"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <header>
+                  <div className="design-preview-heading">
+                    <p className="user-kicker">Invitation preview</p>
+                    <h2>{previewDesign.name}</h2>
+                    <p>
+                      {previewDesign.category?.name || "Invitation"} · Preview
+                      from the beginning
+                    </p>
+                  </div>
+                  <div className="design-preview-actions">
+                    <div className="event-device-switcher">
+                      {(["mobile", "desktop"] as const).map((device) => (
+                        <button
+                          className={previewDevice === device ? "active" : ""}
+                          key={device}
+                          onClick={() => setPreviewDevice(device)}
+                          type="button"
+                        >
+                          {device}
+                        </button>
+                      ))}
+                    </div>
                     <button
-                      className={previewDevice === device ? "active" : ""}
-                      key={device}
-                      onClick={() => setPreviewDevice(device)}
+                      className="user-secondary-button"
+                      onClick={() => setPreviewDesign(null)}
                       type="button"
                     >
-                      {device}
+                      Close
                     </button>
-                  ))}
+                    <button
+                      className="user-primary-button"
+                      onClick={() => openDesignEditor(previewDesign)}
+                      type="button"
+                    >
+                      Use invitation
+                    </button>
+                  </div>
+                </header>
+                <div className="design-preview-canvas">
+                  <div className={`design-preview-stage ${previewDevice}`}>
+                    <iframe
+                      key={`${previewDesign.id}-${previewDevice}`}
+                      onLoad={(event) =>
+                        event.currentTarget.contentWindow?.scrollTo(0, 0)
+                      }
+                      sandbox="allow-scripts allow-same-origin"
+                      srcDoc={previewDesign.versions[0]?.rawHtml ?? ""}
+                      title={`${previewDesign.name} full preview`}
+                    />
+                  </div>
                 </div>
-                <button
-                  className="user-secondary-button"
-                  onClick={() => setPreviewDesign(null)}
-                  type="button"
-                >
-                  Close
-                </button>
-                <button
-                  className="user-primary-button"
-                  onClick={() => openDesignEditor(previewDesign)}
-                  type="button"
-                >
-                  Use invitation
-                </button>
-              </div>
-            </header>
-            <div className={`design-preview-stage ${previewDevice}`}>
-              <iframe
-                sandbox="allow-scripts"
-                srcDoc={previewDesign.versions[0]?.rawHtml ?? ""}
-                title={`${previewDesign.name} full preview`}
-              />
-            </div>
-          </section>
-        </div>
-      ) : null}
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </section>
   );
 }
@@ -553,8 +583,9 @@ function DesignEditor({
           valuesRef.current,
           activeFieldKeyRef.current,
           fieldsRef.current,
-          { shouldScroll: true },
+          { shouldScroll: false },
         );
+        previewRef.current?.contentWindow?.scrollTo(0, 0);
       }
       if (event.data.type === "fieldValue" && event.data.fieldKey) {
         const fieldKey = String(event.data.fieldKey);
@@ -574,6 +605,10 @@ function DesignEditor({
       window.removeEventListener("message", receivePreviewMessage);
     };
   }, []);
+
+  useEffect(() => {
+    previewRef.current?.contentWindow?.scrollTo(0, 0);
+  }, [device]);
 
   function updateValue(key: string, value: string) {
     setValues((currentValues) => {
@@ -722,9 +757,10 @@ function DesignEditor({
                 selectedFieldKey,
                 fields,
                 {
-                  shouldScroll: true,
+                  shouldScroll: false,
                 },
               );
+              previewRef.current?.contentWindow?.scrollTo(0, 0);
               bindPreviewFrameEditing(
                 previewRef.current,
                 fields,
@@ -735,11 +771,12 @@ function DesignEditor({
               window.setTimeout(() => {
                 updatePreviewFrame(
                   previewRef.current,
-                  valuesRef.current,
-                  activeFieldKeyRef.current,
-                  fieldsRef.current,
-                  { shouldScroll: true },
-                );
+                    valuesRef.current,
+                    activeFieldKeyRef.current,
+                    fieldsRef.current,
+                    { shouldScroll: false },
+                  );
+                  previewRef.current?.contentWindow?.scrollTo(0, 0);
                 bindPreviewFrameEditing(
                   previewRef.current,
                   fieldsRef.current,
@@ -1196,8 +1233,7 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
   const fieldsByKey = new Map(fieldList.map((field) => [field.key, field]));
   const editableKeys = new Set(fieldList.map((field) => field.key));
   const escapeSelector = (value) => {
-    if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
-    return String(value).replace(/"/g, "\\\\\"");
+    return window.CSS.escape(String(value));
   };
   const mergeFields = (nextFields) => {
     (nextFields || []).forEach((field) => {

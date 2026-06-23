@@ -3097,22 +3097,26 @@ a {
 .design-preview-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   background: rgb(10 20 14 / 0.64);
   padding: 18px;
+  overscroll-behavior: contain;
 }
 
 .design-preview-modal {
   display: grid;
   width: min(1500px, 100%);
   height: calc(100dvh - 36px);
-  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  grid-template-rows: minmax(64px, auto) minmax(0, 1fr);
   gap: 14px;
   margin: auto;
+  overflow: hidden;
   border-radius: 14px;
   background: #f8f6ef;
   padding: 18px;
+  box-shadow: 0 32px 100px rgb(4 12 8 / 0.4);
 }
 
 .design-preview-modal > header {
@@ -3120,6 +3124,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .design-preview-modal h2 {
@@ -3132,25 +3137,67 @@ a {
   font-size: 0.8rem;
 }
 
+.design-preview-heading {
+  min-width: 0;
+}
+
+.design-preview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.design-preview-actions .event-device-switcher {
+  margin: 0 6px 0 0;
+}
+
+.design-preview-canvas {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  place-items: stretch center;
+  border-radius: 11px;
+  background:
+    linear-gradient(45deg, rgb(23 37 29 / 0.035) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(23 37 29 / 0.035) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(23 37 29 / 0.035) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(23 37 29 / 0.035) 75%),
+    #eae7df;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+  background-size: 20px 20px;
+  padding: 10px;
+}
+
 .design-preview-stage {
   width: 100%;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   margin: auto;
   border: 1px solid rgb(23 37 29 / 0.12);
   border-radius: 10px;
   background: white;
+  box-shadow: 0 16px 45px rgb(23 37 29 / 0.13);
   transition: width 180ms ease;
 }
 
 .design-preview-stage.mobile {
-  width: min(390px, 100%);
+  width: min(430px, 100%);
 }
 
 .design-preview-stage iframe {
+  display: block;
   width: 100%;
   height: 100%;
+  min-height: 0;
   border: 0;
+  background: white;
 }
 
 .user-editor-toolbar {
@@ -3316,6 +3363,7 @@ a {
 
   .design-preview-modal {
     height: 100dvh;
+    grid-template-rows: auto minmax(0, 1fr);
     border-radius: 0;
     padding: 12px;
   }
@@ -3323,6 +3371,21 @@ a {
   .design-preview-modal > header {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .design-preview-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .design-preview-actions .event-device-switcher {
+    justify-content: flex-start;
+    margin: 0;
+  }
+
+  .design-preview-canvas {
+    padding: 6px;
   }
 
   .user-editor-grid {
