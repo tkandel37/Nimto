@@ -818,6 +818,11 @@ function EventDetailContent({
   ];
   const nextStep =
     journey.find((step) => !step.ready) ?? journey[journey.length - 1];
+  const inviteUrl =
+    typeof window === "undefined"
+      ? `/invite/${event.slug}`
+      : `${window.location.origin}/invite/${event.slug}`;
+  const suggestedShareMessage = `You’re invited to ${event.title}. Open your invitation here: ${inviteUrl}`;
 
   return (
     <div className="event-detail-page">
@@ -866,6 +871,14 @@ function EventDetailContent({
             type="button"
           >
             {event.isPublished && !invitationDraft ? "Published" : "Publish"}
+          </button>
+          <button
+            className="user-secondary-button"
+            disabled={isSaving}
+            onClick={() => void duplicateEvent()}
+            type="button"
+          >
+            Duplicate
           </button>
           <button
             className="user-secondary-button"
@@ -968,7 +981,8 @@ function EventDetailContent({
               <p className="user-kicker">Next best action</p>
               <h2>{nextStep.label}</h2>
               <p>
-                {readyCount}/{readiness.length} event essentials are ready.
+                {readyCount}/{readiness.length} basics are ready. You can save
+                changes anytime; guests only see the published invitation.
               </p>
             </div>
             <button
@@ -996,6 +1010,37 @@ function EventDetailContent({
                 >
                   <span>{step.ready ? "✓" : index + 1}</span>
                   <strong>{step.label}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="user-panel event-setup-checklist">
+            <div>
+              <p className="user-kicker">Setup checklist</p>
+              <h2>Before you send the link</h2>
+              <p>
+                A quick safety check so the invite does not go out missing a
+                date, venue, guest name, or preview review.
+              </p>
+            </div>
+            <div>
+              {readiness.map((item) => (
+                <button
+                  className={item.ready ? "ready" : ""}
+                  key={item.label}
+                  onClick={() =>
+                    setActiveTab(
+                      item.label === "Guests"
+                        ? "guests"
+                        : item.label === "Invitation design"
+                          ? "invitation"
+                          : "settings",
+                    )
+                  }
+                  type="button"
+                >
+                  <span>{item.ready ? "✓" : "○"}</span>
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -1243,8 +1288,7 @@ function EventDetailContent({
                 </span>
               </div>
               <p className="share-suggested-message">
-                “You’re invited to {event.title}. Open your invitation and let
-                us know if you can join us.”
+                “{suggestedShareMessage}”
               </p>
             </div>
           </section>
@@ -1265,6 +1309,26 @@ function EventDetailContent({
                 type="button"
               >
                 Copy event link
+              </button>
+              <Link
+                aria-disabled={!event.isPublished}
+                className={
+                  event.isPublished
+                    ? "user-secondary-button"
+                    : "user-secondary-button disabled"
+                }
+                href={event.isPublished ? `/invite/${event.slug}` : "#"}
+                target={event.isPublished ? "_blank" : undefined}
+              >
+                Open as guest
+              </Link>
+              <button
+                className="user-secondary-button"
+                disabled={!event.isPublished}
+                onClick={() => void nativeShareEvent()}
+                type="button"
+              >
+                Share from device
               </button>
               <button
                 className="user-secondary-button"
@@ -1310,7 +1374,7 @@ function EventDetailContent({
             <p className="user-kicker">Message templates</p>
             <h2>Ready-to-copy messages</h2>
             {[
-              `You are invited to ${event.title}. Please open your personal invitation and RSVP.`,
+              suggestedShareMessage,
               `Friendly reminder to RSVP for ${event.title}${event.rsvpDeadline ? ` by ${formatEventDate(event.rsvpDeadline)}` : ""}.`,
               `Thank you for responding to ${event.title}. We look forward to celebrating together.`,
             ].map((message) => (

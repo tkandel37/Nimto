@@ -54,6 +54,42 @@ const CATALOG_CACHE_VERSION = 2;
 const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
 const FAVOURITE_DESIGNS_KEY = "nimto_favourite_designs";
 const RECENTLY_VIEWED_DESIGNS_KEY = "nimto_recently_viewed_designs";
+const designCollections = [
+  {
+    key: "nepal",
+    label: "Nepal events",
+    terms: [
+      "dashain",
+      "tihar",
+      "bratabandha",
+      "pasni",
+      "teej",
+      "puja",
+      "nepali",
+      "mandap",
+    ],
+  },
+  {
+    key: "wedding",
+    label: "Wedding",
+    terms: ["wedding", "mehendi", "sangeet", "mandap"],
+  },
+  {
+    key: "family",
+    label: "Family",
+    terms: ["family", "baby", "pasni", "birthday", "gathering"],
+  },
+  {
+    key: "business",
+    label: "Business",
+    terms: ["business", "corporate", "opening"],
+  },
+  {
+    key: "party",
+    label: "Party",
+    terms: ["party", "birthday", "house", "reunion"],
+  },
+] as const;
 
 let catalogCache: {
   version: number;
@@ -119,6 +155,7 @@ function DesignsContent({
   const [favouriteIds, setFavouriteIds] = useState<string[]>([]);
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>([]);
   const [showFavourites, setShowFavourites] = useState(false);
+  const [collectionKey, setCollectionKey] = useState("");
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
@@ -218,19 +255,36 @@ function DesignsContent({
 
   const filteredDesigns = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const collection = designCollections.find(
+      (item) => item.key === collectionKey,
+    );
     return designs.filter((design) => {
       if (showFavourites && !favouriteIds.includes(design.id)) return false;
       if (categoryId && design.category?.id !== categoryId) return false;
       if (subcategoryId && design.subcategory?.id !== subcategoryId)
         return false;
+      const haystack = [
+        design.name,
+        design.slug,
+        design.category?.name,
+        design.category?.slug,
+        design.subcategory?.name,
+        design.subcategory?.slug,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (
+        collection &&
+        !collection.terms.some((term) => haystack.includes(term))
+      )
+        return false;
       if (!query) return true;
-      return (
-        design.name.toLowerCase().includes(query) ||
-        design.slug.toLowerCase().includes(query)
-      );
+      return haystack.includes(query);
     });
   }, [
     categoryId,
+    collectionKey,
     designs,
     favouriteIds,
     search,
@@ -349,16 +403,34 @@ function DesignsContent({
         </div>
         <div className="design-discovery-bar">
           <button
-            className={!categoryId && !showFavourites ? "active" : ""}
+            className={
+              !categoryId && !collectionKey && !showFavourites ? "active" : ""
+            }
             onClick={() => {
               setCategoryId("");
               setSubcategoryId("");
               setShowFavourites(false);
+              setCollectionKey("");
             }}
             type="button"
           >
             All invitations
           </button>
+          {designCollections.map((collection) => (
+            <button
+              className={collectionKey === collection.key ? "active" : ""}
+              key={collection.key}
+              onClick={() => {
+                setCollectionKey(collection.key);
+                setCategoryId("");
+                setSubcategoryId("");
+                setShowFavourites(false);
+              }}
+              type="button"
+            >
+              {collection.label}
+            </button>
+          ))}
           {categories.slice(0, 7).map((category) => (
             <button
               className={categoryId === category.id ? "active" : ""}
@@ -367,6 +439,7 @@ function DesignsContent({
                 setCategoryId(category.id);
                 setSubcategoryId("");
                 setShowFavourites(false);
+                setCollectionKey("");
               }}
               type="button"
             >
@@ -375,7 +448,12 @@ function DesignsContent({
           ))}
           <button
             className={showFavourites ? "active favourite" : "favourite"}
-            onClick={() => setShowFavourites((value) => !value)}
+            onClick={() => {
+              setCollectionKey("");
+              setCategoryId("");
+              setSubcategoryId("");
+              setShowFavourites((value) => !value);
+            }}
             type="button"
           >
             ♥ Favourites {favouriteIds.length ? `(${favouriteIds.length})` : ""}
