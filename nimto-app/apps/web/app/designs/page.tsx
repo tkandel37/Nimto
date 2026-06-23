@@ -339,6 +339,14 @@ function DesignsContent({
     router.push("/designs");
   }
 
+  function clearDesignFilters() {
+    setSearch("");
+    setCategoryId("");
+    setSubcategoryId("");
+    setCollectionKey("");
+    setShowFavourites(false);
+  }
+
   if (selectedDesign) {
     return (
       <DesignEditor
@@ -578,7 +586,18 @@ function DesignsContent({
       {!isLoading && !filteredDesigns.length ? (
         <div className="user-empty">
           <h2>No invitations found</h2>
-          <p>Try another category, subcategory, or search term.</p>
+          <p>
+            This collection does not have a matching design yet. Clear the
+            filters to see the full catalog, including Nepal, wedding, family,
+            business, and party invitations.
+          </p>
+          <button
+            className="user-secondary-button mt-4"
+            onClick={clearDesignFilters}
+            type="button"
+          >
+            Show all invitations
+          </button>
         </div>
       ) : null}
       {hasMounted && previewDesign

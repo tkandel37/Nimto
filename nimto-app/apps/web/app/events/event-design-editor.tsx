@@ -63,6 +63,7 @@ export function EventDesignEditor({
   );
   const [saving, setSaving] = useState(false);
   const [connectionState, setConnectionState] = useState("Online");
+  const [draftStatus, setDraftStatus] = useState("No unsaved changes");
   const previewHtml = useMemo(
     () => applyValues(version?.rawHtml ?? "", values),
     [values, version?.rawHtml],
@@ -117,9 +118,18 @@ export function EventDesignEditor({
         `nimto_event_design_draft_${event.id}`,
         JSON.stringify({ versionId, values }),
       );
+      setDraftStatus("Saved locally just now");
     }, 400);
     return () => window.clearTimeout(timer);
   }, [event.id, values, versionId]);
+
+  function updateFieldValue(fieldKey: string, value: string) {
+    setDraftStatus("Unsaved changes");
+    setValues((current) => ({
+      ...current,
+      [fieldKey]: value,
+    }));
+  }
 
   async function saveDraft() {
     if (!version) return;
@@ -138,6 +148,7 @@ export function EventDesignEditor({
       );
       onEvent({ ...event, ...updated });
       localStorage.removeItem(`nimto_event_design_draft_${event.id}`);
+      setDraftStatus("Saved to event draft");
       showToast("Design draft saved. Guests still see the published version.");
     } finally {
       setSaving(false);
@@ -150,6 +161,7 @@ export function EventDesignEditor({
       { method: "POST", headers: authHeaders },
     );
     setVersionId(revision.designVersion.id);
+    setDraftStatus("Restored as an unpublished draft");
     setValues(
       Object.fromEntries(
         Object.entries(revision.fieldValues).map(([key, value]) => [
@@ -172,7 +184,9 @@ export function EventDesignEditor({
             Draft changes are private. Use the main Publish button when the
             preview is ready.
           </p>
-          <p className="design-draft-status">{connectionState}</p>
+          <p className="design-draft-status">
+            {connectionState} · {draftStatus}
+          </p>
         </div>
         <div className="event-header-actions">
           <button
@@ -191,7 +205,10 @@ export function EventDesignEditor({
           <label className="user-field">
             <span>Design</span>
             <select
-              onChange={(changeEvent) => setVersionId(changeEvent.target.value)}
+              onChange={(changeEvent) => {
+                setDraftStatus("Unsaved changes");
+                setVersionId(changeEvent.target.value);
+              }}
               value={versionId}
             >
               {designs.map((design) => (
@@ -209,10 +226,7 @@ export function EventDesignEditor({
               </span>
               <input
                 onChange={(changeEvent) =>
-                  setValues((current) => ({
-                    ...current,
-                    [field.key]: changeEvent.target.value,
-                  }))
+                  updateFieldValue(field.key, changeEvent.target.value)
                 }
                 type={field.type === "date" ? "date" : "text"}
                 value={values[field.key] ?? ""}
@@ -228,10 +242,7 @@ export function EventDesignEditor({
                     <span>{field.label}</span>
                     <input
                       onChange={(changeEvent) =>
-                        setValues((current) => ({
-                          ...current,
-                          [field.key]: changeEvent.target.value,
-                        }))
+                        updateFieldValue(field.key, changeEvent.target.value)
                       }
                       type={field.type === "date" ? "date" : "text"}
                       value={values[field.key] ?? ""}

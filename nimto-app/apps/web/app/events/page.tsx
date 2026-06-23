@@ -110,6 +110,12 @@ function EventsContent({
     0,
   );
 
+  function clearEventFilters() {
+    setQuery("");
+    setStatus("all");
+    setSort("updated");
+  }
+
   return (
     <div className="grid gap-5">
       <section className="user-panel event-overview-hero">
@@ -142,6 +148,33 @@ function EventsContent({
           <strong>{inviteeCount}</strong>
         </article>
       </section>
+
+      {!isLoading && !events.length ? (
+        <section className="user-panel user-onboarding-path">
+          <div>
+            <p className="user-kicker">Simple path</p>
+            <h2>Create your first invitation without guessing</h2>
+            <p>
+              Follow these five steps once. After that, every new event will
+              feel familiar.
+            </p>
+          </div>
+          <div className="onboarding-steps">
+            {[
+              "Choose event type",
+              "Pick design",
+              "Add event details",
+              "Add guests",
+              "Preview and share",
+            ].map((step, index) => (
+              <span key={step}>
+                <b>{index + 1}</b>
+                {step}
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="user-panel">
         <div className="event-filter-row">
@@ -304,15 +337,19 @@ function EventsContent({
             </p>
             <div className="first-invitation-steps">
               <span>
-                <b>1</b> Pick a design
+                <b>1</b> Choose event type
               </span>
               <span>
-                <b>2</b> Add details
+                <b>2</b> Pick a design
               </span>
               <span>
-                <b>3</b> Check and send
+                <b>3</b> Preview as guest
               </span>
             </div>
+            <p className="first-invitation-note">
+              Guests will not be notified by Nimto automatically. You stay in
+              control and share the link only when you are ready.
+            </p>
             <Link className="user-primary-button mt-4" href="/designs">
               Browse designs
             </Link>
@@ -322,7 +359,17 @@ function EventsContent({
         {!isLoading && events.length && !visibleEvents.length ? (
           <div className="user-empty">
             <h2>No matching events</h2>
-            <p>Try another search or status filter.</p>
+            <p>
+              Nothing matches this search or status. Your events are still safe;
+              this is only a filtered view.
+            </p>
+            <button
+              className="user-secondary-button mt-4"
+              onClick={clearEventFilters}
+              type="button"
+            >
+              Clear filters
+            </button>
           </div>
         ) : null}
       </section>

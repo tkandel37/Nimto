@@ -1423,6 +1423,11 @@ a {
   color: var(--ink);
 }
 
+.user-empty p {
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
 .user-preview-panel {
   position: sticky;
   top: 88px;
@@ -1474,6 +1479,58 @@ a {
   font-size: 1.9rem;
   line-height: 1;
   color: var(--ink);
+}
+
+.user-onboarding-path {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.user-onboarding-path h2 {
+  margin-top: 6px;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.user-onboarding-path p {
+  margin-top: 8px;
+  max-width: 460px;
+  color: rgb(23 32 51 / 0.58);
+  line-height: 1.6;
+}
+
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.onboarding-steps span {
+  min-height: 92px;
+  border: 1px solid rgb(23 32 51 / 0.1);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(255 249 236 / 0.9)),
+    #fff;
+  padding: 12px;
+  color: rgb(23 32 51 / 0.68);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.onboarding-steps b {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 10px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: white;
+  font-size: 0.78rem;
 }
 
 .event-filter-row {
@@ -3356,6 +3413,11 @@ a {
   color: white;
 }
 
+.first-invitation-note {
+  color: rgb(23 32 51 / 0.52);
+  font-size: 0.86rem;
+}
+
 .design-discovery-bar {
   display: flex;
   gap: 7px;
@@ -3957,6 +4019,7 @@ button.user-design-preview {
   }
 
   .recently-viewed-strip,
+  .user-onboarding-path,
   .share-preparation-card {
     grid-template-columns: 1fr;
   }
@@ -4041,6 +4104,21 @@ button.user-design-preview {
 
   .event-summary-grid span {
     font-size: 0.58rem;
+  }
+
+  .onboarding-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-steps span {
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .onboarding-steps b {
+    margin-bottom: 0;
   }
 
   .event-workspace-actions {
