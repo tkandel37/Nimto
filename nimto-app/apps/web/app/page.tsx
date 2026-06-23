@@ -35,12 +35,12 @@ export default async function Home() {
   return (
     <main className="site-shell">
       <SiteHeader />
-      <section className="hero-section">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[minmax(0,1fr)_440px] md:items-center md:py-20">
-          <div>
-            <p className="hero-kicker">
-              Digital invitations for every celebration
-            </p>
+      <section className="hero-section landing-hero">
+        <div className="landing-orb landing-orb-one" />
+        <div className="landing-orb landing-orb-two" />
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[minmax(0,1fr)_460px] md:items-center md:py-20">
+          <div className="landing-hero-copy">
+            <p className="hero-kicker">Digital invitations that feel personal</p>
             <h1 className="mt-5 max-w-3xl text-5xl font-black leading-tight text-ink md:text-7xl">
               {content.title}
             </h1>
@@ -48,51 +48,129 @@ export default async function Home() {
               {content.subtitle}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <AuthAwareAccountLink className="site-button-secondary" />
               <Link className="site-button-primary" href="/auth?mode=register">
-                Start creating
+                Start creating free
               </Link>
+              <AuthAwareAccountLink
+                className="site-button-secondary"
+                loggedOutLabel="Log in"
+              />
               <Link className="site-button-ghost" href="/features">
-                View features
+                See how it works
               </Link>
+            </div>
+            <div className="landing-trust-row" aria-label="What myNimto helps with">
+              <span>✓ Guest names</span>
+              <span>✓ Share links</span>
+              <span>✓ RSVP tracking</span>
             </div>
           </div>
 
-          <div className="landing-preview" aria-label="Invitation preview">
-            <div className="landing-preview-bar">
-              <span>Wedding invitation</span>
-              <span>Live preview</span>
-            </div>
-            <p className="mt-8 text-sm font-black uppercase tracking-[0.25em] text-marigold">
-              Kathmandu
-            </p>
-            <h2 className="mt-6 text-4xl font-black text-ink">Aarav & Sita</h2>
-            <p className="mt-4 text-ink/65">Saturday, 21 December, 6:00 PM</p>
-            <div className="mt-8 rounded-lg border border-ink/10 bg-white/72 p-5 text-sm leading-7 text-ink/65">
-              {content.body}
-            </div>
-            <div className="mt-6 grid gap-3 text-sm font-bold text-ink/70 sm:grid-cols-2">
-              <span className="preview-chip">Guest names</span>
-              <span className="preview-chip">Share link</span>
-            </div>
-          </div>
+          <InvitationShowcase body={content.body} />
         </div>
       </section>
+
       <section className="mx-auto grid max-w-6xl gap-4 px-5 py-12 md:grid-cols-3">
         <FeatureCard
-          title="Create"
-          body="Build invitation content and event details in one place."
+          eyebrow="01"
+          title="Choose a design"
+          body="Start with a clean template for weddings, birthdays, family events, launches, and more."
         />
         <FeatureCard
-          title="Personalize"
-          body="Prepare guest names, PDF exports, and sharing links."
+          eyebrow="02"
+          title="Make it yours"
+          body="Add the event story, venue, time, custom guest names, and a beautiful share-ready preview."
         />
         <FeatureCard
-          title="Publish"
-          body="Share a clean invitation page with family and guests."
+          eyebrow="03"
+          title="Share with joy"
+          body="Publish a simple link, upload guests with CSV, and keep every invitation organised."
         />
       </section>
+
+      <section className="landing-section">
+        <div className="landing-section-copy">
+          <p className="hero-kicker">Made for real hosts</p>
+          <h2>Less stress, more celebration.</h2>
+          <p>
+            myNimto keeps the full flow in one place: designs, events, guests,
+            invite links, history, and previews. No scattered files. No “which
+            link did I send?” panic. Just a calm workspace for happy moments.
+          </p>
+        </div>
+        <div className="landing-flow-card">
+          {[
+            ["Pick", "Browse simple invitation templates."],
+            ["Create", "Fill in event details and personalize the message."],
+            ["Invite", "Upload guests or add them one by one."],
+            ["Track", "Reuse designs and manage invitations later."],
+          ].map(([title, body]) => (
+            <div className="landing-flow-step" key={title}>
+              <span>{title}</span>
+              <p>{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-template-strip" aria-label="Invitation types">
+        {[
+          "Corporate event",
+          "Birthday",
+          "Wedding",
+          "House party",
+          "Business opening",
+          "Family gathering",
+        ].map((template) => (
+          <span key={template}>{template}</span>
+        ))}
+      </section>
+
+      <section className="landing-cta">
+        <p className="hero-kicker">Ready when you are</p>
+        <h2>Create your next invitation in minutes.</h2>
+        <p>
+          Simple enough for a quick birthday invite, polished enough for a
+          wedding or corporate event.
+        </p>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">
+          <Link className="site-button-primary" href="/auth?mode=register">
+            Create an invitation
+          </Link>
+          <AuthAwareAccountLink className="site-button-secondary" />
+        </div>
+      </section>
     </main>
+  );
+}
+
+function InvitationShowcase({ body }: { body?: string | null }) {
+  return (
+    <div className="landing-preview" aria-label="Invitation preview">
+      <div className="landing-preview-bar">
+        <span>Live invitation</span>
+        <span>Preview</span>
+      </div>
+      <div className="landing-preview-card">
+        <p className="landing-preview-label">Kathmandu • Saturday</p>
+        <h2>Aarav & Sita</h2>
+        <p>Wedding celebration · 6:00 PM</p>
+        <div className="landing-preview-note">
+          {body ||
+            "Create beautiful invitations, personalize guest names, and share every event from one calm workspace."}
+        </div>
+      </div>
+      <div className="landing-preview-actions">
+        <span className="preview-chip">Dear Aama & Buwa</span>
+        <span className="preview-chip">Open invite →</span>
+      </div>
+      <div className="landing-mini-dashboard" aria-hidden="true">
+        <span>Guests</span>
+        <strong>128</strong>
+        <span>RSVP</span>
+        <strong>84</strong>
+      </div>
+    </div>
   );
 }
 
@@ -112,9 +190,18 @@ function SiteHeader() {
   );
 }
 
-function FeatureCard({ body, title }: { body: string; title: string }) {
+function FeatureCard({
+  body,
+  eyebrow,
+  title,
+}: {
+  body: string;
+  eyebrow: string;
+  title: string;
+}) {
   return (
     <article className="feature-card">
+      <span className="feature-eyebrow">{eyebrow}</span>
       <h2 className="text-lg font-black text-ink">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-ink/60">{body}</p>
     </article>
