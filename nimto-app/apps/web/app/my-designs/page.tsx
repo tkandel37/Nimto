@@ -28,9 +28,11 @@ type DesignHistoryItem = {
   };
 };
 
-let designHistoryCache:
-  | { expiresAt: number; changeToken: string; items: DesignHistoryItem[] }
-  | null = null;
+let designHistoryCache: {
+  expiresAt: number;
+  changeToken: string;
+  items: DesignHistoryItem[];
+} | null = null;
 
 export default function MyDesignsPage() {
   return (
@@ -54,6 +56,17 @@ function MyDesignsContent({
   );
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(!designHistoryCache);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      setHiddenIds(
+        JSON.parse(localStorage.getItem("nimto_hidden_history") ?? "[]"),
+      );
+    } catch {
+      setHiddenIds([]);
+    }
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -101,15 +114,16 @@ function MyDesignsContent({
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter((item) =>
+    const available = items.filter((item) => !hiddenIds.includes(item.id));
+    if (!query) return available;
+    return available.filter((item) =>
       [
         item.design.name,
         item.design.category?.name,
         item.design.subcategory?.name,
       ].some((value) => value?.toLowerCase().includes(query)),
     );
-  }, [items, search]);
+  }, [hiddenIds, items, search]);
 
   const totalUses = items.reduce((sum, item) => sum + item.usageCount, 0);
   const reusableCount = items.filter(isReusable).length;
@@ -119,22 +133,27 @@ function MyDesignsContent({
       <div className="user-panel">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="user-kicker">Design history</p>
-            <h1 className="mt-2 text-3xl font-black text-ink">My Designs</h1>
+            <p className="user-kicker">Invitation history</p>
+            <h1 className="mt-2 text-3xl font-black text-ink">
+              My Invitations
+            </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Designs you have used stay here as a personal history. Reuse an
-              available design for another event without searching the full
-              catalogue again.
+              Invitations you have used stay here as a personal collection.
+              Reuse an available invitation for another event without searching
+              the full catalogue again.
             </p>
           </div>
           <Link className="user-primary-button" href="/designs">
-            Browse new designs
+            Browse invitations
           </Link>
         </div>
 
         {items.length ? (
           <div className="user-history-summary">
-            <HistoryStat label="Saved designs" value={items.length} />
+            <HistoryStat
+              label="Saved invitations"
+              value={filteredItems.length}
+            />
             <HistoryStat label="Total uses" value={totalUses} />
             <HistoryStat label="Ready to reuse" value={reusableCount} />
           </div>
@@ -144,17 +163,15 @@ function MyDesignsContent({
       {items.length ? (
         <div className="user-history-filter">
           <label>
-            <span>Find a design</span>
+            <span>Find an invitation</span>
             <input
               aria-label="Search your design history"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by design or category"
+              placeholder="Search by invitation or category"
               value={search}
             />
           </label>
-          <p>
-            Most recently used first · one card per design
-          </p>
+          <p>Most recently used first · one card per design</p>
         </div>
       ) : null}
 
@@ -163,7 +180,10 @@ function MyDesignsContent({
           const reusable = isReusable(item);
           const currentVersion = item.design.versions[0];
           return (
-            <article className="user-design-card user-history-card" key={item.id}>
+            <article
+              className="user-design-card user-history-card"
+              key={item.id}
+            >
               <div className="user-design-preview">
                 <iframe
                   loading="lazy"
@@ -179,7 +199,10 @@ function MyDesignsContent({
                       {item.design.name}
                     </h2>
                     <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
-                      {[item.design.category?.name, item.design.subcategory?.name]
+                      {[
+                        item.design.category?.name,
+                        item.design.subcategory?.name,
+                      ]
                         .filter(Boolean)
                         .join(" / ") || "Uncategorized"}
                     </p>
@@ -199,7 +222,8 @@ function MyDesignsContent({
                   <div>
                     <dt>Used</dt>
                     <dd>
-                      {item.usageCount} {item.usageCount === 1 ? "time" : "times"}
+                      {item.usageCount}{" "}
+                      {item.usageCount === 1 ? "time" : "times"}
                     </dd>
                   </div>
                   <div>
@@ -222,7 +246,7 @@ function MyDesignsContent({
                       className="user-primary-button flex-1"
                       href={`/designs?template=${encodeURIComponent(item.design.slug)}`}
                     >
-                      Reuse design
+                      Reuse invitation
                       {currentVersion?.versionNumber !==
                       item.lastUsedVersion.versionNumber
                         ? ` · v${currentVersion?.versionNumber}`
@@ -243,6 +267,20 @@ function MyDesignsContent({
                       View events
                     </Link>
                   ) : null}
+                  <button
+                    className="user-ghost-button"
+                    onClick={() => {
+                      const next = [...hiddenIds, item.id];
+                      setHiddenIds(next);
+                      localStorage.setItem(
+                        "nimto_hidden_history",
+                        JSON.stringify(next),
+                      );
+                    }}
+                    type="button"
+                  >
+                    Remove
+                  </button>
                 </div>
 
                 {!reusable ? (
@@ -264,7 +302,11 @@ function MyDesignsContent({
       </div>
 
       {isLoading && !items.length ? (
-        <p className="user-empty">Loading your design history...</p>
+        <div className="invitation-card-skeletons" aria-label="Loading saved invitations">
+          {[1, 2, 3].map((item) => (
+            <div key={item}><span /><i /><b /></div>
+          ))}
+        </div>
       ) : null}
       {!isLoading && !items.length ? (
         <div className="user-empty user-history-empty">

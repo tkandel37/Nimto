@@ -341,12 +341,15 @@ export function UserFrame({ children }: { children: ReactNode }) {
 
         <section className="user-main">
           <header className="user-topbar">
-            <nav className="user-site-links" aria-label="Website navigation">
-              <Link href="/events">Home</Link>
-              <Link href="/features">Features</Link>
-              <Link href="/about">About</Link>
-              <Link href="/blog">Blog</Link>
-            </nav>
+            <Link className="user-mobile-logo" href="/events">
+              myNimto
+            </Link>
+            <div className="user-workspace-context">
+              <span>Your invitation workspace</span>
+              <strong>
+                {pageLinks.find((link) => link.key === activePage)?.label}
+              </strong>
+            </div>
             <div className="flex items-center gap-3">
               <span className="hidden text-sm font-bold text-ink/55 sm:inline">
                 {user.name}
@@ -362,6 +365,25 @@ export function UserFrame({ children }: { children: ReactNode }) {
           </header>
           <div className="user-page">{children}</div>
         </section>
+
+        <nav
+          className="user-bottom-nav"
+          aria-label="Mobile workspace navigation"
+        >
+          {pageLinks.map((link) => (
+            <Link
+              aria-current={activePage === link.key ? "page" : undefined}
+              className={activePage === link.key ? "active" : ""}
+              href={link.href}
+              key={link.key}
+            >
+              <Icon>{link.icon}</Icon>
+              <span>
+                {link.label === "My Invitations" ? "Saved" : link.label}
+              </span>
+            </Link>
+          ))}
+        </nav>
 
         <div className="user-toast-region" role="status" aria-live="polite">
           {toasts.map((toast) => (

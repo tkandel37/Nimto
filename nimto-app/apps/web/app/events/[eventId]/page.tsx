@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../../user-workspace";
@@ -88,6 +87,7 @@ function EventDetailContent({
 }) {
   const params = useParams<{ eventId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const eventId = params.eventId;
   const cacheKey = `${authHeaders.Authorization ?? "anonymous"}:${eventId}`;
   const cachedWorkspace = eventWorkspaceCache.get(cacheKey);
@@ -103,6 +103,10 @@ function EventDetailContent({
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<EventTab>("overview");
   const [showEventMenu, setShowEventMenu] = useState(false);
+  const [showCreatedSuccess, setShowCreatedSuccess] = useState(
+    searchParams.get("created") === "1",
+  );
+  const [showConfetti, setShowConfetti] = useState(false);
   const [isLoading, setIsLoading] = useState(!cachedWorkspace);
   const [isInviteeLoading, setIsInviteeLoading] = useState(!cachedWorkspace);
   const [isSaving, setIsSaving] = useState(false);
@@ -733,6 +737,8 @@ function EventDetailContent({
       }
       setEvent((current) => (current ? { ...current, ...updated } : updated));
       markEventsChanged();
+      setShowConfetti(true);
+      window.setTimeout(() => setShowConfetti(false), 2600);
       showToast("Invitation published and ready to share.");
     } catch (error) {
       showToast(
@@ -815,6 +821,7 @@ function EventDetailContent({
 
   return (
     <div className="event-detail-page">
+      {showConfetti ? <CelebrationConfetti /> : null}
       <header className="event-workspace-header">
         <div className="event-detail-title">
           <Link href="/events">← All events</Link>
@@ -1202,6 +1209,45 @@ function EventDetailContent({
 
       {activeTab === "sharing" ? (
         <div className="event-tab-content">
+          <section className="share-preparation-card">
+            <div className="share-preparation-preview">
+              {event.isPublished ? (
+                <iframe
+                  sandbox="allow-scripts"
+                  src={`/invite/${event.slug}`}
+                  title={`${event.title} sharing preview`}
+                />
+              ) : (
+                <div>
+                  <span>✦</span>
+                  <strong>Invitation preview</strong>
+                  <p>Publish to activate the public link.</p>
+                </div>
+              )}
+            </div>
+            <div className="share-preparation-details">
+              <p className="user-kicker">Ready to share?</p>
+              <h2>{event.title}</h2>
+              <div className="share-check-list">
+                <span className={event.isPublished ? "ready" : ""}>
+                  {event.isPublished ? "✓" : "○"} Invitation published
+                </span>
+                <span className={invitees.length ? "ready" : ""}>
+                  {invitees.length ? "✓" : "○"} {invitees.length} guests added
+                </span>
+                <span className={event.rsvpDeadline ? "ready" : ""}>
+                  {event.rsvpDeadline ? "✓" : "○"} RSVP deadline{" "}
+                  {event.rsvpDeadline
+                    ? formatEventDate(event.rsvpDeadline)
+                    : "not set"}
+                </span>
+              </div>
+              <p className="share-suggested-message">
+                “You’re invited to {event.title}. Open your invitation and let
+                us know if you can join us.”
+              </p>
+            </div>
+          </section>
           <section className="user-panel event-share-panel">
             <div>
               <p className="user-kicker">Share invitation</p>
@@ -1423,6 +1469,45 @@ function EventDetailContent({
         </div>
       ) : null}
 
+      {showCreatedSuccess ? (
+        <div className="invitation-success-backdrop">
+          <section className="invitation-success-card">
+            <div className="invitation-success-mark">✓</div>
+            <p className="user-kicker">Invitation created</p>
+            <h2>Your draft is ready to make personal</h2>
+            <p>
+              {event.title} is safely saved. Add guests, review the invitation,
+              then publish when it feels right.
+            </p>
+            <div className="invitation-success-actions">
+              <button
+                className="user-primary-button"
+                onClick={() => {
+                  setShowCreatedSuccess(false);
+                  setActiveTab("guests");
+                  router.replace(`/events/${event.id}`);
+                }}
+                type="button"
+              >
+                Add guests
+              </button>
+              <button
+                className="user-secondary-button"
+                onClick={() => {
+                  setShowCreatedSuccess(false);
+                  setActiveTab("invitation");
+                  setShowPreview(true);
+                  router.replace(`/events/${event.id}`);
+                }}
+                type="button"
+              >
+                Preview invitation
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {csvImport ? (
         <CsvMappingDialog
           state={csvImport}
@@ -1460,6 +1545,30 @@ function statusClass(status: string) {
   if (status === "Unpublished changes") return "changes";
   if (status === "RSVP closed") return "closed";
   return "";
+}
+
+function CelebrationConfetti() {
+  const pieces = Array.from({ length: 34 }, (_, index) => ({
+    left: `${(index * 37) % 100}%`,
+    delay: `${(index % 7) * 0.08}s`,
+    color: ["#e85d75", "#f0b94b", "#3f8f5f", "#6b5dd3", "#ef8b54"][index % 5],
+    rotate: `${(index * 47) % 180}deg`,
+  }));
+  return (
+    <div className="celebration-confetti" aria-hidden="true">
+      {pieces.map((piece, index) => (
+        <i
+          key={index}
+          style={{
+            left: piece.left,
+            animationDelay: piece.delay,
+            backgroundColor: piece.color,
+            rotate: piece.rotate,
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function CsvMappingDialog({

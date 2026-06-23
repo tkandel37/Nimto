@@ -52,6 +52,8 @@ type CreatedEvent = {
 
 const CATALOG_CACHE_VERSION = 2;
 const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
+const FAVOURITE_DESIGNS_KEY = "nimto_favourite_designs";
+const RECENTLY_VIEWED_DESIGNS_KEY = "nimto_recently_viewed_designs";
 
 let catalogCache: {
   version: number;
@@ -64,6 +66,18 @@ let catalogCache: {
 function readCatalogChangedAt() {
   if (typeof window === "undefined") return 0;
   return Number(localStorage.getItem(DESIGN_CATALOG_CHANGED_KEY) ?? 0) || 0;
+}
+
+function readStoredList(key: string) {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value)
+      ? value.filter((item) => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export default function DesignsPage() {
@@ -102,11 +116,16 @@ function DesignsContent({
     "desktop",
   );
   const [recentDesignId, setRecentDesignId] = useState("");
+  const [favouriteIds, setFavouriteIds] = useState<string[]>([]);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>([]);
+  const [showFavourites, setShowFavourites] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
     setRecentDesignId(localStorage.getItem("nimto_last_used_design") ?? "");
+    setFavouriteIds(readStoredList(FAVOURITE_DESIGNS_KEY));
+    setRecentlyViewedIds(readStoredList(RECENTLY_VIEWED_DESIGNS_KEY));
   }, []);
 
   useEffect(() => {
@@ -200,6 +219,7 @@ function DesignsContent({
   const filteredDesigns = useMemo(() => {
     const query = search.trim().toLowerCase();
     return designs.filter((design) => {
+      if (showFavourites && !favouriteIds.includes(design.id)) return false;
       if (categoryId && design.category?.id !== categoryId) return false;
       if (subcategoryId && design.subcategory?.id !== subcategoryId)
         return false;
@@ -209,7 +229,14 @@ function DesignsContent({
         design.slug.toLowerCase().includes(query)
       );
     });
-  }, [categoryId, designs, search, subcategoryId]);
+  }, [
+    categoryId,
+    designs,
+    favouriteIds,
+    search,
+    showFavourites,
+    subcategoryId,
+  ]);
 
   const selectedDesign = useMemo(
     () =>
@@ -224,7 +251,34 @@ function DesignsContent({
   );
 
   function openDesignEditor(design: PublicDesign) {
+    rememberViewedDesign(design.id);
     router.push(`/designs?template=${encodeURIComponent(design.slug)}`);
+  }
+
+  function previewInvitation(design: PublicDesign) {
+    rememberViewedDesign(design.id);
+    setPreviewDesign(design);
+  }
+
+  function rememberViewedDesign(designId: string) {
+    setRecentlyViewedIds((current) => {
+      const next = [designId, ...current.filter((id) => id !== designId)].slice(
+        0,
+        6,
+      );
+      localStorage.setItem(RECENTLY_VIEWED_DESIGNS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function toggleFavourite(designId: string) {
+    setFavouriteIds((current) => {
+      const next = current.includes(designId)
+        ? current.filter((id) => id !== designId)
+        : [designId, ...current];
+      localStorage.setItem(FAVOURITE_DESIGNS_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   function closeDesignEditor() {
@@ -252,8 +306,8 @@ function DesignsContent({
               Pick an invitation design
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Browse published invitations, preview the complete experience,
-              and create a private event draft from the one you select.
+              Browse published invitations, preview the complete experience, and
+              create a private event draft from the one you select.
             </p>
           </div>
           <div className="user-filter-row">
@@ -293,36 +347,121 @@ function DesignsContent({
             </select>
           </div>
         </div>
+        <div className="design-discovery-bar">
+          <button
+            className={!categoryId && !showFavourites ? "active" : ""}
+            onClick={() => {
+              setCategoryId("");
+              setSubcategoryId("");
+              setShowFavourites(false);
+            }}
+            type="button"
+          >
+            All invitations
+          </button>
+          {categories.slice(0, 7).map((category) => (
+            <button
+              className={categoryId === category.id ? "active" : ""}
+              key={category.id}
+              onClick={() => {
+                setCategoryId(category.id);
+                setSubcategoryId("");
+                setShowFavourites(false);
+              }}
+              type="button"
+            >
+              {category.name}
+            </button>
+          ))}
+          <button
+            className={showFavourites ? "active favourite" : "favourite"}
+            onClick={() => setShowFavourites((value) => !value)}
+            type="button"
+          >
+            ♥ Favourites {favouriteIds.length ? `(${favouriteIds.length})` : ""}
+          </button>
+        </div>
       </div>
 
+      {recentlyViewedIds.length && !search && !categoryId && !showFavourites ? (
+        <section className="recently-viewed-strip">
+          <div>
+            <p className="user-kicker">Recently viewed</p>
+            <h2>Continue exploring</h2>
+          </div>
+          <div>
+            {recentlyViewedIds.slice(0, 4).map((id) => {
+              const design = designs.find((item) => item.id === id);
+              return design ? (
+                <button
+                  key={id}
+                  onClick={() => previewInvitation(design)}
+                  type="button"
+                >
+                  {design.name}
+                  <span>Preview again →</span>
+                </button>
+              ) : null;
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <div className="user-design-grid">
-        {filteredDesigns.map((design) => {
+        {filteredDesigns.map((design, index) => {
           const current = design.versions[0];
+          const favourite = favouriteIds.includes(design.id);
           return (
             <article className="user-design-card" key={design.id}>
-              <div className="user-design-preview">
+              <button
+                className="user-design-preview"
+                disabled={!current}
+                onClick={() => previewInvitation(design)}
+                type="button"
+              >
                 <iframe
                   loading="lazy"
                   sandbox="allow-scripts"
                   srcDoc={current?.rawHtml ?? ""}
                   title={`${design.name} preview`}
                 />
-              </div>
+                <span className="design-preview-overlay">
+                  Preview invitation
+                </span>
+              </button>
+              <button
+                aria-label={
+                  favourite
+                    ? `Remove ${design.name} from favourites`
+                    : `Save ${design.name} to favourites`
+                }
+                className={
+                  favourite ? "design-favourite active" : "design-favourite"
+                }
+                onClick={() => toggleFavourite(design.id)}
+                type="button"
+              >
+                {favourite ? "♥" : "♡"}
+              </button>
               <div className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-black text-ink">
                       {design.name}
                     </h2>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
+                    <p className="design-category-chip">
                       {[design.category?.name, design.subcategory?.name]
                         .filter(Boolean)
                         .join(" / ") || "Uncategorized"}
                     </p>
                   </div>
-                  <span className="user-version-pill">
-                    v{current?.versionNumber ?? 1}
-                  </span>
+                  {index < 3 ? (
+                    <span className="design-popular-pill">Popular</span>
+                  ) : (
+                    <span className="user-version-pill">
+                      v{current?.versionNumber ?? 1}
+                    </span>
+                  )}
                 </div>
                 {recentDesignId === design.id ? (
                   <span className="design-recent-pill">Recently used</span>
@@ -331,7 +470,7 @@ function DesignsContent({
                   <button
                     className="user-secondary-button"
                     disabled={!current}
-                    onClick={() => setPreviewDesign(design)}
+                    onClick={() => previewInvitation(design)}
                     type="button"
                   >
                     Preview
@@ -342,7 +481,7 @@ function DesignsContent({
                     onClick={() => openDesignEditor(design)}
                     type="button"
                   >
-                    Use invitation
+                    Customize
                   </button>
                 </div>
               </div>
@@ -351,7 +490,13 @@ function DesignsContent({
         })}
       </div>
 
-      {isLoading ? <p className="user-empty">Loading invitations...</p> : null}
+      {isLoading && !designs.length ? (
+        <div className="invitation-card-skeletons" aria-label="Loading invitations">
+          {[1, 2, 3].map((item) => (
+            <div key={item}><span /><i /><b /></div>
+          ))}
+        </div>
+      ) : null}
       {!isLoading && !filteredDesigns.length ? (
         <div className="user-empty">
           <h2>No invitations found</h2>
@@ -702,8 +847,8 @@ function DesignEditor({
       localStorage.setItem("nimto_events_changed", String(Date.now()));
       localStorage.setItem("nimto_last_used_design", design.id);
       localStorage.removeItem(draftKey);
-      showToast("Draft event created. Review it before publishing.");
-      router.replace(`/events/${response.id}`);
+      showToast("Your invitation draft is ready.");
+      router.replace(`/events/${response.id}?created=1`);
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Could not create event.",
@@ -716,6 +861,19 @@ function DesignEditor({
 
   return (
     <section className="user-editor">
+      <div
+        className="creation-progress"
+        aria-label="Invitation creation progress"
+      >
+        {["Invitation", "Details", "Guests", "Review", "Publish"].map(
+          (step, index) => (
+            <div className={index === 0 ? "active" : ""} key={step}>
+              <span>{index + 1}</span>
+              <strong>{step}</strong>
+            </div>
+          ),
+        )}
+      </div>
       <div className="user-editor-toolbar">
         <button
           className="user-secondary-button"
@@ -771,12 +929,12 @@ function DesignEditor({
               window.setTimeout(() => {
                 updatePreviewFrame(
                   previewRef.current,
-                    valuesRef.current,
-                    activeFieldKeyRef.current,
-                    fieldsRef.current,
-                    { shouldScroll: false },
-                  );
-                  previewRef.current?.contentWindow?.scrollTo(0, 0);
+                  valuesRef.current,
+                  activeFieldKeyRef.current,
+                  fieldsRef.current,
+                  { shouldScroll: false },
+                );
+                previewRef.current?.contentWindow?.scrollTo(0, 0);
                 bindPreviewFrameEditing(
                   previewRef.current,
                   fieldsRef.current,

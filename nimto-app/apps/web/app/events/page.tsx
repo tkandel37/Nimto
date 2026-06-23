@@ -75,25 +75,34 @@ function EventsContent({
 
   const visibleEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return events.filter((event) => {
-      const matchesStatus =
-        (status === "all" && !event.archivedAt) ||
-        (status === "published" && event.isPublished && !event.archivedAt) ||
-        (status === "draft" && !event.isPublished && !event.archivedAt) ||
-        (status === "archived" && Boolean(event.archivedAt));
-      const matchesQuery =
-        !normalizedQuery ||
-        [event.title, event.type, event.venue, event.designVersion?.design?.name]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(normalizedQuery));
-      return matchesStatus && matchesQuery;
-    }).sort((left, right) => {
-      if (sort === "title") return left.title.localeCompare(right.title);
-      if (sort === "date")
-        return +(new Date(left.eventDate ?? 8640000000000000)) -
-          +(new Date(right.eventDate ?? 8640000000000000));
-      return +new Date(right.updatedAt) - +new Date(left.updatedAt);
-    });
+    return events
+      .filter((event) => {
+        const matchesStatus =
+          (status === "all" && !event.archivedAt) ||
+          (status === "published" && event.isPublished && !event.archivedAt) ||
+          (status === "draft" && !event.isPublished && !event.archivedAt) ||
+          (status === "archived" && Boolean(event.archivedAt));
+        const matchesQuery =
+          !normalizedQuery ||
+          [
+            event.title,
+            event.type,
+            event.venue,
+            event.designVersion?.design?.name,
+          ]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(normalizedQuery));
+        return matchesStatus && matchesQuery;
+      })
+      .sort((left, right) => {
+        if (sort === "title") return left.title.localeCompare(right.title);
+        if (sort === "date")
+          return (
+            +new Date(left.eventDate ?? 8640000000000000) -
+            +new Date(right.eventDate ?? 8640000000000000)
+          );
+        return +new Date(right.updatedAt) - +new Date(left.updatedAt);
+      });
   }, [events, query, sort, status]);
 
   const inviteeCount = events.reduce(
@@ -115,7 +124,7 @@ function EventsContent({
           </p>
         </div>
         <Link className="user-primary-button" href="/designs">
-          Create from a design
+          Create invitation
         </Link>
       </section>
 
@@ -125,7 +134,7 @@ function EventsContent({
           <strong>{events.filter((event) => !event.archivedAt).length}</strong>
         </article>
         <article>
-          <span>Shareable</span>
+          <span>Published</span>
           <strong>{events.filter((event) => event.isPublished).length}</strong>
         </article>
         <article>
@@ -145,23 +154,25 @@ function EventsContent({
             />
           </label>
           <div className="event-status-filter" aria-label="Filter events">
-            {(["all", "published", "draft", "archived"] as const).map((option) => (
-              <button
-                aria-pressed={status === option}
-                className={status === option ? "active" : ""}
-                key={option}
-                onClick={() => setStatus(option)}
-                type="button"
-              >
-                {option === "all"
-                  ? "All"
-                  : option === "published"
-                    ? "Shareable"
-                    : option === "draft"
-                      ? "Drafts"
-                      : "Archived"}
-              </button>
-            ))}
+            {(["all", "published", "draft", "archived"] as const).map(
+              (option) => (
+                <button
+                  aria-pressed={status === option}
+                  className={status === option ? "active" : ""}
+                  key={option}
+                  onClick={() => setStatus(option)}
+                  type="button"
+                >
+                  {option === "all"
+                    ? "All"
+                    : option === "published"
+                      ? "Published"
+                      : option === "draft"
+                        ? "Drafts"
+                        : "Archived"}
+                </button>
+              ),
+            )}
           </div>
           <select
             className="event-sort-select"
@@ -183,71 +194,127 @@ function EventsContent({
         ) : null}
 
         {visibleEvents.length ? (
-          <div className="event-table-wrap">
-            <table className="user-table event-overview-table">
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Design</th>
-                  <th>Date</th>
-                  <th>Invitees</th>
-                  <th>Status</th>
-                  <th>Updated</th>
-                  <th aria-label="Open event" />
-                </tr>
-              </thead>
-              <tbody>
-                {visibleEvents.map((event) => (
-                  <tr
-                    key={event.id}
-                    onClick={() => router.push(`/events/${event.id}`)}
-                    onKeyDown={(keyEvent) => {
-                      if (keyEvent.key === "Enter" || keyEvent.key === " ") {
-                        keyEvent.preventDefault();
-                        router.push(`/events/${event.id}`);
-                      }
-                    }}
-                    tabIndex={0}
-                  >
-                    <td>
-                      <strong>{event.title}</strong>
-                      <span>{event.venue || event.type}</span>
-                    </td>
-                    <td>{event.designVersion?.design?.name ?? "Custom"}</td>
-                    <td>{formatEventDate(event.eventDate)}</td>
-                    <td>{event._count?.invitees ?? 0}</td>
-                    <td>
-                      <span
-                        className={
-                          event.isPublished && !event.archivedAt
-                            ? "user-status published"
-                            : "user-status"
-                        }
-                      >
-                        {event.archivedAt
-                          ? "Archived"
-                          : event.isPublished
-                            ? "Shareable"
-                            : "Draft"}
-                      </span>
-                    </td>
-                    <td>{formatEventDate(event.updatedAt)}</td>
-                    <td className="event-table-open" aria-hidden="true">
-                      →
-                    </td>
+          <>
+            <div className="event-table-wrap event-desktop-list">
+              <table className="user-table event-overview-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Design</th>
+                    <th>Date</th>
+                    <th>Invitees</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th aria-label="Open event" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visibleEvents.map((event) => (
+                    <tr
+                      key={event.id}
+                      onClick={() => router.push(`/events/${event.id}`)}
+                      onKeyDown={(keyEvent) => {
+                        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                          keyEvent.preventDefault();
+                          router.push(`/events/${event.id}`);
+                        }
+                      }}
+                      tabIndex={0}
+                    >
+                      <td>
+                        <strong>{event.title}</strong>
+                        <span>{event.venue || event.type}</span>
+                      </td>
+                      <td>{event.designVersion?.design?.name ?? "Custom"}</td>
+                      <td>{formatEventDate(event.eventDate)}</td>
+                      <td>{event._count?.invitees ?? 0}</td>
+                      <td>
+                        <span
+                          className={
+                            event.isPublished && !event.archivedAt
+                              ? "user-status published"
+                              : "user-status"
+                          }
+                        >
+                          {event.archivedAt
+                            ? "Archived"
+                            : event.isPublished
+                              ? "Published"
+                              : "Draft"}
+                        </span>
+                      </td>
+                      <td>{formatEventDate(event.updatedAt)}</td>
+                      <td className="event-table-open" aria-hidden="true">
+                        →
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="event-mobile-list">
+              {visibleEvents.map((event) => (
+                <button
+                  className="event-mobile-card"
+                  key={event.id}
+                  onClick={() => router.push(`/events/${event.id}`)}
+                  type="button"
+                >
+                  <div className="event-mobile-card-top">
+                    <span
+                      className={`user-status ${event.isPublished ? "published" : ""}`}
+                    >
+                      {event.archivedAt
+                        ? "Archived"
+                        : event.isPublished
+                          ? "Published"
+                          : "Draft"}
+                    </span>
+                    <span>Open →</span>
+                  </div>
+                  <h2>{event.title}</h2>
+                  <p>
+                    {formatEventDate(event.eventDate)} ·{" "}
+                    {event.venue || event.type}
+                  </p>
+                  <div className="event-mobile-card-meta">
+                    <span>
+                      <strong>{event._count?.invitees ?? 0}</strong> guests
+                    </span>
+                    <span>
+                      {event.designVersion?.design?.name ?? "Custom invitation"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
         ) : null}
 
         {!isLoading && !events.length ? (
-          <div className="user-empty">
-            <h2>No events yet</h2>
-            <p>Select a design and create your first invitation.</p>
+          <div className="user-empty user-first-invitation">
+            <div className="first-invitation-art" aria-hidden="true">
+              ✦
+            </div>
+            <p className="user-kicker">Your first invitation</p>
+            <h2>Create something people will love opening</h2>
+            <p>
+              Choose a design, add the details, invite your guests, and
+              share—all in a few calm steps.
+            </p>
+            <div className="first-invitation-steps">
+              <span>
+                <b>1</b> Choose invitation
+              </span>
+              <span>
+                <b>2</b> Personalize it
+              </span>
+              <span>
+                <b>3</b> Publish and share
+              </span>
+            </div>
             <Link className="user-primary-button mt-4" href="/designs">
-              Browse designs
+              Choose an invitation
             </Link>
           </div>
         ) : null}

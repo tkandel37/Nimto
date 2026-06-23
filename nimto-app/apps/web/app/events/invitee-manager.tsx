@@ -61,6 +61,8 @@ export function InviteeManager({
   const [showAddGuests, setShowAddGuests] = useState(false);
   const [addMode, setAddMode] = useState<"manual" | "paste" | "csv">("manual");
   const [actionInviteeId, setActionInviteeId] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [isDraggingCsv, setIsDraggingCsv] = useState(false);
   const pageSize = 15;
   const filteredInvitees = useMemo(
     () =>
@@ -170,50 +172,65 @@ export function InviteeManager({
               value={inviteeSearch}
             />
           </label>
-          <select
-            aria-label="Filter RSVP status"
-            onChange={(event) => {
-              setRsvpFilter(event.target.value);
-              setPage(1);
-            }}
-            value={rsvpFilter}
+          <button
+            className="user-secondary-button invitee-filter-toggle"
+            onClick={() => setShowFilters((value) => !value)}
+            type="button"
           >
-            <option value="ALL">All responses</option>
-            <option value="PENDING">Pending</option>
-            <option value="ATTENDING">Attending</option>
-            <option value="DECLINED">Declined</option>
-          </select>
-          <select
-            aria-label="Filter guest group"
-            onChange={(event) => {
-              setGroupFilter(event.target.value);
-              setPage(1);
-            }}
-            value={groupFilter}
+            Filters {rsvpFilter !== "ALL" || groupFilter !== "ALL" ? "•" : ""}
+          </button>
+          <div
+            className={
+              showFilters
+                ? "invitee-advanced-filters open"
+                : "invitee-advanced-filters"
+            }
           >
-            <option value="ALL">All groups</option>
-            {Array.from(
-              new Set(
-                invitees.map((invitee) => invitee.groupName ?? "Ungrouped"),
-              ),
-            ).map((group) => (
-              <option key={group} value={group}>
-                {group}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Sort invitees"
-            onChange={(event) => {
-              setSort(event.target.value);
-              setPage(1);
-            }}
-            value={sort}
-          >
-            <option value="name">Name A–Z</option>
-            <option value="recent">Recently updated</option>
-            <option value="opened">Most opened</option>
-          </select>
+            <select
+              aria-label="Filter RSVP status"
+              onChange={(event) => {
+                setRsvpFilter(event.target.value);
+                setPage(1);
+              }}
+              value={rsvpFilter}
+            >
+              <option value="ALL">All responses</option>
+              <option value="PENDING">Pending</option>
+              <option value="ATTENDING">Attending</option>
+              <option value="DECLINED">Declined</option>
+            </select>
+            <select
+              aria-label="Filter guest group"
+              onChange={(event) => {
+                setGroupFilter(event.target.value);
+                setPage(1);
+              }}
+              value={groupFilter}
+            >
+              <option value="ALL">All groups</option>
+              {Array.from(
+                new Set(
+                  invitees.map((invitee) => invitee.groupName ?? "Ungrouped"),
+                ),
+              ).map((group) => (
+                <option key={group} value={group}>
+                  {group}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Sort invitees"
+              onChange={(event) => {
+                setSort(event.target.value);
+                setPage(1);
+              }}
+              value={sort}
+            >
+              <option value="name">Name A–Z</option>
+              <option value="recent">Recently updated</option>
+              <option value="opened">Most opened</option>
+            </select>
+          </div>
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-ink/10 bg-white">
@@ -252,7 +269,13 @@ export function InviteeManager({
                     <span
                       className={`rsvp-status ${invitee.rsvpStatus.toLowerCase()}`}
                     >
-                      {invitee.rsvpStatus.toLowerCase()}
+                      {invitee.rsvpStatus === "PENDING"
+                        ? invitee.openCount
+                          ? "Awaiting response"
+                          : "Not opened"
+                        : invitee.rsvpStatus === "ATTENDING"
+                          ? "Attending"
+                          : "Declined"}
                     </span>
                     {invitee.rsvpStatus === "ATTENDING" ? (
                       <span>{invitee.partySize ?? 1} guest(s)</span>
@@ -449,11 +472,31 @@ export function InviteeManager({
             ) : null}
             {addMode === "csv" ? (
               <div className="guest-csv-zone">
-                <label className="user-field">
-                  <span>
-                    Choose CSV{" "}
-                    <em>You can review and map columns before import</em>
-                  </span>
+                <label
+                  className={
+                    isDraggingCsv
+                      ? "guest-csv-dropzone dragging"
+                      : "guest-csv-dropzone"
+                  }
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setIsDraggingCsv(true);
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault();
+                    setIsDraggingCsv(false);
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDraggingCsv(false);
+                    onReadCsv(event.dataTransfer.files?.[0]);
+                  }}
+                >
+                  <span className="guest-csv-icon">⇧</span>
+                  <strong>Drop your CSV here</strong>
+                  <span>or click to choose a file</span>
+                  <em>You can review and map columns before importing</em>
                   <input
                     accept=".csv,text/csv"
                     onChange={(event) => onReadCsv(event.target.files?.[0])}
