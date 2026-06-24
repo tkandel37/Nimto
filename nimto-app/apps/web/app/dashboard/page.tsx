@@ -1234,13 +1234,20 @@ export function DashboardClient({
         {currentTab === "overview" ? (
           <OverviewPanel
             auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
+            draftEventCount={events.filter((event) => !event.isPublished).length}
+            designCount={publicDesigns.length || designs.length}
             eventCount={dashboardSummary?.eventCount ?? events.length}
+            onNavigate={setActiveTab}
+            publishedEventCount={
+              events.filter((event) => event.isPublished).length
+            }
             roleCount={dashboardSummary?.roleCount ?? roles.length}
             sessionCount={
               dashboardSummary?.sessionCount ??
               sessions.filter((session) => !session.revokedAt).length
             }
             staffCount={dashboardSummary?.staffCount ?? staff.length}
+            templateCount={templates.length}
             userCount={dashboardSummary?.userCount ?? users.length}
           />
         ) : null}
@@ -1401,33 +1408,82 @@ function DashboardToastView({
 
 function OverviewPanel({
   auditCount,
+  designCount,
+  draftEventCount,
   eventCount,
+  onNavigate,
+  publishedEventCount,
   roleCount,
   sessionCount,
   staffCount,
+  templateCount,
   userCount,
 }: {
   auditCount: number;
+  designCount: number;
+  draftEventCount: number;
   eventCount: number;
+  onNavigate: (tab: TabKey) => void;
+  publishedEventCount: number;
   roleCount: number;
   sessionCount: number;
   staffCount: number;
+  templateCount: number;
   userCount: number;
 }) {
+  const commandItems = [
+    {
+      action: "Review event pipeline",
+      detail: `${publishedEventCount} published · ${draftEventCount} draft`,
+      tab: "events" as TabKey,
+    },
+    {
+      action: "Check design library",
+      detail: `${designCount} public designs · ${templateCount} templates`,
+      tab: "designSetup" as TabKey,
+    },
+    {
+      action: "Review access safety",
+      detail: `${staffCount} staff · ${sessionCount} active sessions`,
+      tab: "staff" as TabKey,
+    },
+  ];
+  const healthItems = [
+    {
+      label: "Event readiness",
+      status: draftEventCount ? `${draftEventCount} drafts need review` : "No draft backlog",
+      tone: draftEventCount ? "watch" : "good",
+    },
+    {
+      label: "Catalog strength",
+      status: designCount >= 12 ? "Strong public catalog" : "Add more designs",
+      tone: designCount >= 12 ? "good" : "watch",
+    },
+    {
+      label: "Access control",
+      status: roleCount ? `${roleCount} roles configured` : "Roles not configured",
+      tone: roleCount ? "good" : "watch",
+    },
+    {
+      label: "Audit trail",
+      status: auditCount ? `${auditCount} recent events` : "No audit events yet",
+      tone: "neutral",
+    },
+  ];
+
   return (
     <section className="mt-7 grid gap-6">
       <div className="dashboard-welcome">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.22em] text-marigold">
-            Before Module 2
+            Admin command center
           </p>
           <h2 className="mt-3 text-2xl font-black text-ink md:text-3xl">
-            A cleaner base for events, templates, and designs.
+            Keep Nimto simple to run, even as it gets stronger.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">
-            This dashboard now separates the creator workspace feeling from the
-            admin controls, so the next template and design module can sit here
-            naturally.
+            Start with the work that protects the user experience: event
+            readiness, template quality, staff access, and audit visibility.
           </p>
         </div>
       </div>
@@ -1438,6 +1494,39 @@ function OverviewPanel({
         <Metric label="Users" value={userCount} tone="text-leaf" />
         <Metric label="Active sessions" value={sessionCount} tone="text-rose" />
         <Metric label="Audit events" value={auditCount} tone="text-ink" />
+      </div>
+      <div className="admin-command-center">
+        <section>
+          <p className="admin-command-kicker">Suggested admin flow</p>
+          <h3>What needs attention next?</h3>
+          <div className="admin-action-stack">
+            {commandItems.map((item) => (
+              <button
+                key={item.action}
+                onClick={() => onNavigate(item.tab)}
+                type="button"
+              >
+                <span>
+                  <strong>{item.action}</strong>
+                  <em>{item.detail}</em>
+                </span>
+                <b>Open →</b>
+              </button>
+            ))}
+          </div>
+        </section>
+        <section>
+          <p className="admin-command-kicker">Platform health</p>
+          <h3>Quick quality signals</h3>
+          <div className="admin-health-grid">
+            {healthItems.map((item) => (
+              <article className={item.tone} key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.status}</strong>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </section>
   );

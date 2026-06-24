@@ -997,6 +997,11 @@ function DesignEditor({
           ))}
         </div>
       </div>
+      <div className="creation-confidence-strip">
+        <span>Click editable text in the preview or use the fields.</span>
+        <span>Your draft is saved in this browser while you work.</span>
+        <span>You will review the event page before guests see anything.</span>
+      </div>
 
       <div className="user-editor-grid">
         <div className={`user-live-preview ${device}`}>

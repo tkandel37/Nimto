@@ -862,7 +862,7 @@ function EventDetailContent({
             }}
             type="button"
           >
-            {showPreview ? "Close preview" : "Preview"}
+            {showPreview ? "Close preview" : "Preview as guest"}
           </button>
           <button
             className="user-primary-button"
@@ -1105,8 +1105,12 @@ function EventDetailContent({
           {showPreview ? (
             <aside className="user-panel event-preview-drawer">
               <div>
-                <p className="user-kicker">Published preview</p>
+                <p className="user-kicker">Guest preview</p>
                 <h2>{event.title}</h2>
+                <p>
+                  This is the public invitation guests see after you share the
+                  link.
+                </p>
               </div>
               <div className="event-preview-actions">
                 {event.isPublished ? (
@@ -1290,6 +1294,12 @@ function EventDetailContent({
               <p className="share-suggested-message">
                 “{suggestedShareMessage}”
               </p>
+              <div className="share-reassurance-grid">
+                <span>Only people with the link can open this invite.</span>
+                <span>Guest names personalize only when using guest links.</span>
+                <span>You can still edit details after sharing.</span>
+                <span>CSV uploads add guests; they do not notify anyone.</span>
+              </div>
             </div>
           </section>
           <section className="user-panel event-share-panel">
