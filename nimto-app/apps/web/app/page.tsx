@@ -63,7 +63,7 @@ export default async function Home() {
             <div className="landing-trust-row" aria-label="What myNimto helps with">
               <span>Guest names, not “Dear all”</span>
               <span>WhatsApp-friendly links</span>
-              <span>Events kept in one place</span>
+              <span>Events kept in one calm place</span>
             </div>
           </div>
 
