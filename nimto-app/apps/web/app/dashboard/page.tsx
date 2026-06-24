@@ -1234,6 +1234,7 @@ export function DashboardClient({
         {currentTab === "overview" ? (
           <OverviewPanel
             auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
+            designs={designs}
             draftEventCount={events.filter((event) => !event.isPublished).length}
             designCount={publicDesigns.length || designs.length}
             eventCount={dashboardSummary?.eventCount ?? events.length}
@@ -1247,6 +1248,7 @@ export function DashboardClient({
               sessions.filter((session) => !session.revokedAt).length
             }
             staffCount={dashboardSummary?.staffCount ?? staff.length}
+            templates={templates}
             templateCount={templates.length}
             userCount={dashboardSummary?.userCount ?? users.length}
           />
@@ -1408,6 +1410,7 @@ function DashboardToastView({
 
 function OverviewPanel({
   auditCount,
+  designs,
   designCount,
   draftEventCount,
   eventCount,
@@ -1416,10 +1419,12 @@ function OverviewPanel({
   roleCount,
   sessionCount,
   staffCount,
+  templates,
   templateCount,
   userCount,
 }: {
   auditCount: number;
+  designs: InvitationDesign[];
   designCount: number;
   draftEventCount: number;
   eventCount: number;
@@ -1428,9 +1433,20 @@ function OverviewPanel({
   roleCount: number;
   sessionCount: number;
   staffCount: number;
+  templates: InvitationTemplate[];
   templateCount: number;
   userCount: number;
 }) {
+  const draftTemplateCount = templates.filter(
+    (template) => template.status === "DRAFT",
+  ).length;
+  const uncategorizedTemplates = templates.filter(
+    (template) => !template.categoryId,
+  ).length;
+  const uncategorizedDesigns = designs.filter((design) => !design.category).length;
+  const templatesWithoutFields = templates.filter(
+    (template) => !(template.scanResult?.fields?.length ?? 0),
+  ).length;
   const commandItems = [
     {
       action: "Review event pipeline",
@@ -1468,6 +1484,32 @@ function OverviewPanel({
       label: "Audit trail",
       status: auditCount ? `${auditCount} recent events` : "No audit events yet",
       tone: "neutral",
+    },
+  ];
+  const taskItems = [
+    {
+      count: draftTemplateCount,
+      label: "Draft templates",
+      action: "Review and publish ready templates",
+      tab: "designSetup" as TabKey,
+    },
+    {
+      count: uncategorizedTemplates + uncategorizedDesigns,
+      label: "Missing categories",
+      action: "Categorize designs/templates for easier browsing",
+      tab: "designSetup" as TabKey,
+    },
+    {
+      count: templatesWithoutFields,
+      label: "No editable fields",
+      action: "Check template scans before users create events",
+      tab: "designSetup" as TabKey,
+    },
+    {
+      count: draftEventCount,
+      label: "Draft events",
+      action: "Review events before users share links",
+      tab: "events" as TabKey,
     },
   ];
 
@@ -1527,6 +1569,28 @@ function OverviewPanel({
             ))}
           </div>
         </section>
+      </div>
+      <div className="admin-task-inbox">
+        <div>
+          <p className="admin-command-kicker">Task inbox</p>
+          <h3>Small fixes that improve the product immediately</h3>
+        </div>
+        <div>
+          {taskItems.map((item) => (
+            <button
+              className={item.count ? "needs-work" : "all-good"}
+              key={item.label}
+              onClick={() => onNavigate(item.tab)}
+              type="button"
+            >
+              <strong>{item.count}</strong>
+              <span>
+                <b>{item.label}</b>
+                <em>{item.count ? item.action : "Looks good right now"}</em>
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -1987,6 +2051,31 @@ function DesignSetupPanel({
   const visibleSubcategories = categoryFilter
     ? categories.find((category) => category.id === categoryFilter)?.subcategories ?? []
     : categories.flatMap((category) => category.subcategories ?? []);
+  const qualityTargets =
+    libraryMode === "templates"
+      ? filteredTemplates.map((template) => templateQualityChecks(template))
+      : libraryMode === "designs"
+        ? filteredDesigns.map((design) => designQualityChecks(design))
+        : [];
+  const qualityReady = qualityTargets.filter((checks) =>
+    checks.every((check) => check.ready),
+  ).length;
+  const qualityNeedsWork = Math.max(0, qualityTargets.length - qualityReady);
+  const missingCategoryCount =
+    libraryMode === "templates"
+      ? filteredTemplates.filter((template) => !template.categoryId).length
+      : filteredDesigns.filter((design) => !design.category).length;
+  const missingEditableFieldsCount =
+    libraryMode === "templates"
+      ? filteredTemplates.filter(
+          (template) => !(template.scanResult?.fields?.length ?? 0),
+        ).length
+      : filteredDesigns.filter((design) => {
+          const current = design.versions.find(
+            (version) => version.status === "CURRENT",
+          );
+          return !(current?.scanResult?.fields?.length ?? 0);
+        }).length;
 
   async function createTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2496,6 +2585,32 @@ function DesignSetupPanel({
       </div>
 
       <div className="grid gap-5">
+        {libraryMode !== "animations" ? (
+          <section className="admin-quality-strip">
+            <div>
+              <p className="admin-command-kicker">Quality checklist</p>
+              <h3>
+                {qualityReady}/{qualityTargets.length || 0}{" "}
+                {libraryMode === "templates" ? "templates" : "designs"} ready
+              </h3>
+              <p>
+                Use this before publishing so user-side design browsing stays
+                clean, searchable, and safe.
+              </p>
+            </div>
+            <div>
+              <span className={qualityNeedsWork ? "watch" : "good"}>
+                {qualityNeedsWork} need review
+              </span>
+              <span className={missingCategoryCount ? "watch" : "good"}>
+                {missingCategoryCount} missing category
+              </span>
+              <span className={missingEditableFieldsCount ? "watch" : "good"}>
+                {missingEditableFieldsCount} missing editable fields
+              </span>
+            </div>
+          </section>
+        ) : null}
         <div className="min-w-0 border border-ink/10 bg-white">
           <div className="flex flex-col gap-3 border-b border-ink/10 p-4 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
@@ -2627,6 +2742,10 @@ function DesignSetupPanel({
                         </td>
                         <td className="px-4 py-3">
                           <FeatureBadges scanResult={current?.scanResult} compact />
+                          <QualityChecklist
+                            checks={designQualityChecks(design)}
+                            compact
+                          />
                         </td>
                         <td className="px-4 py-3 font-bold text-leaf">
                           {design.status}
@@ -2684,6 +2803,10 @@ function DesignSetupPanel({
                       </td>
                       <td className="px-4 py-3">
                         <FeatureBadges scanResult={template.scanResult} compact />
+                        <QualityChecklist
+                          checks={templateQualityChecks(template)}
+                          compact
+                        />
                       </td>
                       <td className="px-4 py-3 font-bold text-marigold">
                         {template.status}
@@ -3097,6 +3220,96 @@ function groupedTemplateFields(fields: ScannedTemplateField[] = []) {
 function designHasCurrentFieldMetadata(design: InvitationDesign) {
   const current = design.versions.find((version) => version.status === "CURRENT");
   return Boolean(current?.scanResult?.fields || current?.rawHtml);
+}
+
+type QualityCheck = {
+  detail: string;
+  label: string;
+  ready: boolean;
+};
+
+function templateQualityChecks(template: InvitationTemplate): QualityCheck[] {
+  const rawHtml = template.rawHtml ?? "";
+  const fields = template.scanResult?.fields ?? [];
+  return [
+    {
+      label: "Category",
+      detail: template.category?.name ?? "Missing",
+      ready: Boolean(template.categoryId),
+    },
+    {
+      label: "Editable fields",
+      detail: fields.length ? `${fields.length} detected` : "None detected",
+      ready: fields.length > 0,
+    },
+    {
+      label: "Mobile viewport",
+      detail: /viewport/i.test(rawHtml) ? "Detected" : "Check HTML head",
+      ready: /viewport/i.test(rawHtml),
+    },
+    {
+      label: "Preview scan",
+      detail: template.scanResult ? "Scan available" : "Needs scan",
+      ready: Boolean(template.scanResult),
+    },
+    {
+      label: "Public state",
+      detail: template.status,
+      ready: template.status !== "DRAFT",
+    },
+  ];
+}
+
+function designQualityChecks(design: InvitationDesign): QualityCheck[] {
+  const current = design.versions.find((version) => version.status === "CURRENT");
+  const rawHtml = current?.rawHtml ?? "";
+  const fields = current?.scanResult?.fields ?? [];
+  return [
+    {
+      label: "Category",
+      detail: design.category?.name ?? "Missing",
+      ready: Boolean(design.category),
+    },
+    {
+      label: "Current version",
+      detail: current ? `v${current.versionNumber}` : "No current version",
+      ready: Boolean(current),
+    },
+    {
+      label: "Editable fields",
+      detail: fields.length ? `${fields.length} detected` : "None detected",
+      ready: fields.length > 0,
+    },
+    {
+      label: "Mobile viewport",
+      detail: /viewport/i.test(rawHtml) ? "Detected" : "Check HTML head",
+      ready: !rawHtml || /viewport/i.test(rawHtml),
+    },
+    {
+      label: "Public state",
+      detail: design.status,
+      ready: design.status === "ACTIVE",
+    },
+  ];
+}
+
+function QualityChecklist({
+  checks,
+  compact = false,
+}: {
+  checks: QualityCheck[];
+  compact?: boolean;
+}) {
+  return (
+    <div className={compact ? "quality-mini-list compact" : "quality-mini-list"}>
+      {checks.map((check) => (
+        <span className={check.ready ? "ready" : "needs-work"} key={check.label}>
+          {check.ready ? "✓" : "!"} {check.label}
+          {!compact ? <em>{check.detail}</em> : null}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function matchesFeatureFilter(

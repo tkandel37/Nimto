@@ -101,6 +101,9 @@ function EventDetailContent({
   const [inviteePaste, setInviteePaste] = useState("");
   const [inviteeSearch, setInviteeSearch] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [sharePreviewDevice, setSharePreviewDevice] = useState<
+    "mobile" | "desktop"
+  >("mobile");
   const [activeTab, setActiveTab] = useState<EventTab>("overview");
   const [showEventMenu, setShowEventMenu] = useState(false);
   const [showCreatedSuccess, setShowCreatedSuccess] = useState(
@@ -464,27 +467,20 @@ function EventDetailContent({
 
   async function importMappedCsv() {
     if (!event || !csvImport) return;
+    const existingNames = new Set(
+      invitees.map((invitee) => invitee.name.trim().toLowerCase()),
+    );
+    const seenNames = new Set<string>();
     const guests = csvImport.rows
-      .map((row) => ({
-        name: row[csvImport.mapping.name]?.trim() ?? "",
-        email:
-          csvImport.mapping.email >= 0
-            ? row[csvImport.mapping.email]?.trim() || undefined
-            : undefined,
-        phone:
-          csvImport.mapping.phone >= 0
-            ? row[csvImport.mapping.phone]?.trim() || undefined
-            : undefined,
-        groupName:
-          csvImport.mapping.groupName >= 0
-            ? row[csvImport.mapping.groupName]?.trim() || undefined
-            : undefined,
-        mealPreference:
-          csvImport.mapping.mealPreference >= 0
-            ? row[csvImport.mapping.mealPreference]?.trim() || undefined
-            : undefined,
-      }))
-      .filter((guest) => guest.name);
+      .map((row) => mappedCsvGuest(row, csvImport.mapping))
+      .filter((guest) => {
+        const normalizedName = guest.name.trim().toLowerCase();
+        if (!normalizedName) return false;
+        if (existingNames.has(normalizedName) || seenNames.has(normalizedName))
+          return false;
+        seenNames.add(normalizedName);
+        return true;
+      });
     const response = await apiRequest<{
       created: InvitationInvitee[];
       skipped: { name: string; reason: string }[];
@@ -1259,7 +1255,7 @@ function EventDetailContent({
       {activeTab === "sharing" ? (
         <div className="event-tab-content">
           <section className="share-preparation-card">
-            <div className="share-preparation-preview">
+            <div className={`share-preparation-preview ${sharePreviewDevice}`}>
               {event.isPublished ? (
                 <iframe
                   sandbox="allow-scripts"
@@ -1275,8 +1271,46 @@ function EventDetailContent({
               )}
             </div>
             <div className="share-preparation-details">
-              <p className="user-kicker">Ready to share?</p>
-              <h2>{event.title}</h2>
+              <div className="share-review-heading">
+                <div>
+                  <p className="user-kicker">Final review</p>
+                  <h2>{event.title}</h2>
+                </div>
+                <div className="event-device-switcher">
+                  {(["mobile", "desktop"] as const).map((device) => (
+                    <button
+                      className={sharePreviewDevice === device ? "active" : ""}
+                      key={device}
+                      onClick={() => setSharePreviewDevice(device)}
+                      type="button"
+                    >
+                      {device}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="share-final-review-grid">
+                <article>
+                  <span>Date</span>
+                  <strong>{formatEventDate(event.eventDate)}</strong>
+                </article>
+                <article>
+                  <span>Venue</span>
+                  <strong>{event.venue || "Not added"}</strong>
+                </article>
+                <article>
+                  <span>Guests</span>
+                  <strong>{invitees.length}</strong>
+                </article>
+                <article>
+                  <span>RSVP deadline</span>
+                  <strong>
+                    {event.rsvpDeadline
+                      ? formatEventDate(event.rsvpDeadline)
+                      : "Not set"}
+                  </strong>
+                </article>
+              </div>
               <div className="share-check-list">
                 <span className={event.isPublished ? "ready" : ""}>
                   {event.isPublished ? "✓" : "○"} Invitation published
@@ -1584,6 +1618,7 @@ function EventDetailContent({
 
       {csvImport ? (
         <CsvMappingDialog
+          existingInvitees={invitees}
           state={csvImport}
           onCancel={() => setCsvImport(null)}
           onChange={setCsvImport}
@@ -1646,11 +1681,13 @@ function CelebrationConfetti() {
 }
 
 function CsvMappingDialog({
+  existingInvitees,
   onCancel,
   onChange,
   onImport,
   state,
 }: {
+  existingInvitees: InvitationInvitee[];
   onCancel: () => void;
   onChange: (state: CsvImportState) => void;
   onImport: () => void;
@@ -1663,6 +1700,10 @@ function CsvMappingDialog({
     ["groupName", "Group / family"],
     ["mealPreference", "Meal preference"],
   ] as const;
+  const review = useMemo(
+    () => reviewCsvImport(state, existingInvitees),
+    [existingInvitees, state],
+  );
   return (
     <div className="invitee-drawer-backdrop">
       <section className="csv-mapping-dialog">
@@ -1705,39 +1746,132 @@ function CsvMappingDialog({
             </label>
           ))}
         </div>
+        <div className="csv-review-summary">
+          <article className="ready">
+            <span>Will import</span>
+            <strong>{review.valid.length}</strong>
+          </article>
+          <article className={review.duplicates.length ? "warning" : "ready"}>
+            <span>Duplicates</span>
+            <strong>{review.duplicates.length}</strong>
+          </article>
+          <article className={review.missingNames.length ? "warning" : "ready"}>
+            <span>Missing names</span>
+            <strong>{review.missingNames.length}</strong>
+          </article>
+        </div>
         <div className="overflow-x-auto">
           <table className="user-table">
             <thead>
               <tr>
-                {state.headers.map((header, index) => (
-                  <th key={`${header}-${index}`}>{header}</th>
-                ))}
+                <th>Status</th>
+                <th>Guest name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Group</th>
               </tr>
             </thead>
             <tbody>
-              {state.rows.slice(0, 5).map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {state.headers.map((_, index) => (
-                    <td key={index}>{row[index] ?? ""}</td>
-                  ))}
+              {review.preview.map((item, rowIndex) => (
+                <tr key={`${item.guest.name}-${rowIndex}`}>
+                  <td>
+                    <span
+                      className={
+                        item.status === "Ready"
+                          ? "invitee-ready"
+                          : "invitee-warning"
+                      }
+                    >
+                      {item.status}
+                    </span>
+                  </td>
+                  <td>{item.guest.name || "—"}</td>
+                  <td>{item.guest.email || "—"}</td>
+                  <td>{item.guest.phone || "—"}</td>
+                  <td>{item.guest.groupName || "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p>
-          {state.rows.length} rows detected. Rows without a guest name will be
-          skipped.
+          {state.rows.length} rows detected. Duplicates and rows without names
+          are skipped before import, so existing guests stay safe.
         </p>
         <button
           className="user-primary-button"
-          disabled={state.mapping.name < 0}
+          disabled={state.mapping.name < 0 || !review.valid.length}
           onClick={onImport}
           type="button"
         >
-          Import guests
+          Import {review.valid.length} guests
         </button>
       </section>
     </div>
   );
+}
+
+function mappedCsvGuest(
+  row: string[],
+  mapping: NonNullable<CsvImportState>["mapping"],
+) {
+  return {
+    name: row[mapping.name]?.trim() ?? "",
+    email:
+      mapping.email >= 0 ? row[mapping.email]?.trim() || undefined : undefined,
+    phone:
+      mapping.phone >= 0 ? row[mapping.phone]?.trim() || undefined : undefined,
+    groupName:
+      mapping.groupName >= 0
+        ? row[mapping.groupName]?.trim() || undefined
+        : undefined,
+    mealPreference:
+      mapping.mealPreference >= 0
+        ? row[mapping.mealPreference]?.trim() || undefined
+        : undefined,
+  };
+}
+
+function reviewCsvImport(
+  state: NonNullable<CsvImportState>,
+  existingInvitees: InvitationInvitee[],
+) {
+  const existingNames = new Set(
+    existingInvitees.map((invitee) => invitee.name.trim().toLowerCase()),
+  );
+  const seenNames = new Set<string>();
+  const valid: ReturnType<typeof mappedCsvGuest>[] = [];
+  const duplicates: ReturnType<typeof mappedCsvGuest>[] = [];
+  const missingNames: ReturnType<typeof mappedCsvGuest>[] = [];
+  const preview = state.rows.slice(0, 8).map((row) => {
+    const guest = mappedCsvGuest(row, state.mapping);
+    const normalizedName = guest.name.trim().toLowerCase();
+    let status = "Ready";
+    if (!normalizedName) {
+      status = "Missing name";
+      missingNames.push(guest);
+    } else if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) {
+      status = "Duplicate";
+      duplicates.push(guest);
+    } else {
+      seenNames.add(normalizedName);
+      valid.push(guest);
+    }
+    return { guest, status };
+  });
+
+  state.rows.slice(8).forEach((row) => {
+    const guest = mappedCsvGuest(row, state.mapping);
+    const normalizedName = guest.name.trim().toLowerCase();
+    if (!normalizedName) {
+      missingNames.push(guest);
+    } else if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) {
+      duplicates.push(guest);
+    } else {
+      seenNames.add(normalizedName);
+      valid.push(guest);
+    }
+  });
+
+  return { duplicates, missingNames, preview, valid };
 }
