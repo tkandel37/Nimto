@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   FormEvent,
@@ -107,6 +107,7 @@ let workspaceHasMounted = false;
 
 export function UserFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const activePage = workspacePage(pathname);
   const isUserArea = activePage !== null;
   const [authState, setAuthState] = useState<AuthState>(() => {
@@ -157,6 +158,11 @@ export function UserFrame({ children }: { children: ReactNode }) {
     });
     return response.user;
   }, []);
+
+  useEffect(() => {
+    if (!isUserArea) return;
+    pageLinks.forEach((link) => router.prefetch(link.href));
+  }, [isUserArea, router]);
 
   useEffect(() => {
     if (!isUserArea) return;
@@ -247,19 +253,11 @@ export function UserFrame({ children }: { children: ReactNode }) {
   }
 
   if (isChecking && !user) {
-    return (
-      <main className="user-shell">
-        <div className="user-loading">Opening your invitations...</div>
-      </main>
-    );
+    return <PendingUserShell activePage={activePage} />;
   }
 
   if (!token) {
-    return (
-      <main className="user-auth-redirect">
-        <p>Taking you back to sign in...</p>
-      </main>
-    );
+    return <PendingUserShell activePage={activePage} />;
   }
 
   if (!user) {
@@ -418,6 +416,72 @@ export function UserFrame({ children }: { children: ReactNode }) {
         </div>
       </main>
     </UserWorkspaceContext.Provider>
+  );
+}
+
+function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
+  return (
+    <main className="user-shell">
+      <aside className="user-sidebar user-sidebar-pending" aria-hidden="true">
+        <Link className="user-logo" href="/events" tabIndex={-1}>
+          <span className="user-logo-mark">N</span>
+          <span className="user-logo-word">Nimto</span>
+        </Link>
+        <nav className="user-nav">
+          {pageLinks.map((link) => (
+            <span
+              className={
+                activePage === link.key
+                  ? "user-nav-link active"
+                  : "user-nav-link"
+              }
+              key={link.key}
+            >
+              <Icon>{link.icon}</Icon>
+              <span>{link.label}</span>
+            </span>
+          ))}
+        </nav>
+        <div className="user-sidebar-note">
+          <span>✍</span>
+          <p>Draft, check, send</p>
+        </div>
+      </aside>
+
+      <section className="user-main">
+        <header className="user-topbar">
+          <Link className="user-mobile-logo" href="/events" tabIndex={-1}>
+            myNimto
+          </Link>
+          <div className="user-workspace-context">
+            <span>Your invitation desk</span>
+            <strong>
+              {pageLinks.find((link) => link.key === activePage)?.label}
+            </strong>
+          </div>
+          <div className="user-session-buffer" aria-hidden="true" />
+        </header>
+        <div className="user-page">
+          <section className="user-panel user-panel-pending" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </section>
+        </div>
+      </section>
+
+      <nav className="user-bottom-nav" aria-hidden="true">
+        {pageLinks.map((link) => (
+          <span
+            className={activePage === link.key ? "active" : ""}
+            key={link.key}
+          >
+            <Icon>{link.icon}</Icon>
+            <span>{link.label === "My Invitations" ? "Saved" : link.label}</span>
+          </span>
+        ))}
+      </nav>
+    </main>
   );
 }
 

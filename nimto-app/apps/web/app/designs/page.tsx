@@ -157,6 +157,7 @@ function DesignsContent({
   const [showFavourites, setShowFavourites] = useState(false);
   const [collectionKey, setCollectionKey] = useState("");
   const [hasMounted, setHasMounted] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
@@ -303,6 +304,11 @@ function DesignsContent({
         : null,
     [designs, selectedTemplateSlug],
   );
+  const activeFilterCount =
+    Number(Boolean(categoryId)) +
+    Number(Boolean(subcategoryId)) +
+    Number(Boolean(collectionKey)) +
+    Number(showFavourites);
 
   function openDesignEditor(design: PublicDesign) {
     rememberViewedDesign(design.id);
@@ -372,13 +378,30 @@ function DesignsContent({
               create a private event draft from the one you select.
             </p>
           </div>
-          <div className="user-filter-row">
+          <div className="design-filter-toolbar">
             <input
               aria-label="Search invitations"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search invitations"
               value={search}
             />
+            <button
+              className="user-secondary-button design-mobile-filter-toggle"
+              onClick={() => setShowMobileFilters((value) => !value)}
+              type="button"
+            >
+              Filters {activeFilterCount ? `(${activeFilterCount})` : ""}
+            </button>
+          </div>
+        </div>
+        <div
+          className={
+            showMobileFilters
+              ? "design-filter-panel open"
+              : "design-filter-panel"
+          }
+        >
+          <div className="user-filter-row">
             <select
               aria-label="Filter category"
               onChange={(event) => {
@@ -408,64 +431,65 @@ function DesignsContent({
               ))}
             </select>
           </div>
-        </div>
-        <div className="design-discovery-bar">
-          <button
-            className={
-              !categoryId && !collectionKey && !showFavourites ? "active" : ""
-            }
-            onClick={() => {
-              setCategoryId("");
-              setSubcategoryId("");
-              setShowFavourites(false);
-              setCollectionKey("");
-            }}
-            type="button"
-          >
-            All invitations
-          </button>
-          {designCollections.map((collection) => (
+          <div className="design-discovery-bar">
             <button
-              className={collectionKey === collection.key ? "active" : ""}
-              key={collection.key}
+              className={
+                !categoryId && !collectionKey && !showFavourites ? "active" : ""
+              }
               onClick={() => {
-                setCollectionKey(collection.key);
                 setCategoryId("");
-                setSubcategoryId("");
-                setShowFavourites(false);
-              }}
-              type="button"
-            >
-              {collection.label}
-            </button>
-          ))}
-          {categories.slice(0, 7).map((category) => (
-            <button
-              className={categoryId === category.id ? "active" : ""}
-              key={category.id}
-              onClick={() => {
-                setCategoryId(category.id);
                 setSubcategoryId("");
                 setShowFavourites(false);
                 setCollectionKey("");
               }}
               type="button"
             >
-              {category.name}
+              All invitations
             </button>
-          ))}
-          <button
-            className={showFavourites ? "active favourite" : "favourite"}
-            onClick={() => {
-              setCollectionKey("");
-              setCategoryId("");
-              setSubcategoryId("");
-              setShowFavourites((value) => !value);
-            }}
-            type="button"
-          >
-            ♥ Favourites {favouriteIds.length ? `(${favouriteIds.length})` : ""}
-          </button>
+            {designCollections.map((collection) => (
+              <button
+                className={collectionKey === collection.key ? "active" : ""}
+                key={collection.key}
+                onClick={() => {
+                  setCollectionKey(collection.key);
+                  setCategoryId("");
+                  setSubcategoryId("");
+                  setShowFavourites(false);
+                }}
+                type="button"
+              >
+                {collection.label}
+              </button>
+            ))}
+            {categories.slice(0, 7).map((category) => (
+              <button
+                className={categoryId === category.id ? "active" : ""}
+                key={category.id}
+                onClick={() => {
+                  setCategoryId(category.id);
+                  setSubcategoryId("");
+                  setShowFavourites(false);
+                  setCollectionKey("");
+                }}
+                type="button"
+              >
+                {category.name}
+              </button>
+            ))}
+            <button
+              className={showFavourites ? "active favourite" : "favourite"}
+              onClick={() => {
+                setCollectionKey("");
+                setCategoryId("");
+                setSubcategoryId("");
+                setShowFavourites((value) => !value);
+              }}
+              type="button"
+            >
+              ♥ Favourites{" "}
+              {favouriteIds.length ? `(${favouriteIds.length})` : ""}
+            </button>
+          </div>
         </div>
       </div>
 

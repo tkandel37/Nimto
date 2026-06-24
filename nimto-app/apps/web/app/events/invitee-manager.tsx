@@ -123,6 +123,7 @@ export function InviteeManager({
           </div>
           <button
             className="user-primary-button"
+            data-add-guests-trigger="true"
             onClick={() => setShowAddGuests(true)}
             type="button"
           >
@@ -408,6 +409,8 @@ export function InviteeManager({
       ) : null}
       {showAddGuests ? (
         <div
+          aria-modal="true"
+          role="dialog"
           className="invitee-drawer-backdrop"
           onMouseDown={() => setShowAddGuests(false)}
         >

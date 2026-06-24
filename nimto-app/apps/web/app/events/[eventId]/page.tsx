@@ -56,6 +56,13 @@ type EventTab =
   | "activity"
   | "settings";
 
+type MobileAction = {
+  label: string;
+  action?: () => void;
+  disabled: boolean;
+  submitFormId?: string;
+};
+
 const eventTabs: { id: EventTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "invitation", label: "Invitation" },
@@ -201,6 +208,10 @@ function EventDetailContent({
       expiresAt: Date.now() + 5 * 60_000,
     });
   }, [cacheKey, event, invitees]);
+
+  useEffect(() => {
+    setShowEventMenu(false);
+  }, [activeTab]);
 
   const draftInvitees = useMemo(
     () =>
@@ -748,6 +759,12 @@ function EventDetailContent({
     }
   }
 
+  function openGuestAddSheet() {
+    document
+      .querySelector<HTMLButtonElement>("[data-add-guests-trigger='true']")
+      ?.click();
+  }
+
   if (isLoading && !event) {
     return (
       <section className="user-panel user-empty">Loading event...</section>
@@ -819,6 +836,116 @@ function EventDetailContent({
       ? `/invite/${event.slug}`
       : `${window.location.origin}/invite/${event.slug}`;
   const suggestedShareMessage = `You’re invited to ${event.title}. Open your invitation here: ${inviteUrl}`;
+  const mobilePrimaryAction: MobileAction =
+    activeTab === "overview"
+      ? {
+          label: "Continue",
+          action: () => setActiveTab(nextStep.tab),
+          disabled: false,
+        }
+      : activeTab === "invitation"
+        ? {
+            label: showPreview ? "Hide preview" : "Preview invite",
+            action: () => {
+              setActiveTab("invitation");
+              setShowPreview((current) => !current);
+            },
+            disabled: false,
+          }
+        : activeTab === "guests"
+          ? {
+              label: "Add guests",
+              action: openGuestAddSheet,
+              disabled: false,
+            }
+          : activeTab === "sharing"
+            ? {
+                label: "Copy link",
+                action: () => void copyShareLink(),
+                disabled: !event.isPublished,
+              }
+            : activeTab === "settings"
+              ? {
+                  label: isSaving ? "Saving..." : "Save details",
+                  action: undefined,
+                  disabled: isSaving,
+                  submitFormId: "event-settings-form",
+                }
+              : activeTab === "rsvp"
+                ? {
+                    label: "Manage guests",
+                    action: () => setActiveTab("guests"),
+                    disabled: false,
+                  }
+                : {
+                    label: "Open sharing",
+                    action: () => setActiveTab("sharing"),
+                    disabled: false,
+                  };
+  const mobileSecondaryAction: MobileAction =
+    activeTab === "overview"
+      ? {
+          label: "Preview",
+          action: () => {
+            setActiveTab("invitation");
+            setShowPreview(true);
+          },
+          disabled: false,
+        }
+      : activeTab === "invitation"
+        ? {
+            label:
+              event.isPublished && !invitationDraft ? "Share" : "Publish",
+            action: () =>
+              event.isPublished && !invitationDraft
+                ? void nativeShareEvent()
+                : void publishEvent(),
+            disabled:
+              isSaving ||
+              (!event.isPublished &&
+                (!event.eventDate || !event.venue || !event.designVersion?.id)),
+          }
+        : activeTab === "guests"
+          ? {
+              label: "Copy all",
+              action: () => void copyAllInviteeLinks(),
+              disabled: !invitees.length,
+            }
+          : activeTab === "sharing"
+            ? {
+                label: "Preview",
+                action: () => {
+                  setActiveTab("invitation");
+                  setShowPreview(true);
+                },
+                disabled: false,
+              }
+            : activeTab === "settings"
+              ? {
+                  label:
+                    event.isPublished && !invitationDraft
+                      ? "Sharing"
+                      : "Review invite",
+                  action: () =>
+                    event.isPublished && !invitationDraft
+                      ? setActiveTab("sharing")
+                      : setActiveTab("invitation"),
+                  disabled: false,
+                }
+              : activeTab === "rsvp"
+                ? {
+                    label: "Share",
+                    action: () => setActiveTab("sharing"),
+                    disabled: false,
+                  }
+                : {
+                    label: "Preview",
+                    action: () => {
+                      setActiveTab("invitation");
+                      setShowPreview(true);
+                    },
+                    disabled: false,
+                  };
 
   return (
     <div className="event-detail-page">
@@ -861,7 +988,7 @@ function EventDetailContent({
             {showPreview ? "Close preview" : "Preview as guest"}
           </button>
           <button
-            className="user-primary-button"
+            className="user-primary-button event-action-desktop"
             disabled={isSaving || Boolean(event.archivedAt)}
             onClick={() => void publishEvent()}
             type="button"
@@ -869,7 +996,7 @@ function EventDetailContent({
             {event.isPublished && !invitationDraft ? "Published" : "Publish"}
           </button>
           <button
-            className="user-secondary-button"
+            className="user-secondary-button event-action-desktop"
             disabled={isSaving}
             onClick={() => void duplicateEvent()}
             type="button"
@@ -899,6 +1026,15 @@ function EventDetailContent({
             </button>
             {showEventMenu ? (
               <div className="event-menu-popover">
+                <button
+                  disabled={isSaving || Boolean(event.archivedAt)}
+                  onClick={() => void publishEvent()}
+                  type="button"
+                >
+                  {event.isPublished && !invitationDraft
+                    ? "Republish invitation"
+                    : "Publish invitation"}
+                </button>
                 <button
                   disabled={isSaving}
                   onClick={() => void duplicateEvent()}
@@ -948,6 +1084,13 @@ function EventDetailContent({
           ))}
         </select>
       </label>
+
+      <div className="event-mobile-progress" aria-label="Event progress">
+        <span>
+          {readyCount}/{readiness.length} ready
+        </span>
+        <strong>{nextStep.label}</strong>
+      </div>
 
       {activeTab === "overview" ? (
         <div className="event-tab-content">
@@ -1458,6 +1601,7 @@ function EventDetailContent({
 
       {activeTab === "settings" ? (
         <form
+          id="event-settings-form"
           className="user-panel event-edit-form"
           onSubmit={saveEventDetails}
         >
@@ -1625,6 +1769,32 @@ function EventDetailContent({
           onImport={() => void importMappedCsv()}
         />
       ) : null}
+
+      <div className="event-mobile-action-bar">
+        <button
+          className="user-primary-button"
+          disabled={mobilePrimaryAction.disabled}
+          form={mobilePrimaryAction.submitFormId}
+          onClick={
+            mobilePrimaryAction.submitFormId
+              ? undefined
+              : mobilePrimaryAction.action
+          }
+          type={mobilePrimaryAction.submitFormId ? "submit" : "button"}
+        >
+          {mobilePrimaryAction.label}
+        </button>
+        {mobileSecondaryAction ? (
+          <button
+            className="user-secondary-button"
+            disabled={mobileSecondaryAction.disabled}
+            onClick={mobileSecondaryAction.action}
+            type="button"
+          >
+            {mobileSecondaryAction.label}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
