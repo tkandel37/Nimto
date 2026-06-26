@@ -429,6 +429,49 @@ export class AdminService {
     return user;
   }
 
+  async deleteUser(userId: string, context: ActorContext) {
+    if (context.actorId === userId) {
+      throw new BadRequestException("You cannot delete your own account.");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found.");
+    }
+
+    if (user.roles.length > 0) {
+      throw new BadRequestException(
+        "Only regular user accounts can be deleted from this screen.",
+      );
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+    this.clearAccountSessionCache(userId);
+
+    await this.record(context, "user.deleted", "User", userId, {
+      email: user.email,
+      status: user.status,
+    });
+
+    return { success: true };
+  }
+
   listSessions() {
     return this.prisma.userSession.findMany({
       orderBy: { createdAt: "desc" },

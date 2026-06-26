@@ -1521,7 +1521,7 @@ function OverviewPanel({
             Admin command center
           </p>
           <h2 className="mt-3 text-2xl font-black text-ink md:text-3xl">
-            Keep Nimto simple to run, even as it gets stronger.
+            Keep myNimto simple to run, even as it gets stronger.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">
             Start with the work that protects the user experience: event
@@ -6725,6 +6725,27 @@ function UsersPanel({
     );
   }
 
+  async function deleteUser(userId: string, email: string) {
+    const confirmed = window.confirm(
+      `Delete user ${email}? This is only for testing and will permanently remove that account.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const completed = await completeAction(
+      () =>
+        request(`/admin/users/${userId}`, {
+          method: "DELETE",
+        }),
+      "User account deleted.",
+    );
+
+    if (completed) {
+      setSelectedUserId("");
+    }
+  }
+
   if (selectedUser) {
     return (
       <section className="mt-7 grid gap-5">
@@ -6776,6 +6797,13 @@ function UsersPanel({
                 type="submit"
               >
                 Update user
+              </button>
+              <button
+                className="rounded-lg border border-rose/30 px-4 py-3 font-bold text-rose"
+                onClick={() => deleteUser(selectedUser.id, selectedUser.email)}
+                type="button"
+              >
+                Delete user
               </button>
             </div>
           ) : null}

@@ -347,7 +347,7 @@ function EventsContent({
               </span>
             </div>
             <p className="first-invitation-note">
-              Guests will not be notified by Nimto automatically. You stay in
+              Guests will not be notified by myNimto automatically. You stay in
               control and share the link only when you are ready.
             </p>
             <Link className="user-primary-button mt-4" href="/designs">

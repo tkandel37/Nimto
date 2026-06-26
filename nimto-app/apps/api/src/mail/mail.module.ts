@@ -22,7 +22,7 @@ import { MailService } from "./mail.service";
           defaults: {
             from: config.get<string>(
               "SMTP_FROM",
-              '"Nimto Local" <noreply@nimto.local>',
+              '"myNimto Local" <noreply@nimto.local>',
             ),
           },
         };

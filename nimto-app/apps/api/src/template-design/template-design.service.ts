@@ -1453,7 +1453,7 @@ export class TemplateDesignService {
   private assertFieldKey(key: string, label: string) {
     if (!/^[a-z][a-z0-9_]*$/.test(key)) {
       throw new BadRequestException(
-        `Nimto ${label} keys must use lowercase snake_case.`,
+        `myNimto ${label} keys must use lowercase snake_case.`,
       );
     }
   }
