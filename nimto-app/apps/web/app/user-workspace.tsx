@@ -317,7 +317,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
         <aside className="user-sidebar">
           <Link className="user-logo" href="/events">
             <span className="user-logo-mark">N</span>
-            <span className="user-logo-word">Nimto</span>
+            <span className="user-logo-word">myNimto</span>
           </Link>
           <nav className="user-nav">
             {pageLinks.map((link) => (
@@ -425,7 +425,7 @@ function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
       <aside className="user-sidebar user-sidebar-pending" aria-hidden="true">
         <Link className="user-logo" href="/events" tabIndex={-1}>
           <span className="user-logo-mark">N</span>
-          <span className="user-logo-word">Nimto</span>
+          <span className="user-logo-word">myNimto</span>
         </Link>
         <nav className="user-nav">
           {pageLinks.map((link) => (

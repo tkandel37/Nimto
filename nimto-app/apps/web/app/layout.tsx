@@ -6,7 +6,7 @@ import { UserFrame } from "./user-workspace";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nimto | Digital Invitations",
+  title: "myNimto | Digital Invitations",
   description: "Create, share, and manage beautiful digital invitations.",
 };
 

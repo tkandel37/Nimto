@@ -1521,7 +1521,7 @@ function OverviewPanel({
             Admin command center
           </p>
           <h2 className="mt-3 text-2xl font-black text-ink md:text-3xl">
-            Keep Nimto simple to run, even as it gets stronger.
+            Keep myNimto simple to run, even as it gets stronger.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">
             Start with the work that protects the user experience: event

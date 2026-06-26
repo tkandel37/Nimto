@@ -4,10 +4,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
-import {
-  clearAuthSession,
-  saveAuthSession,
-} from "@/lib/auth-session";
+import { clearAuthSession, saveAuthSession } from "@/lib/auth-session";
 
 type Mode = "login" | "register";
 
@@ -77,7 +74,7 @@ function AuthForm() {
         : {
             title: "Welcome back",
             button: "Log in",
-            helper: "New to Nimto?",
+            helper: "New to myNimto?",
             action: "Save your first invite",
           },
     [mode],
@@ -89,13 +86,22 @@ function AuthForm() {
     setIsSubmitting(true);
 
     try {
-      const payload =
-        mode === "register"
-          ? { name, email, password }
-          : { email, password };
-      const response = await apiRequest<AuthResponse>(`/auth/${mode}`, {
+      if (mode === "register") {
+        const response = await apiRequest<{ email: string }>(`/auth/register`, {
+          method: "POST",
+          body: JSON.stringify({ name, email, password }),
+        });
+
+        clearAuthSession();
+        router.replace(
+          `/auth/verify?email=${encodeURIComponent(response.email)}`,
+        );
+        return;
+      }
+
+      const response = await apiRequest<AuthResponse>(`/auth/login`, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ email, password }),
       });
 
       saveAuthSession(response.token, response.user);
@@ -124,7 +130,7 @@ function AuthForm() {
         <div className="invitation-preview">
           <div className="flex h-full flex-col justify-between border border-ink/15 p-8">
             <Link href="/" className="text-sm font-black uppercase tracking-[0.35em] text-rose">
-              Nimto
+              myNimto
             </Link>
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
@@ -194,6 +200,16 @@ function AuthForm() {
                 value={password}
               />
             </label>
+            {mode === "login" ? (
+              <div className="-mt-1 text-right">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm font-bold text-leaf underline-offset-4 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            ) : null}
             {error ? (
               <p className="rounded-xl border border-rose/20 bg-rose/10 p-3 text-sm font-bold text-rose">
                 {error}
@@ -254,6 +270,17 @@ function AuthForm() {
               {copy.action}
             </button>
           </p>
+          {mode === "login" ? (
+            <p className="mt-3 text-center text-sm text-ink/60">
+              Need a new verification code?{" "}
+              <Link
+                href="/auth/verify"
+                className="font-bold text-leaf underline-offset-4 hover:underline"
+              >
+                Verify email
+              </Link>
+            </p>
+          ) : null}
         </div>
       </section>
     </main>

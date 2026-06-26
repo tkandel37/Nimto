@@ -49,10 +49,12 @@ services:
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME}
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_SECURE: "false"
-      SMTP_FROM: '"Nimto Local" <noreply@nimto.local>'
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@nimto.local}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:4000/auth/google/callback}

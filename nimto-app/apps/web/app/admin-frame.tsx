@@ -189,7 +189,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
         <div>
           <div className="sidebar-brand-row">
             <Link href="/dashboard" className="sidebar-logo">
-              <span className="sidebar-logo-full">Nimto</span>
+              <span className="sidebar-logo-full">myNimto</span>
               <span className="sidebar-logo-mark" aria-hidden="true">
                 N
               </span>

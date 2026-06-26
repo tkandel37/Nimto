@@ -14,10 +14,19 @@ import { AuditService } from "../audit/audit.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
+import { ResendVerificationDto } from "./dto/resend-verification.dto";
 import { SUPER_ADMIN_ROLE } from "./permissions";
 
 @Injectable()
 export class AuthService {
+  private readonly passwordResetMessage =
+    "If an account with that email exists, a password reset link has been sent.";
+  private readonly verificationResendMessage =
+    "If an active unverified account exists for that email, a new verification code has been sent.";
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -38,20 +47,7 @@ export class AuthService {
         },
       });
 
-      const token = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
-
-      await this.prisma.verificationToken.create({
-        data: {
-          userId: user.id,
-          token,
-          expiresAt,
-        },
-      });
-
-      // Send verification email asynchronously
-      this.mailService.sendVerificationEmail(user.email, token).catch((err) => {
+      this.sendVerificationCode(user.id, user.email).catch((err) => {
         console.error("Failed to send verification email", err);
       });
 
@@ -59,12 +55,62 @@ export class AuthService {
         email: user.email,
       });
 
-      return await this.buildAuthResponse(user.id);
+      return {
+        message:
+          "Account created. Check your email for the verification code.",
+        email: user.email,
+      };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
+        const existingUser = await this.prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            emailVerifiedAt: true,
+          },
+        });
+
+        if (
+          existingUser &&
+          existingUser.status === "ACTIVE" &&
+          !existingUser.emailVerifiedAt
+        ) {
+          await this.prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+              name: dto.name.trim(),
+              passwordHash,
+            },
+          });
+
+          this.sendVerificationCode(existingUser.id, existingUser.email).catch(
+            (err) => {
+              console.error("Failed to resend verification email", err);
+            },
+          );
+
+          await this.record(
+            existingUser.id,
+            "auth.registered.retry_pending_verification",
+            "User",
+            existingUser.id,
+            {
+              email: existingUser.email,
+            },
+          );
+
+          return {
+            message:
+              "This account is still waiting for verification. We updated your details and sent a new code.",
+            email: existingUser.email,
+          };
+        }
+
         throw new BadRequestException(
           "An account with this email already exists.",
         );
@@ -96,6 +142,11 @@ export class AuthService {
     }
 
     this.assertUserCanAuthenticate(user);
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException(
+        "Please verify your email before logging in.",
+      );
+    }
 
     this.runAfterResponse(
       this.prisma.user.update({
@@ -202,6 +253,182 @@ export class AuthService {
     ]);
 
     return { message: "Email successfully verified." };
+  }
+
+  async verifyEmailCode(dto: VerifyEmailDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        emailVerifiedAt: true,
+        status: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException("Invalid verification code.");
+    }
+
+    this.assertUserCanAuthenticate(user);
+
+    if (user.emailVerifiedAt) {
+      return { message: "Email is already verified." };
+    }
+
+    const verificationToken = await this.prisma.verificationToken.findFirst({
+      where: {
+        userId: user.id,
+        token: dto.code,
+      },
+    });
+
+    if (!verificationToken) {
+      throw new BadRequestException("Invalid verification code.");
+    }
+
+    if (verificationToken.expiresAt < new Date()) {
+      await this.prisma.verificationToken.deleteMany({
+        where: {
+          userId: user.id,
+        },
+      });
+      throw new BadRequestException("Verification code has expired.");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      this.prisma.verificationToken.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
+
+    await this.record(user.id, "auth.verified", "User", user.id, {
+      method: "otp",
+    });
+
+    return { message: "Email successfully verified." };
+  }
+
+  async resendVerification(dto: ResendVerificationDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!user || user.status !== "ACTIVE" || user.emailVerifiedAt) {
+      return { message: this.verificationResendMessage };
+    }
+
+    await this.sendVerificationCode(user.id, user.email);
+    await this.record(user.id, "auth.verification_resent", "User", user.id);
+
+    return { message: this.verificationResendMessage };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status !== "ACTIVE") {
+      return { message: this.passwordResetMessage };
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt,
+      },
+    });
+
+    await this.mailService.sendPasswordResetEmail(user.email, token);
+    await this.record(user.id, "auth.password_reset.requested", "User", user.id);
+
+    return { message: this.passwordResetMessage };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const passwordResetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { token: dto.token },
+      include: {
+        user: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!passwordResetToken) {
+      throw new BadRequestException("Invalid password reset token.");
+    }
+
+    if (passwordResetToken.expiresAt < new Date()) {
+      await this.prisma.passwordResetToken.delete({
+        where: { id: passwordResetToken.id },
+      });
+      throw new BadRequestException("Password reset token has expired.");
+    }
+
+    this.assertUserCanAuthenticate(passwordResetToken.user);
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const revokedAt = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: passwordResetToken.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.deleteMany({
+        where: { userId: passwordResetToken.userId },
+      }),
+      this.prisma.userSession.updateMany({
+        where: {
+          userId: passwordResetToken.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt,
+          revocationReason: "PASSWORD_CHANGED",
+        },
+      }),
+    ]);
+
+    await this.record(
+      passwordResetToken.userId,
+      "auth.password_reset.completed",
+      "User",
+      passwordResetToken.userId,
+    );
+
+    return { message: "Password successfully reset." };
   }
 
   async logout(sessionId: string) {
@@ -316,6 +543,47 @@ export class AuthService {
     });
 
     return this.buildAuthResponse(user.id);
+  }
+
+  private async sendVerificationCode(userId: string, email: string) {
+    await this.prisma.verificationToken.deleteMany({
+      where: { userId },
+    });
+
+    const token = await this.generateUniqueNumericToken(
+      async (candidate) =>
+        this.prisma.verificationToken.findUnique({
+          where: { token: candidate },
+          select: { id: true },
+        }),
+    );
+
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+    await this.prisma.verificationToken.create({
+      data: {
+        userId,
+        token,
+        expiresAt,
+      },
+    });
+
+    await this.mailService.sendVerificationEmail(email, token);
+  }
+
+  private async generateUniqueNumericToken(
+    exists: (candidate: string) => Promise<{ id: string } | null>,
+  ) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+      const existing = await exists(candidate);
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    throw new Error("Could not generate a unique verification code.");
   }
 
   private record(
