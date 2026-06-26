@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -22,10 +24,13 @@ import { SUPER_ADMIN_ROLE } from "./permissions";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly passwordResetMessage =
     "If an account with that email exists, a password reset link has been sent.";
   private readonly verificationResendMessage =
     "If an active unverified account exists for that email, a new verification code has been sent.";
+  private readonly genericMailFailureMessage =
+    "We couldn't complete your request right now. Please try again in a few minutes.";
 
   constructor(
     private readonly prisma: PrismaService,
@@ -47,9 +52,22 @@ export class AuthService {
         },
       });
 
-      this.sendVerificationCode(user.id, user.email).catch((err) => {
-        console.error("Failed to send verification email", err);
-      });
+      try {
+        await this.sendVerificationCode(user.id, user.email);
+      } catch (error) {
+        await this.prisma.verificationToken.deleteMany({
+          where: { userId: user.id },
+        });
+        await this.prisma.user.delete({
+          where: { id: user.id },
+        });
+
+        this.logger.error(
+          `Failed to send verification email during registration for ${user.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new ServiceUnavailableException(this.genericMailFailureMessage);
+      }
 
       await this.record(user.id, "auth.registered", "User", user.id, {
         email: user.email,
@@ -88,11 +106,19 @@ export class AuthService {
             },
           });
 
-          this.sendVerificationCode(existingUser.id, existingUser.email).catch(
-            (err) => {
-              console.error("Failed to resend verification email", err);
-            },
-          );
+          try {
+            await this.sendVerificationCode(existingUser.id, existingUser.email);
+          } catch (resendError) {
+            this.logger.error(
+              `Failed to resend verification email during registration retry for ${existingUser.email}`,
+              resendError instanceof Error
+                ? resendError.stack
+                : String(resendError),
+            );
+            throw new ServiceUnavailableException(
+              this.genericMailFailureMessage,
+            );
+          }
 
           await this.record(
             existingUser.id,
@@ -329,7 +355,15 @@ export class AuthService {
       return { message: this.verificationResendMessage };
     }
 
-    await this.sendVerificationCode(user.id, user.email);
+    try {
+      await this.sendVerificationCode(user.id, user.email);
+    } catch (error) {
+      this.logger.error(
+        `Failed to resend verification email for ${user.email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(this.genericMailFailureMessage);
+    }
     await this.record(user.id, "auth.verification_resent", "User", user.id);
 
     return { message: this.verificationResendMessage };
@@ -366,7 +400,18 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendPasswordResetEmail(user.email, token);
+    try {
+      await this.mailService.sendPasswordResetEmail(user.email, token);
+    } catch (error) {
+      await this.prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id },
+      });
+      this.logger.error(
+        `Failed to send password reset email for ${user.email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(this.genericMailFailureMessage);
+    }
     await this.record(user.id, "auth.password_reset.requested", "User", user.id);
 
     return { message: this.passwordResetMessage };
@@ -569,7 +614,17 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendVerificationEmail(email, token);
+    try {
+      await this.mailService.sendVerificationEmail(email, token);
+    } catch (error) {
+      await this.prisma.verificationToken.deleteMany({
+        where: {
+          userId,
+          token,
+        },
+      });
+      throw error;
+    }
   }
 
   private async generateUniqueNumericToken(

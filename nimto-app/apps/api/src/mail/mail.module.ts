@@ -17,6 +17,15 @@ import { MailService } from "./mail.service";
             host: config.get<string>("SMTP_HOST", "smtp.ethereal.email"),
             port: Number(config.get<string>("SMTP_PORT", "587")),
             secure: config.get<string>("SMTP_SECURE", "false") === "true",
+            connectionTimeout: Number(
+              config.get<string>("SMTP_CONNECTION_TIMEOUT_MS", "10000"),
+            ),
+            greetingTimeout: Number(
+              config.get<string>("SMTP_GREETING_TIMEOUT_MS", "10000"),
+            ),
+            socketTimeout: Number(
+              config.get<string>("SMTP_SOCKET_TIMEOUT_MS", "15000"),
+            ),
             ...(user && pass ? { auth: { user, pass } } : {}),
           },
           defaults: {
