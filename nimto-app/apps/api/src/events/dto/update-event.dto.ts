@@ -65,4 +65,8 @@ export class UpdateEventDto {
   @IsObject()
   @IsOptional()
   checklist?: Record<string, boolean>;
+
+  @IsObject()
+  @IsOptional()
+  rsvpConfig?: Record<string, unknown>;
 }

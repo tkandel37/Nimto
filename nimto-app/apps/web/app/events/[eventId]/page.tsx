@@ -11,6 +11,7 @@ import {
   EventStatistics,
   EventActivity,
   EventDesignRevision,
+  EventRsvpResponse,
   UserEvent,
 } from "../event-types";
 import {
@@ -27,6 +28,7 @@ type PublicDesign = {
   versions: {
     id: string;
     rawHtml: string;
+    featureConfig?: Record<string, unknown> | null;
     scanResult?: UserEvent["designVersion"] extends infer T
       ? T extends { scanResult?: infer S }
         ? S
@@ -121,6 +123,7 @@ function EventDetailContent({
   const [isInviteeLoading, setIsInviteeLoading] = useState(!cachedWorkspace);
   const [isSaving, setIsSaving] = useState(false);
   const [statistics, setStatistics] = useState<EventStatistics | null>(null);
+  const [rsvpResponses, setRsvpResponses] = useState<EventRsvpResponse[]>([]);
   const [activity, setActivity] = useState<EventActivity[]>([]);
   const [revisions, setRevisions] = useState<EventDesignRevision[]>([]);
   const [designs, setDesigns] = useState<PublicDesign[]>([]);
@@ -154,6 +157,9 @@ function EventDetailContent({
       apiRequest<EventActivity[]>(`/events/${eventId}/activity`, {
         headers: authHeaders,
       }),
+      apiRequest<EventRsvpResponse[]>(`/events/${eventId}/rsvp-responses`, {
+        headers: authHeaders,
+      }),
       apiRequest<EventDesignRevision[]>(`/events/${eventId}/design-revisions`, {
         headers: authHeaders,
       }),
@@ -165,6 +171,7 @@ function EventDetailContent({
           items,
           eventStatistics,
           eventActivity,
+          eventRsvpResponses,
           designRevisions,
           publicDesigns,
         ]) => {
@@ -178,6 +185,7 @@ function EventDetailContent({
           setInvitees(items);
           setStatistics(eventStatistics);
           setActivity(eventActivity);
+          setRsvpResponses(eventRsvpResponses);
           setRevisions(designRevisions);
           setDesigns(publicDesigns);
         },
@@ -234,16 +242,20 @@ function EventDetailContent({
   );
 
   async function refreshInsights() {
-    const [nextStatistics, nextActivity] = await Promise.all([
+    const [nextStatistics, nextActivity, nextResponses] = await Promise.all([
       apiRequest<EventStatistics>(`/events/${eventId}/statistics`, {
         headers: authHeaders,
       }),
       apiRequest<EventActivity[]>(`/events/${eventId}/activity`, {
         headers: authHeaders,
       }),
+      apiRequest<EventRsvpResponse[]>(`/events/${eventId}/rsvp-responses`, {
+        headers: authHeaders,
+      }),
     ]);
     setStatistics(nextStatistics);
     setActivity(nextActivity);
+    setRsvpResponses(nextResponses);
   }
 
   async function copyShareLink() {
@@ -446,6 +458,64 @@ function EventDetailContent({
     URL.revokeObjectURL(url);
   }
 
+  function downloadRsvpCsv() {
+    const inviteeRows = invitees
+      .filter((invitee) => invitee.rsvpStatus !== "PENDING")
+      .map((invitee) =>
+        [
+          "Guest link",
+          invitee.respondedAt ?? "",
+          invitee.rsvpStatus,
+          invitee.name,
+          invitee.phone ?? "",
+          invitee.email ?? "",
+          String(invitee.partySize ?? ""),
+          invitee.mealPreference ?? "",
+          invitee.rsvpMessage ?? "",
+        ]
+          .map(csvCell)
+          .join(","),
+      );
+    const publicRows = rsvpResponses.map((response) => {
+      const answers = response.answers ?? {};
+      return [
+        "Public link",
+        response.submittedAt,
+        response.status,
+        String(answers.fullName ?? ""),
+        String(answers.phone ?? ""),
+        String(answers.email ?? ""),
+        String(response.guestCount ?? answers.numberOfGuests ?? ""),
+        String(answers.mealPreference ?? ""),
+        String(answers.message ?? ""),
+      ]
+        .map(csvCell)
+        .join(",");
+    });
+    const csv = [
+      [
+        "Source",
+        "Submitted At",
+        "Status",
+        "Full Name",
+        "Phone",
+        "Email",
+        "Number Of Guests",
+        "Meal Preference",
+        "Message",
+      ].join(","),
+      ...inviteeRows,
+      ...publicRows,
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${event?.slug ?? "event"}-rsvp-responses.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function readInviteeCsv(file?: File) {
     if (!file) return;
     const text = await file.text();
@@ -585,20 +655,41 @@ function EventDetailContent({
         method: "PATCH",
         headers: authHeaders,
         body: JSON.stringify({
-          title: String(form.get("title") || ""),
+          title: String(form.get("title") || event.title),
           type: String(form.get("type") || event.type),
-          eventDate: form.get("eventDate") || undefined,
-          venue: String(form.get("venue") || ""),
-          description: String(form.get("description") || ""),
+          eventDate: form.get("eventDate") || event.eventDate || undefined,
+          venue: String(form.get("venue") || event.venue || ""),
+          description: String(
+            form.get("description") || event.description || "",
+          ),
           rsvpDeadline: form.get("rsvpDeadline") || null,
-          organizerNotes: String(form.get("organizerNotes") || ""),
+          organizerNotes: String(
+            form.get("organizerNotes") || event.organizerNotes || "",
+          ),
           checklist: {
-            details: form.get("checklistDetails") === "on",
-            guests: form.get("checklistGuests") === "on",
-            reviewed: form.get("checklistReviewed") === "on",
-            shared: form.get("checklistShared") === "on",
+            details: form.has("checklistDetails")
+              ? form.get("checklistDetails") === "on"
+              : Boolean(event.checklist?.details),
+            guests: form.has("checklistGuests")
+              ? form.get("checklistGuests") === "on"
+              : Boolean(event.checklist?.guests),
+            reviewed: form.has("checklistReviewed")
+              ? form.get("checklistReviewed") === "on"
+              : Boolean(event.checklist?.reviewed),
+            shared: form.has("checklistShared")
+              ? form.get("checklistShared") === "on"
+              : Boolean(event.checklist?.shared),
           },
-          isPublished: wantsPublished,
+          rsvpConfig: {
+            ...rsvpConfig,
+            note: String(form.get("rsvpNote") || ""),
+            closedMessage:
+              String(form.get("rsvpClosedMessage") || "") ||
+              "Sorry, RSVP is closed for this event.",
+          },
+          isPublished: form.has("isPublished")
+            ? wantsPublished
+            : event.isPublished,
         }),
       });
       setEvent((current) => (current ? { ...current, ...updated } : updated));
@@ -787,6 +878,7 @@ function EventDetailContent({
   const rsvpClosed = Boolean(
     event.rsvpDeadline && new Date(event.rsvpDeadline).getTime() < Date.now(),
   );
+  const rsvpConfig = normalizeRsvpConfig(event.rsvpConfig);
   const status = event.archivedAt
     ? "Archived"
     : invitationDraft
@@ -894,8 +986,7 @@ function EventDetailContent({
         }
       : activeTab === "invitation"
         ? {
-            label:
-              event.isPublished && !invitationDraft ? "Share" : "Publish",
+            label: event.isPublished && !invitationDraft ? "Share" : "Publish",
             action: () =>
               event.isPublished && !invitationDraft
                 ? void nativeShareEvent()
@@ -1315,8 +1406,12 @@ function EventDetailContent({
         <div className="event-tab-content">
           <section className="event-meta-grid">
             <article>
-              <span>Response rate</span>
-              <strong>{statistics?.responseRate ?? 0}%</strong>
+              <span>Total responses</span>
+              <strong>
+                {statistics?.totalResponses ??
+                  invitees.filter((guest) => guest.rsvpStatus !== "PENDING")
+                    .length + rsvpResponses.length}
+              </strong>
             </article>
             <article>
               <span>Expected guests</span>
@@ -1332,6 +1427,74 @@ function EventDetailContent({
             </article>
           </section>
           <section className="event-refinement-grid">
+            <form className="user-panel" onSubmit={saveEventDetails}>
+              <p className="user-kicker">RSVP form</p>
+              <h2>Response setup</h2>
+              <p>
+                Default fields are status, full name, phone, email, number of
+                guests, and message.
+              </p>
+              <label className="user-field">
+                <span>RSVP deadline</span>
+                <input
+                  defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""}
+                  name="rsvpDeadline"
+                  type="datetime-local"
+                />
+              </label>
+              <label className="user-field">
+                <span>Host note above form</span>
+                <textarea
+                  defaultValue={rsvpConfig.note}
+                  name="rsvpNote"
+                  rows={3}
+                />
+              </label>
+              <label className="user-field">
+                <span>Closed message</span>
+                <textarea
+                  defaultValue={rsvpConfig.closedMessage}
+                  name="rsvpClosedMessage"
+                  rows={2}
+                />
+              </label>
+              <input defaultValue={event.title} name="title" type="hidden" />
+              <input defaultValue={event.type} name="type" type="hidden" />
+              <input
+                defaultValue={event.eventDate?.slice(0, 16) ?? ""}
+                name="eventDate"
+                type="hidden"
+              />
+              <input
+                defaultValue={event.venue ?? ""}
+                name="venue"
+                type="hidden"
+              />
+              <input
+                defaultValue={event.description ?? ""}
+                name="description"
+                type="hidden"
+              />
+              <input
+                defaultValue={event.organizerNotes ?? ""}
+                name="organizerNotes"
+                type="hidden"
+              />
+              <button
+                className="user-primary-button"
+                disabled={isSaving}
+                type="submit"
+              >
+                Save RSVP setup
+              </button>
+              <button
+                className="user-secondary-button"
+                onClick={downloadRsvpCsv}
+                type="button"
+              >
+                Export CSV
+              </button>
+            </form>
             <article className="user-panel">
               <p className="user-kicker">Meal summary</p>
               <h2>Expected meal requirements</h2>
@@ -1473,7 +1636,9 @@ function EventDetailContent({
               </p>
               <div className="share-reassurance-grid">
                 <span>Only people with the link can open this invite.</span>
-                <span>Guest names personalize only when using guest links.</span>
+                <span>
+                  Guest names personalize only when using guest links.
+                </span>
                 <span>You can still edit details after sharing.</span>
                 <span>CSV uploads add guests; they do not notify anyone.</span>
               </div>
@@ -2002,6 +2167,16 @@ function mappedCsvGuest(
   };
 }
 
+function normalizeRsvpConfig(config?: Record<string, unknown> | null) {
+  return {
+    note: String(config?.note ?? ""),
+    closedMessage: String(
+      config?.closedMessage ?? "Sorry, RSVP is closed for this event.",
+    ),
+    fields: Array.isArray(config?.fields) ? config.fields : [],
+  };
+}
+
 function reviewCsvImport(
   state: NonNullable<CsvImportState>,
   existingInvitees: InvitationInvitee[],
@@ -2020,7 +2195,10 @@ function reviewCsvImport(
     if (!normalizedName) {
       status = "Missing name";
       missingNames.push(guest);
-    } else if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) {
+    } else if (
+      existingNames.has(normalizedName) ||
+      seenNames.has(normalizedName)
+    ) {
       status = "Duplicate";
       duplicates.push(guest);
     } else {
@@ -2035,7 +2213,10 @@ function reviewCsvImport(
     const normalizedName = guest.name.trim().toLowerCase();
     if (!normalizedName) {
       missingNames.push(guest);
-    } else if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) {
+    } else if (
+      existingNames.has(normalizedName) ||
+      seenNames.has(normalizedName)
+    ) {
       duplicates.push(guest);
     } else {
       seenNames.add(normalizedName);

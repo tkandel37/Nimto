@@ -134,6 +134,11 @@ export default async function InvitationPage({
   const { slug } = await params;
   const event = await getInvitation(slug);
   if (!event) notFound();
+  const rsvpEnabled = Boolean(
+    event.designVersion?.featureConfig?.rsvp?.available &&
+    event.featureSettings?.rsvp?.enabled,
+  );
+  const rsvpConfig = normalizeRsvpConfig(event.rsvpConfig);
   const renderedHtml = event.designVersion?.rawHtml
     ? renderInvitationHtml(event.designVersion.rawHtml, event, slug)
     : null;
@@ -147,15 +152,18 @@ export default async function InvitationPage({
           srcDoc={renderedHtml}
           title={event.title}
         />
-        {event.inviteeSlug && event.inviteeName ? (
+        {rsvpEnabled || (event.inviteeSlug && event.inviteeName) ? (
           <RsvpForm
             initialMealPreference={event.mealPreference}
             initialMessage={event.rsvpMessage}
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
-            inviteeName={event.inviteeName}
+            inviteeName={event.inviteeName ?? event.title}
+            note={rsvpConfig.note}
+            publicMode={!event.inviteeSlug}
+            closedMessage={rsvpConfig.closedMessage}
             rsvpDeadline={event.rsvpDeadline}
-            slug={event.inviteeSlug}
+            slug={event.inviteeSlug ?? slug}
           />
         ) : null}
       </main>
@@ -200,15 +208,18 @@ export default async function InvitationPage({
             </p>
           ) : null}
         </article>
-        {event.inviteeSlug && event.inviteeName ? (
+        {rsvpEnabled || (event.inviteeSlug && event.inviteeName) ? (
           <RsvpForm
             initialMealPreference={event.mealPreference}
             initialMessage={event.rsvpMessage}
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
-            inviteeName={event.inviteeName}
+            inviteeName={event.inviteeName ?? event.title}
+            note={rsvpConfig.note}
+            publicMode={!event.inviteeSlug}
+            closedMessage={rsvpConfig.closedMessage}
             rsvpDeadline={event.rsvpDeadline}
-            slug={event.inviteeSlug}
+            slug={event.inviteeSlug ?? slug}
           />
         ) : null}
       </section>
@@ -397,6 +408,15 @@ function cssName(value: string) {
     .replace(/([a-z])([A-Z])/g, "$1-$2")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .toLowerCase();
+}
+
+function normalizeRsvpConfig(config?: Record<string, unknown> | null) {
+  return {
+    note: String(config?.note ?? ""),
+    closedMessage: String(
+      config?.closedMessage ?? "Sorry, RSVP is closed for this event.",
+    ),
+  };
 }
 
 function escapeHtml(value: string) {

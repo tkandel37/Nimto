@@ -372,6 +372,7 @@ model Event {
   draftDesignFieldValues Json?
   draftSavedAt           DateTime?
   invitees               InvitationInvitee[]
+  rsvpResponses          EventRsvpResponse[]
   designRevisions        EventDesignRevision[]
   activities             EventActivity[]
   createdAt              DateTime              @default(now())
@@ -384,6 +385,22 @@ model Event {
   @@index([archivedAt])
   @@index([designVersionId])
   @@index([draftDesignVersionId])
+}
+
+model EventRsvpResponse {
+  id          String     @id @default(cuid())
+  eventId     String
+  event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status      RsvpStatus
+  answers     Json
+  guestCount  Int?
+  submittedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([eventId])
+  @@index([eventId, status])
+  @@index([submittedAt])
 }
 
 model InvitationInvitee {

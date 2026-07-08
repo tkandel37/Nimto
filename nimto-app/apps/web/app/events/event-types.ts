@@ -91,6 +91,7 @@ export type InvitationInvitee = {
 
 export type EventStatistics = {
   totalInvitees: number;
+  totalResponses?: number;
   invitationOpens: number;
   openedInvitees: number;
   pending: number;
@@ -100,6 +101,15 @@ export type EventStatistics = {
   unopenedInvitees: number;
   responseRate: number;
   mealTotals: { meal: string; count: number }[];
+};
+
+export type EventRsvpResponse = {
+  id: string;
+  eventId: string;
+  status: "PENDING" | "ATTENDING" | "DECLINED";
+  answers: Record<string, unknown>;
+  guestCount?: number | null;
+  submittedAt: string;
 };
 
 export type EventActivity = {

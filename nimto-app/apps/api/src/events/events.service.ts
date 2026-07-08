@@ -654,6 +654,11 @@ export class EventsService {
           rsvpDeadline: source.rsvpDeadline,
           organizerNotes: source.organizerNotes,
           checklist: source.checklist as Prisma.InputJsonValue | undefined,
+          featureSettings:
+            (source.featureSettings as Prisma.InputJsonValue | null) ??
+            undefined,
+          rsvpConfig:
+            (source.rsvpConfig as Prisma.InputJsonValue | null) ?? undefined,
           slug,
           isPublished: false,
           designVersionId: source.designVersionId,
@@ -772,6 +777,12 @@ export class EventsService {
             mealPreference: true,
           },
         },
+        rsvpResponses: {
+          select: {
+            status: true,
+            guestCount: true,
+          },
+        },
       },
     });
     if (!event) {
@@ -780,6 +791,9 @@ export class EventsService {
 
     return {
       totalInvitees: event.invitees.length,
+      totalResponses:
+        event.invitees.filter((item) => item.rsvpStatus !== RsvpStatus.PENDING)
+          .length + event.rsvpResponses.length,
       invitationOpens: event.openCount,
       openedInvitees: event.invitees.filter((item) => item.openCount > 0)
         .length,
@@ -788,19 +802,34 @@ export class EventsService {
       pending: event.invitees.filter(
         (item) => item.rsvpStatus === RsvpStatus.PENDING,
       ).length,
-      attending: event.invitees.filter(
-        (item) => item.rsvpStatus === RsvpStatus.ATTENDING,
-      ).length,
-      declined: event.invitees.filter(
-        (item) => item.rsvpStatus === RsvpStatus.DECLINED,
-      ).length,
-      expectedGuests: event.invitees.reduce(
-        (total, item) =>
-          item.rsvpStatus === RsvpStatus.ATTENDING
-            ? total + (item.partySize ?? 1)
-            : total,
-        0,
-      ),
+      attending:
+        event.invitees.filter(
+          (item) => item.rsvpStatus === RsvpStatus.ATTENDING,
+        ).length +
+        event.rsvpResponses.filter(
+          (item) => item.status === RsvpStatus.ATTENDING,
+        ).length,
+      declined:
+        event.invitees.filter((item) => item.rsvpStatus === RsvpStatus.DECLINED)
+          .length +
+        event.rsvpResponses.filter(
+          (item) => item.status === RsvpStatus.DECLINED,
+        ).length,
+      expectedGuests:
+        event.invitees.reduce(
+          (total, item) =>
+            item.rsvpStatus === RsvpStatus.ATTENDING
+              ? total + (item.partySize ?? 1)
+              : total,
+          0,
+        ) +
+        event.rsvpResponses.reduce(
+          (total, item) =>
+            item.status === RsvpStatus.ATTENDING
+              ? total + (item.guestCount ?? 1)
+              : total,
+          0,
+        ),
       responseRate: event.invitees.length
         ? Math.round(
             (event.invitees.filter(
@@ -837,6 +866,14 @@ export class EventsService {
     }
 
     return event.invitees;
+  }
+
+  async listRsvpResponses(userId: string, eventId: string) {
+    await this.assertOwner(userId, eventId);
+    return this.prisma.eventRsvpResponse.findMany({
+      where: { eventId },
+      orderBy: { submittedAt: "desc" },
+    });
   }
 
   async createInvitees(
@@ -1077,8 +1114,67 @@ export class EventsService {
         },
       },
     });
+    if (!invitee) {
+      const event = await this.prisma.event.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          isPublished: true,
+          archivedAt: true,
+          rsvpDeadline: true,
+          featureSettings: true,
+          rsvpConfig: true,
+        },
+      });
+      const featureSettings =
+        (event?.featureSettings as { rsvp?: { enabled?: boolean } } | null) ??
+        {};
+      if (
+        !event?.isPublished ||
+        event.archivedAt ||
+        featureSettings.rsvp?.enabled !== true
+      ) {
+        throw new NotFoundException("Invitation RSVP is not available.");
+      }
+      if (event.rsvpDeadline && event.rsvpDeadline < new Date()) {
+        throw new BadRequestException("The RSVP deadline has passed.");
+      }
+
+      const answers = (dto.answers ?? {}) as Record<string, unknown>;
+      const guestCountValue = Number(
+        answers.numberOfGuests ?? answers.guestCount ?? dto.partySize ?? 1,
+      );
+      const response = await this.prisma.eventRsvpResponse.create({
+        data: {
+          eventId: event.id,
+          status: dto.status,
+          guestCount:
+            dto.status === RsvpStatus.ATTENDING
+              ? Math.max(
+                  1,
+                  Math.min(
+                    20,
+                    Number.isFinite(guestCountValue) ? guestCountValue : 1,
+                  ),
+                )
+              : null,
+          answers: {
+            ...answers,
+            message: dto.message?.trim() || answers.message || "",
+          } as Prisma.InputJsonObject,
+        },
+      });
+      await this.activity(
+        event.id,
+        "RSVP_UPDATED",
+        `Public RSVP marked ${dto.status.toLowerCase()}`,
+        undefined,
+        { responseId: response.id },
+      );
+      return response;
+    }
     if (
-      !invitee?.event.isPublished ||
+      !invitee.event.isPublished ||
       invitee.event.archivedAt ||
       invitee.linkDisabledAt ||
       (invitee.linkExpiresAt && invitee.linkExpiresAt < new Date())
@@ -1146,6 +1242,10 @@ export class EventsService {
       checklist:
         "checklist" in dto && dto.checklist !== undefined
           ? (dto.checklist as Prisma.InputJsonObject)
+          : undefined,
+      rsvpConfig:
+        "rsvpConfig" in dto && dto.rsvpConfig !== undefined
+          ? (dto.rsvpConfig as Prisma.InputJsonObject)
           : undefined,
     };
   }

@@ -9,6 +9,9 @@ export function RsvpForm({
   initialPartySize,
   initialStatus,
   inviteeName,
+  note,
+  publicMode = false,
+  closedMessage = "Sorry, RSVP is closed for this event.",
   rsvpDeadline,
   slug,
 }: {
@@ -17,6 +20,9 @@ export function RsvpForm({
   initialPartySize?: number | null;
   initialStatus?: "PENDING" | "ATTENDING" | "DECLINED";
   inviteeName: string;
+  note?: string;
+  publicMode?: boolean;
+  closedMessage?: string;
   rsvpDeadline?: string | null;
   slug: string;
 }) {
@@ -58,6 +64,19 @@ export function RsvpForm({
               ? String(form.get("mealPreference") || "")
               : undefined,
           message: String(form.get("message") || ""),
+          answers: publicMode
+            ? {
+                status,
+                fullName: String(form.get("fullName") || ""),
+                phone: String(form.get("phone") || ""),
+                email: String(form.get("email") || ""),
+                numberOfGuests:
+                  status === "ATTENDING"
+                    ? Number(form.get("partySize") || 1)
+                    : 0,
+                message: String(form.get("message") || ""),
+              }
+            : undefined,
         }),
       });
       setSaved(true);
@@ -109,6 +128,16 @@ export function RsvpForm({
               )}
             </p>
           ) : null}
+          {note ? (
+            <p className="mt-3 whitespace-pre-wrap rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
+              {note}
+            </p>
+          ) : null}
+          {deadlinePassed ? (
+            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">
+              {closedMessage}
+            </p>
+          ) : null}
           <div className="mt-4 grid grid-cols-2 gap-2">
             {(["ATTENDING", "DECLINED"] as const).map((option) => (
               <button
@@ -125,6 +154,35 @@ export function RsvpForm({
               </button>
             ))}
           </div>
+          {publicMode ? (
+            <div className="mt-3 grid gap-3">
+              <label className="grid gap-1 text-sm font-bold text-slate-700">
+                Full name
+                <input
+                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  name="fullName"
+                  required
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1 text-sm font-bold text-slate-700">
+                  Phone number
+                  <input
+                    className="rounded-lg border border-slate-200 px-3 py-2"
+                    name="phone"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-bold text-slate-700">
+                  Email address
+                  <input
+                    className="rounded-lg border border-slate-200 px-3 py-2"
+                    name="email"
+                    type="email"
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
           {status === "ATTENDING" ? (
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="grid gap-1 text-sm font-bold text-slate-700">
@@ -162,7 +220,7 @@ export function RsvpForm({
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
           <button
             className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white"
-            disabled={saving || status === "PENDING"}
+            disabled={saving || status === "PENDING" || deadlinePassed}
             type="submit"
           >
             {saving ? "Saving..." : "Save RSVP"}
