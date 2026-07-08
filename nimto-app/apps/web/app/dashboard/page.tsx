@@ -134,7 +134,27 @@ type InvitationTemplate = {
     }[];
     countdownFieldKey?: string;
     countdownFieldStatus?: "valid" | "missing_type" | "unsupported_type";
+    countdownPosition?: "top" | "middle" | "bottom";
+    countdownSlots?: { key: string; label: string; sectionKey?: string }[];
     customNameFieldKeys?: string[];
+    linkableFieldKeys?: string[];
+    rsvpSlots?: { key: string; label: string; sectionKey?: string }[];
+    musicSlots?: { key: string; label: string; sectionKey?: string }[];
+    additionalInfoSlots?: { key: string; label: string; sectionKey?: string }[];
+    printPages?: { key: string; label: string; sectionKey?: string }[];
+    styleSlots?: {
+      key: string;
+      label: string;
+      type: "color" | "font";
+      defaultValue?: string;
+      cssVariable?: string;
+      sectionKey?: string;
+    }[];
+    sharePreview?: {
+      titleFieldKey?: string;
+      descriptionFieldKey?: string;
+      imageFieldKey?: string;
+    };
     hasOpeningSlot?: boolean;
     openingSlots?: string[];
     hasBackgroundEffectSlot?: boolean;
@@ -150,6 +170,12 @@ type InvitationTemplate = {
       supportsGallery?: boolean;
       supportsMusic?: boolean;
       supportsMap?: boolean;
+      supportsRsvp?: boolean;
+      supportsAdditionalInfo?: boolean;
+      supportsSharePreview?: boolean;
+      supportsThemeStyles?: boolean;
+      supportsPrintLayout?: boolean;
+      supportsLinkedFields?: boolean;
       supportsOpeningAnimation?: boolean;
       supportsBackgroundEffects?: boolean;
     };
@@ -389,12 +415,7 @@ function displayDate(value?: string | null) {
 
 function BackIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d="M15 18 9 12l6-6"
         stroke="currentColor"
@@ -408,12 +429,7 @@ function BackIcon() {
 
 function CollapseIcon({ isCollapsed }: { isCollapsed: boolean }) {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       {isCollapsed ? (
         <path
           d="m9 6 6 6-6 6"
@@ -443,12 +459,7 @@ function CollapseIcon({ isCollapsed }: { isCollapsed: boolean }) {
 
 function FormIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
         stroke="currentColor"
@@ -467,12 +478,7 @@ function FormIcon() {
 
 function CodeIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14"
         stroke="currentColor"
@@ -486,12 +492,7 @@ function CodeIcon() {
 
 function PreviewIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"
         stroke="currentColor"
@@ -633,19 +634,19 @@ export function DashboardClient({
     };
     hasDashboardDataRef.current = Boolean(
       dashboardSummary ||
-        auditLogs.length ||
-        blogPosts.length ||
-        designCategories.length ||
-        designs.length ||
-        events.length ||
-        pages.length ||
-        permissions.length ||
-        publicDesigns.length ||
-        roles.length ||
-        users.length ||
-        sessions.length ||
-        staff.length ||
-        templates.length,
+      auditLogs.length ||
+      blogPosts.length ||
+      designCategories.length ||
+      designs.length ||
+      events.length ||
+      pages.length ||
+      permissions.length ||
+      publicDesigns.length ||
+      roles.length ||
+      users.length ||
+      sessions.length ||
+      staff.length ||
+      templates.length,
     );
   }, [
     auditLogs,
@@ -697,7 +698,7 @@ export function DashboardClient({
       headers: {
         Authorization: `Bearer ${savedToken}`,
       },
-      })
+    })
       .then((response) => {
         setUser(response.user);
         hydrateDashboardCache(response.user.id);
@@ -817,36 +818,36 @@ export function DashboardClient({
               nextDesigns,
               nextPublicDesigns,
             ] = await Promise.all([
-                canAny(authUser, [
-                  "category:view",
-                  "category:manage",
-                  "subcategory:view",
-                  "subcategory:manage",
-                ])
-                  ? apiRequest<DesignCategory[]>("/template-design/categories", {
-                      headers,
-                    })
-                  : Promise.resolve([]),
-                canAny(authUser, [
-                  "template:view:own",
-                  "template:view:all",
-                  "template:create",
-                  "template:update:own",
-                  "template:update:all",
-                  "template:duplicate",
-                ])
-                  ? apiRequest<InvitationTemplate[]>(
-                      "/template-design/templates",
-                      { headers },
-                    )
-                  : Promise.resolve([]),
-                canAny(authUser, ["design:view:own", "design:view:all"])
-                  ? apiRequest<InvitationDesign[]>("/template-design/designs", {
-                      headers,
-                    })
-                  : Promise.resolve([]),
-                apiRequest<InvitationDesign[]>("/template-design/public/designs"),
-              ]);
+              canAny(authUser, [
+                "category:view",
+                "category:manage",
+                "subcategory:view",
+                "subcategory:manage",
+              ])
+                ? apiRequest<DesignCategory[]>("/template-design/categories", {
+                    headers,
+                  })
+                : Promise.resolve([]),
+              canAny(authUser, [
+                "template:view:own",
+                "template:view:all",
+                "template:create",
+                "template:update:own",
+                "template:update:all",
+                "template:duplicate",
+              ])
+                ? apiRequest<InvitationTemplate[]>(
+                    "/template-design/templates",
+                    { headers },
+                  )
+                : Promise.resolve([]),
+              canAny(authUser, ["design:view:own", "design:view:all"])
+                ? apiRequest<InvitationDesign[]>("/template-design/designs", {
+                    headers,
+                  })
+                : Promise.resolve([]),
+              apiRequest<InvitationDesign[]>("/template-design/public/designs"),
+            ]);
             setDesignCategories(nextCategories);
             setTemplates(nextTemplates);
             setDesigns(nextDesigns);
@@ -866,9 +867,12 @@ export function DashboardClient({
             "subcategory:view",
             "subcategory:manage",
           ])
-            ? await apiRequest<DesignCategory[]>("/template-design/categories", {
-                headers,
-              })
+            ? await apiRequest<DesignCategory[]>(
+                "/template-design/categories",
+                {
+                  headers,
+                },
+              )
             : [];
           setDesignCategories(nextCategories);
           nextSnapshot.designCategories = nextCategories;
@@ -929,7 +933,9 @@ export function DashboardClient({
                   : Promise.resolve({ items: [], nextSkip: null, total: 0 }),
                 latest.permissions.length > 0 || options.force
                   ? can(authUser, "permissions:view")
-                    ? apiRequest<Permission[]>("/admin/permissions", { headers })
+                    ? apiRequest<Permission[]>("/admin/permissions", {
+                        headers,
+                      })
                     : Promise.resolve(latest.permissions)
                   : Promise.resolve(latest.permissions),
               ]);
@@ -1190,8 +1196,7 @@ export function DashboardClient({
         isActionPending ? "action-pending" : ""
       }`}
     >
-
-        {currentTab === "settings" ? (
+      {currentTab === "settings" ? (
         <header className="dashboard-hero">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.24em] text-leaf">
@@ -1229,139 +1234,142 @@ export function DashboardClient({
             </button>
           </div>
         </header>
-        ) : null}
+      ) : null}
 
-        {currentTab === "overview" ? (
-          <OverviewPanel
-            auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
-            designs={designs}
-            draftEventCount={events.filter((event) => !event.isPublished).length}
-            designCount={publicDesigns.length || designs.length}
-            eventCount={dashboardSummary?.eventCount ?? events.length}
-            onNavigate={setActiveTab}
-            publishedEventCount={
-              events.filter((event) => event.isPublished).length
-            }
-            roleCount={dashboardSummary?.roleCount ?? roles.length}
-            sessionCount={
-              dashboardSummary?.sessionCount ??
-              sessions.filter((session) => !session.revokedAt).length
-            }
-            staffCount={dashboardSummary?.staffCount ?? staff.length}
-            templates={templates}
-            templateCount={templates.length}
-            userCount={dashboardSummary?.userCount ?? users.length}
-          />
-        ) : null}
-        {currentTab === "events" ? (
-          <EventsPanel
-            completeAction={completeAction}
-            designs={publicDesigns}
-            events={events}
-            request={request}
-          />
-        ) : null}
-        {currentTab === "designSetup" ? (
-          <DesignSetupPanel
-            canCreateTemplates={can(user, "template:create")}
-            canDuplicateTemplates={can(user, "template:duplicate")}
-            canPublishTemplates={can(user, "template:publish")}
-            canUnpublishTemplates={can(user, "template:unpublish")}
-            canUpdateTemplates={canAny(user, [
-              "template:update:own",
-              "template:update:all",
-            ])}
-            categories={designCategories}
-            completeAction={completeAction}
-            designs={designs}
-            onDesignsChange={setDesigns}
-            onPublicDesignsChange={setPublicDesigns}
-            onTemplatesChange={setTemplates}
-            request={request}
-            templates={templates}
-          />
-        ) : null}
-        {currentTab === "settings" ? (
-          <SettingsPanel
-            canManageCategories={can(user, "category:manage")}
-            canManageSubcategories={can(user, "subcategory:manage")}
-            categories={designCategories}
-            completeAction={completeAction}
-            request={request}
-          />
-        ) : null}
-        {currentTab === "profile" ? (
-          <ProfilePanel logout={logout} refresh={() => refreshAdminData()} user={user} />
-        ) : null}
-        {currentTab === "website" ? (
-          <WebsitePanel
-            canManageBlog={canAny(user, ["blog:manage:own", "blog:manage:all"])}
-            canManageContent={can(user, "content:manage")}
-            completeAction={completeAction}
-            onPagesChange={setPages}
-            onPostsChange={setBlogPosts}
-            pages={pages}
-            posts={blogPosts}
-            request={request}
-          />
-        ) : null}
-        {["staff", "roles", "permissions"].includes(currentTab) &&
-        canAny(user, ["staff:view", "roles:view", "permissions:view"]) ? (
-          <StaffAccessPanel
-            canViewAudit={can(user, "audit:view")}
-            canViewSessions={can(user, "sessions:view")}
-            canManagePermissions={can(user, "permissions:manage")}
-            canManageRoles={can(user, "roles:manage")}
-            canManageStaff={can(user, "staff:manage")}
-            canManageSessions={can(user, "sessions:manage")}
-            canViewPermissions={can(user, "permissions:view")}
-            canViewRoles={can(user, "roles:view")}
-            canViewStaff={can(user, "staff:view")}
-            completeAction={completeAction}
-            hasMore={staffNextSkip !== null}
-            initialSection={
-              currentTab === "permissions"
-                ? "permissions"
-                : currentTab === "roles"
-                  ? "roles"
-                  : "staff"
-            }
-            isLoadingMore={isRefreshing}
-            loadAccessCatalog={loadAccessCatalog}
-            loadMore={() => loadMoreAccounts("staff")}
-            onRolesChange={setRoles}
-            permissions={permissions}
-            request={request}
-            roles={roles}
-            staff={staff}
-          />
-        ) : null}
-        {currentTab === "users" && can(user, "staff:view") ? (
-          <UsersPanel
-            canViewAudit={can(user, "audit:view")}
-            canViewSessions={can(user, "sessions:view")}
-            canManage={can(user, "staff:manage")}
-            canManageSessions={can(user, "sessions:manage")}
-            completeAction={completeAction}
-            hasMore={usersNextSkip !== null}
-            isLoadingMore={isRefreshing}
-            loadMore={() => loadMoreAccounts("users")}
-            request={request}
-            users={users}
-          />
-        ) : null}
-        {currentTab === "sessions" && can(user, "sessions:view") ? (
-          <SessionsPanel
-            canManage={can(user, "sessions:manage")}
-            completeAction={completeAction}
-            request={request}
-            sessions={sessions}
-          />
-        ) : null}
-        {currentTab === "audit" && can(user, "audit:view") ? (
-          <AuditPanel logs={auditLogs} />
-        ) : null}
-        
+      {currentTab === "overview" ? (
+        <OverviewPanel
+          auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
+          designs={designs}
+          draftEventCount={events.filter((event) => !event.isPublished).length}
+          designCount={publicDesigns.length || designs.length}
+          eventCount={dashboardSummary?.eventCount ?? events.length}
+          onNavigate={setActiveTab}
+          publishedEventCount={
+            events.filter((event) => event.isPublished).length
+          }
+          roleCount={dashboardSummary?.roleCount ?? roles.length}
+          sessionCount={
+            dashboardSummary?.sessionCount ??
+            sessions.filter((session) => !session.revokedAt).length
+          }
+          staffCount={dashboardSummary?.staffCount ?? staff.length}
+          templates={templates}
+          templateCount={templates.length}
+          userCount={dashboardSummary?.userCount ?? users.length}
+        />
+      ) : null}
+      {currentTab === "events" ? (
+        <EventsPanel
+          completeAction={completeAction}
+          designs={publicDesigns}
+          events={events}
+          request={request}
+        />
+      ) : null}
+      {currentTab === "designSetup" ? (
+        <DesignSetupPanel
+          canCreateTemplates={can(user, "template:create")}
+          canDuplicateTemplates={can(user, "template:duplicate")}
+          canPublishTemplates={can(user, "template:publish")}
+          canUnpublishTemplates={can(user, "template:unpublish")}
+          canUpdateTemplates={canAny(user, [
+            "template:update:own",
+            "template:update:all",
+          ])}
+          categories={designCategories}
+          completeAction={completeAction}
+          designs={designs}
+          onDesignsChange={setDesigns}
+          onPublicDesignsChange={setPublicDesigns}
+          onTemplatesChange={setTemplates}
+          request={request}
+          templates={templates}
+        />
+      ) : null}
+      {currentTab === "settings" ? (
+        <SettingsPanel
+          canManageCategories={can(user, "category:manage")}
+          canManageSubcategories={can(user, "subcategory:manage")}
+          categories={designCategories}
+          completeAction={completeAction}
+          request={request}
+        />
+      ) : null}
+      {currentTab === "profile" ? (
+        <ProfilePanel
+          logout={logout}
+          refresh={() => refreshAdminData()}
+          user={user}
+        />
+      ) : null}
+      {currentTab === "website" ? (
+        <WebsitePanel
+          canManageBlog={canAny(user, ["blog:manage:own", "blog:manage:all"])}
+          canManageContent={can(user, "content:manage")}
+          completeAction={completeAction}
+          onPagesChange={setPages}
+          onPostsChange={setBlogPosts}
+          pages={pages}
+          posts={blogPosts}
+          request={request}
+        />
+      ) : null}
+      {["staff", "roles", "permissions"].includes(currentTab) &&
+      canAny(user, ["staff:view", "roles:view", "permissions:view"]) ? (
+        <StaffAccessPanel
+          canViewAudit={can(user, "audit:view")}
+          canViewSessions={can(user, "sessions:view")}
+          canManagePermissions={can(user, "permissions:manage")}
+          canManageRoles={can(user, "roles:manage")}
+          canManageStaff={can(user, "staff:manage")}
+          canManageSessions={can(user, "sessions:manage")}
+          canViewPermissions={can(user, "permissions:view")}
+          canViewRoles={can(user, "roles:view")}
+          canViewStaff={can(user, "staff:view")}
+          completeAction={completeAction}
+          hasMore={staffNextSkip !== null}
+          initialSection={
+            currentTab === "permissions"
+              ? "permissions"
+              : currentTab === "roles"
+                ? "roles"
+                : "staff"
+          }
+          isLoadingMore={isRefreshing}
+          loadAccessCatalog={loadAccessCatalog}
+          loadMore={() => loadMoreAccounts("staff")}
+          onRolesChange={setRoles}
+          permissions={permissions}
+          request={request}
+          roles={roles}
+          staff={staff}
+        />
+      ) : null}
+      {currentTab === "users" && can(user, "staff:view") ? (
+        <UsersPanel
+          canViewAudit={can(user, "audit:view")}
+          canViewSessions={can(user, "sessions:view")}
+          canManage={can(user, "staff:manage")}
+          canManageSessions={can(user, "sessions:manage")}
+          completeAction={completeAction}
+          hasMore={usersNextSkip !== null}
+          isLoadingMore={isRefreshing}
+          loadMore={() => loadMoreAccounts("users")}
+          request={request}
+          users={users}
+        />
+      ) : null}
+      {currentTab === "sessions" && can(user, "sessions:view") ? (
+        <SessionsPanel
+          canManage={can(user, "sessions:manage")}
+          completeAction={completeAction}
+          request={request}
+          sessions={sessions}
+        />
+      ) : null}
+      {currentTab === "audit" && can(user, "audit:view") ? (
+        <AuditPanel logs={auditLogs} />
+      ) : null}
 
       <DashboardToastView onDismiss={dismissToast} toast={toast} />
     </div>
@@ -1387,7 +1395,9 @@ function DashboardToastView({
     <div aria-live="polite" className="dashboard-toast-region">
       <div
         className={`dashboard-toast ${
-          toast.tone === "error" ? "dashboard-toast-error" : "dashboard-toast-success"
+          toast.tone === "error"
+            ? "dashboard-toast-error"
+            : "dashboard-toast-success"
         }`}
         key={toast.id}
         role="status"
@@ -1443,7 +1453,9 @@ function OverviewPanel({
   const uncategorizedTemplates = templates.filter(
     (template) => !template.categoryId,
   ).length;
-  const uncategorizedDesigns = designs.filter((design) => !design.category).length;
+  const uncategorizedDesigns = designs.filter(
+    (design) => !design.category,
+  ).length;
   const templatesWithoutFields = templates.filter(
     (template) => !(template.scanResult?.fields?.length ?? 0),
   ).length;
@@ -1467,7 +1479,9 @@ function OverviewPanel({
   const healthItems = [
     {
       label: "Event readiness",
-      status: draftEventCount ? `${draftEventCount} drafts need review` : "No draft backlog",
+      status: draftEventCount
+        ? `${draftEventCount} drafts need review`
+        : "No draft backlog",
       tone: draftEventCount ? "watch" : "good",
     },
     {
@@ -1477,12 +1491,16 @@ function OverviewPanel({
     },
     {
       label: "Access control",
-      status: roleCount ? `${roleCount} roles configured` : "Roles not configured",
+      status: roleCount
+        ? `${roleCount} roles configured`
+        : "Roles not configured",
       tone: roleCount ? "good" : "watch",
     },
     {
       label: "Audit trail",
-      status: auditCount ? `${auditCount} recent events` : "No audit events yet",
+      status: auditCount
+        ? `${auditCount} recent events`
+        : "No audit events yet",
       tone: "neutral",
     },
   ];
@@ -1872,10 +1890,7 @@ function EventFields({
         </select>
       </label>
       {designFields.map((field) => (
-        <label
-          className="field md:col-span-2"
-          key={field.key}
-        >
+        <label className="field md:col-span-2" key={field.key}>
           <span className="text-sm font-bold text-ink">
             {field.label}
             {field.paid ? " · paid custom" : ""}
@@ -1995,10 +2010,17 @@ function DesignSetupPanel({
 
   const filteredDesigns = designs.filter((design) => {
     const search = librarySearch.trim().toLowerCase();
-    const current = design.versions.find((version) => version.status === "CURRENT");
+    const current = design.versions.find(
+      (version) => version.status === "CURRENT",
+    );
     return (
       (!search ||
-        [design.name, design.slug, design.category?.name, design.subcategory?.name]
+        [
+          design.name,
+          design.slug,
+          design.category?.name,
+          design.subcategory?.name,
+        ]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(search))) &&
       (!categoryFilter || design.category?.id === categoryFilter) &&
@@ -2049,7 +2071,8 @@ function DesignSetupPanel({
   const selectedTemplateSummary =
     templates.find((template) => template.id === selectedTemplateId) ?? null;
   const visibleSubcategories = categoryFilter
-    ? categories.find((category) => category.id === categoryFilter)?.subcategories ?? []
+    ? (categories.find((category) => category.id === categoryFilter)
+        ?.subcategories ?? [])
     : categories.flatMap((category) => category.subcategories ?? []);
   const qualityTargets =
     libraryMode === "templates"
@@ -2230,7 +2253,9 @@ function DesignSetupPanel({
     onPublicDesignsChange(nextPublicDesigns);
 
     try {
-      onDesignsChange(await request<InvitationDesign[]>("/template-design/designs"));
+      onDesignsChange(
+        await request<InvitationDesign[]>("/template-design/designs"),
+      );
     } catch {
       // Publishing should not fail for users without private design-list access.
     }
@@ -2313,7 +2338,9 @@ function DesignSetupPanel({
         await request(`/template-design/animations/${animation.id}`, {
           method: "DELETE",
         });
-        setAnimations((items) => items.filter((item) => item.id !== animation.id));
+        setAnimations((items) =>
+          items.filter((item) => item.id !== animation.id),
+        );
       },
       "Animation deleted.",
       { refresh: false },
@@ -2322,7 +2349,9 @@ function DesignSetupPanel({
 
   async function rollbackDesign(versionId: string) {
     if (!selectedDesign) return;
-    if (!window.confirm("Create a new current version from this older version?"))
+    if (
+      !window.confirm("Create a new current version from this older version?")
+    )
       return;
     await completeAction(
       async () => {
@@ -2338,14 +2367,20 @@ function DesignSetupPanel({
     );
   }
 
-  async function assignAnimation(slotKey: string, animationComponentId: string) {
+  async function assignAnimation(
+    slotKey: string,
+    animationComponentId: string,
+  ) {
     if (!selectedTemplate) return;
     await completeAction(
       async () => {
-        await request(`/template-design/templates/${selectedTemplate.id}/animations`, {
-          method: "POST",
-          body: JSON.stringify({ slotKey, animationComponentId }),
-        });
+        await request(
+          `/template-design/templates/${selectedTemplate.id}/animations`,
+          {
+            method: "POST",
+            body: JSON.stringify({ slotKey, animationComponentId }),
+          },
+        );
         await reloadSelectedTemplate(selectedTemplate.id);
       },
       "Animation connected to template slot.",
@@ -2368,12 +2403,11 @@ function DesignSetupPanel({
     );
   }
 
-  function updateEditorField(
-    key: string,
-    patch: Partial<TemplateEditorField>,
-  ) {
+  function updateEditorField(key: string, patch: Partial<TemplateEditorField>) {
     setEditorFields((fields) =>
-      fields.map((field) => (field.key === key ? { ...field, ...patch } : field)),
+      fields.map((field) =>
+        field.key === key ? { ...field, ...patch } : field,
+      ),
     );
   }
 
@@ -2423,7 +2457,10 @@ function DesignSetupPanel({
         >
           Back to designs
         </button>
-        <DesignDetailPanel design={selectedDesign} onRollback={rollbackDesign} />
+        <DesignDetailPanel
+          design={selectedDesign}
+          onRollback={rollbackDesign}
+        />
       </section>
     );
   }
@@ -2723,7 +2760,9 @@ function DesignSetupPanel({
                     return (
                       <tr
                         className={`cursor-pointer border-t border-ink/10 ${
-                          selectedDesign?.id === design.id ? "bg-leaf/10" : "bg-white"
+                          selectedDesign?.id === design.id
+                            ? "bg-leaf/10"
+                            : "bg-white"
                         }`}
                         key={design.id}
                         onClick={() => setSelectedDesignId(design.id)}
@@ -2741,7 +2780,10 @@ function DesignSetupPanel({
                           {current ? `v${current.versionNumber}` : "No current"}
                         </td>
                         <td className="px-4 py-3">
-                          <FeatureBadges scanResult={current?.scanResult} compact />
+                          <FeatureBadges
+                            scanResult={current?.scanResult}
+                            compact
+                          />
                           <QualityChecklist
                             checks={designQualityChecks(design)}
                             compact
@@ -2802,7 +2844,10 @@ function DesignSetupPanel({
                         {template.scanResult?.sections?.length ?? 0} sections
                       </td>
                       <td className="px-4 py-3">
-                        <FeatureBadges scanResult={template.scanResult} compact />
+                        <FeatureBadges
+                          scanResult={template.scanResult}
+                          compact
+                        />
                         <QualityChecklist
                           checks={templateQualityChecks(template)}
                           compact
@@ -2870,7 +2915,9 @@ function DesignDetailPanel({
   design: InvitationDesign | null;
   onRollback: (versionId: string) => void;
 }) {
-  const current = design?.versions.find((version) => version.status === "CURRENT");
+  const current = design?.versions.find(
+    (version) => version.status === "CURRENT",
+  );
   const fields = useMemo(
     () => current?.scanResult?.fields ?? scanFieldsFromHtml(current?.rawHtml),
     [current?.rawHtml, current?.scanResult?.fields],
@@ -2923,18 +2970,20 @@ function DesignDetailPanel({
             <p className="mt-2 text-sm font-bold text-ink">
               {current &&
               design.templates?.[0] &&
-              new Date(design.templates[0].updatedAt) > new Date(current.createdAt)
+              new Date(design.templates[0].updatedAt) >
+                new Date(current.createdAt)
                 ? "Outdated: template has newer unpublished changes"
                 : current && fields.length
-                ? "Healthy current design"
-                : current
-                  ? "Review required: no editable fields detected"
-                  : "Broken: no current version"}
+                  ? "Healthy current design"
+                  : current
+                    ? "Review required: no editable fields detected"
+                    : "Broken: no current version"}
             </p>
             <p className="mt-1 text-sm text-ink/55">
               Used by{" "}
               {design.versions.reduce(
-                (total, version) => total + (version._count?.publishedEvents ?? 0),
+                (total, version) =>
+                  total + (version._count?.publishedEvents ?? 0),
                 0,
               )}{" "}
               events.
@@ -2950,16 +2999,20 @@ function DesignDetailPanel({
                 key={version.id}
               >
                 <div>
-                  <p className="font-black text-ink">v{version.versionNumber}</p>
+                  <p className="font-black text-ink">
+                    v{version.versionNumber}
+                  </p>
                   <p className="text-xs text-ink/50">
-                    {version.status} · {version._count?.publishedEvents ?? 0} events ·{" "}
-                    {Math.ceil(version.htmlSize / 1024)} KB
+                    {version.status} · {version._count?.publishedEvents ?? 0}{" "}
+                    events · {Math.ceil(version.htmlSize / 1024)} KB
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     className="rounded-lg border border-ink/15 px-3 py-2 text-xs font-bold"
-                    onClick={() => openDesignPreview(design.name, version.rawHtml)}
+                    onClick={() =>
+                      openDesignPreview(design.name, version.rawHtml)
+                    }
                     type="button"
                   >
                     Compare
@@ -2992,12 +3045,18 @@ function DesignDetailPanel({
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <DesignFieldMetric label="Input" value={fieldGroups.input.length} />
+              <DesignFieldMetric
+                label="Input"
+                value={fieldGroups.input.length}
+              />
               <DesignFieldMetric
                 label="Content"
                 value={fieldGroups.content.length}
               />
-              <DesignFieldMetric label="Locked" value={fieldGroups.locked.length} />
+              <DesignFieldMetric
+                label="Locked"
+                value={fieldGroups.locked.length}
+              />
               <DesignFieldMetric label="Paid" value={fieldGroups.paid.length} />
             </div>
             <div className="grid gap-2">
@@ -3147,17 +3206,28 @@ function AnimationLibraryPanel({
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {(animation.scanResult?.openingSlots ?? []).map((slot) => (
-                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={slot}>
+                <span
+                  className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60"
+                  key={slot}
+                >
                   Opening: {slot}
                 </span>
               ))}
-              {(animation.scanResult?.backgroundEffectSlots ?? []).map((slot) => (
-                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={slot}>
-                  Background: {slot}
-                </span>
-              ))}
+              {(animation.scanResult?.backgroundEffectSlots ?? []).map(
+                (slot) => (
+                  <span
+                    className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60"
+                    key={slot}
+                  >
+                    Background: {slot}
+                  </span>
+                ),
+              )}
               {animation.scanResult?.effectAreas?.map((area) => (
-                <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60" key={area}>
+                <span
+                  className="rounded-full bg-white px-2 py-1 text-xs font-bold text-ink/60"
+                  key={area}
+                >
                   Area: {area}
                 </span>
               ))}
@@ -3218,7 +3288,9 @@ function groupedTemplateFields(fields: ScannedTemplateField[] = []) {
 }
 
 function designHasCurrentFieldMetadata(design: InvitationDesign) {
-  const current = design.versions.find((version) => version.status === "CURRENT");
+  const current = design.versions.find(
+    (version) => version.status === "CURRENT",
+  );
   return Boolean(current?.scanResult?.fields || current?.rawHtml);
 }
 
@@ -3261,7 +3333,9 @@ function templateQualityChecks(template: InvitationTemplate): QualityCheck[] {
 }
 
 function designQualityChecks(design: InvitationDesign): QualityCheck[] {
-  const current = design.versions.find((version) => version.status === "CURRENT");
+  const current = design.versions.find(
+    (version) => version.status === "CURRENT",
+  );
   const rawHtml = current?.rawHtml ?? "";
   const fields = current?.scanResult?.fields ?? [];
   return [
@@ -3301,9 +3375,14 @@ function QualityChecklist({
   compact?: boolean;
 }) {
   return (
-    <div className={compact ? "quality-mini-list compact" : "quality-mini-list"}>
+    <div
+      className={compact ? "quality-mini-list compact" : "quality-mini-list"}
+    >
       {checks.map((check) => (
-        <span className={check.ready ? "ready" : "needs-work"} key={check.label}>
+        <span
+          className={check.ready ? "ready" : "needs-work"}
+          key={check.label}
+        >
           {check.ready ? "✓" : "!"} {check.label}
           {!compact ? <em>{check.detail}</em> : null}
         </span>
@@ -3321,34 +3400,59 @@ function matchesFeatureFilter(
   return Boolean(capabilities[feature as keyof typeof capabilities]);
 }
 
-function scanCapabilities(scanResult: InvitationTemplate["scanResult"] | undefined) {
+function scanCapabilities(
+  scanResult: InvitationTemplate["scanResult"] | undefined,
+) {
   const fields = scanResult?.fields ?? [];
   const capabilities = scanResult?.capabilities;
 
   return {
     countdown: Boolean(
-      capabilities?.supportsCountdown || scanResult?.countdownFieldKey,
+      capabilities?.supportsCountdown ||
+      scanResult?.countdownFieldKey ||
+      scanResult?.countdownSlots?.length,
     ),
     invitee: Boolean(
       capabilities?.supportsInviteeName ||
-        fields.some((field) => field.key === "invitee_name") ||
-        (scanResult?.customNameFieldKeys ?? []).includes("invitee_name"),
+      fields.some((field) => field.key === "invitee_name") ||
+      (scanResult?.customNameFieldKeys ?? []).includes("invitee_name"),
     ),
     opening: Boolean(
       capabilities?.supportsOpeningAnimation ||
-        scanResult?.hasOpeningSlot ||
-        scanResult?.openingSlots?.length,
+      scanResult?.hasOpeningSlot ||
+      scanResult?.openingSlots?.length,
     ),
     background: Boolean(
       capabilities?.supportsBackgroundEffects ||
-        scanResult?.hasBackgroundEffectSlot ||
-        scanResult?.backgroundEffectSlots?.length ||
-        scanResult?.effectSlots?.length ||
-        scanResult?.effectAreas?.length,
+      scanResult?.hasBackgroundEffectSlot ||
+      scanResult?.backgroundEffectSlots?.length ||
+      scanResult?.effectSlots?.length ||
+      scanResult?.effectAreas?.length,
     ),
     gallery: Boolean(capabilities?.supportsGallery || scanResult?.hasGallery),
     music: Boolean(capabilities?.supportsMusic || scanResult?.hasMusic),
     map: Boolean(capabilities?.supportsMap || scanResult?.hasMap),
+    rsvp: Boolean(capabilities?.supportsRsvp || scanResult?.rsvpSlots?.length),
+    additionalInfo: Boolean(
+      capabilities?.supportsAdditionalInfo ||
+      scanResult?.additionalInfoSlots?.length,
+    ),
+    sharePreview: Boolean(
+      capabilities?.supportsSharePreview ||
+      scanResult?.sharePreview?.titleFieldKey ||
+      scanResult?.sharePreview?.descriptionFieldKey ||
+      scanResult?.sharePreview?.imageFieldKey,
+    ),
+    theme: Boolean(
+      capabilities?.supportsThemeStyles || scanResult?.styleSlots?.length,
+    ),
+    print: Boolean(
+      capabilities?.supportsPrintLayout || scanResult?.printPages?.length,
+    ),
+    links: Boolean(
+      capabilities?.supportsLinkedFields ||
+      scanResult?.linkableFieldKeys?.length,
+    ),
   };
 }
 
@@ -3368,6 +3472,12 @@ function FeatureBadges({
     ["gallery", "Gallery"],
     ["music", "Music"],
     ["map", "Map"],
+    ["rsvp", "RSVP"],
+    ["links", "Links"],
+    ["additionalInfo", "Additional Info"],
+    ["sharePreview", "Share Preview"],
+    ["theme", "Theme"],
+    ["print", "Print"],
   ].filter(([key]) => capabilities[key as keyof typeof capabilities]);
 
   if (!badges.length) {
@@ -3435,7 +3545,10 @@ function openDesignPreview(title: string, rawHtml?: string) {
   if (!rawHtml) return;
   const documentHtml = /<title\b/i.test(rawHtml)
     ? rawHtml
-    : rawHtml.replace(/<head\b([^>]*)>/i, `<head$1><title>${title} preview</title>`);
+    : rawHtml.replace(
+        /<head\b([^>]*)>/i,
+        `<head$1><title>${title} preview</title>`,
+      );
   const blobUrl = URL.createObjectURL(
     new Blob([documentHtml], { type: "text/html" }),
   );
@@ -3757,7 +3870,10 @@ function TemplateScanReview({ template }: { template: InvitationTemplate }) {
   const fieldsBySection = new Map<string, number>();
   fields.forEach((field) => {
     if (!field.sectionKey) return;
-    fieldsBySection.set(field.sectionKey, (fieldsBySection.get(field.sectionKey) ?? 0) + 1);
+    fieldsBySection.set(
+      field.sectionKey,
+      (fieldsBySection.get(field.sectionKey) ?? 0) + 1,
+    );
   });
   const isReady = Boolean(template.scanResult && fields.length);
 
@@ -3769,7 +3885,9 @@ function TemplateScanReview({ template }: { template: InvitationTemplate }) {
             Scan review
           </p>
           <p className="mt-1 text-sm font-bold text-ink/60">
-            {template.scannedAt ? `Scanned ${displayDate(template.scannedAt)}` : "Not scanned"}
+            {template.scannedAt
+              ? `Scanned ${displayDate(template.scannedAt)}`
+              : "Not scanned"}
           </p>
         </div>
         <span
@@ -3820,7 +3938,11 @@ function TemplateScanReview({ template }: { template: InvitationTemplate }) {
                     <td className="py-2 font-bold text-ink">{field.key}</td>
                     <td className="py-2 text-ink/60">{field.type}</td>
                     <td className="py-2 text-ink/60">
-                      {field.locked ? "Locked" : field.required ? "Required" : "Editable"}
+                      {field.locked
+                        ? "Locked"
+                        : field.required
+                          ? "Required"
+                          : "Editable"}
                     </td>
                   </tr>
                 ))}
@@ -3883,7 +4005,8 @@ function TemplateEditorPanel({
     (field) => field.key === selectedFieldKey,
   );
   const previewHtml = useMemo(
-    () => templateEditorPreviewHtml(editorRawHtml, editorFields, selectedFieldKey),
+    () =>
+      templateEditorPreviewHtml(editorRawHtml, editorFields, selectedFieldKey),
     // Field edits are synchronized with postMessage. Keeping srcDoc stable
     // prevents the iframe from reloading and stealing scroll/focus on typing.
     [editorRawHtml],
@@ -3937,7 +4060,9 @@ function TemplateEditorPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            aria-label={isSourceMode ? "Show visual preview" : "Edit source code"}
+            aria-label={
+              isSourceMode ? "Show visual preview" : "Edit source code"
+            }
             className={`grid h-11 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink ${
               isSourceMode ? "text-leaf" : ""
             }`}
@@ -3981,7 +4106,8 @@ function TemplateEditorPanel({
               Template animations
             </p>
             <p className="mt-1 text-sm text-ink/55">
-              Connect an active reusable animation to each scanned template slot.
+              Connect an active reusable animation to each scanned template
+              slot.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -4516,7 +4642,10 @@ function SettingsPanel({
                   </thead>
                   <tbody>
                     {category.subcategories.map((subcategory) => (
-                      <tr className="border-t border-ink/10" key={subcategory.id}>
+                      <tr
+                        className="border-t border-ink/10"
+                        key={subcategory.id}
+                      >
                         <td className="px-4 py-3 font-bold text-ink">
                           {subcategory.name}
                         </td>
@@ -4648,7 +4777,10 @@ async function templatePayload(form: FormData) {
 
 function extractTemplateEditorFields(template: InvitationTemplate) {
   if (!template.rawHtml || typeof DOMParser === "undefined") return [];
-  const document = new DOMParser().parseFromString(template.rawHtml, "text/html");
+  const document = new DOMParser().parseFromString(
+    template.rawHtml,
+    "text/html",
+  );
   const scannedFields = template.scanResult?.fields ?? [];
 
   return scannedFields.map((field) => {
@@ -4670,7 +4802,10 @@ function applyTemplateEditorFields(
   rawHtml: string,
   fields: TemplateEditorField[],
 ) {
-  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
+  if (
+    typeof DOMParser === "undefined" ||
+    typeof XMLSerializer === "undefined"
+  ) {
     return rawHtml;
   }
 
@@ -4689,7 +4824,11 @@ function applyTemplateEditorFields(
   return `<!doctype html>\n${new XMLSerializer().serializeToString(document)}`;
 }
 
-function setBooleanMarker(element: Element, attribute: string, enabled: boolean) {
+function setBooleanMarker(
+  element: Element,
+  attribute: string,
+  enabled: boolean,
+) {
   if (enabled) {
     element.setAttribute(attribute, "true");
     return;
@@ -4820,7 +4959,11 @@ function groupTemplateFields(
   const sectionMap = new Map(
     sections.map((section) => [
       section.key,
-      { key: section.key, label: section.label, fields: [] as TemplateEditorField[] },
+      {
+        key: section.key,
+        label: section.label,
+        fields: [] as TemplateEditorField[],
+      },
     ]),
   );
   const fallback = { key: "unsectioned", label: "Other", fields: [] };
@@ -4866,7 +5009,8 @@ function WebsitePanel({
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const query = search.trim().toLowerCase();
-  const selectedPage = pages.find((page) => page.key === selectedPageKey) ?? null;
+  const selectedPage =
+    pages.find((page) => page.key === selectedPageKey) ?? null;
   const selectedPost = posts.find((post) => post.id === selectedPostId) ?? null;
 
   const filteredPages = pages.filter((page) => {
@@ -4884,7 +5028,10 @@ function WebsitePanel({
       .some((value) => String(value).toLowerCase().includes(query));
   });
 
-  async function savePage(event: FormEvent<HTMLFormElement>, keyOverride?: string) {
+  async function savePage(
+    event: FormEvent<HTMLFormElement>,
+    keyOverride?: string,
+  ) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const key = (keyOverride || String(form.get("key") ?? "")).trim();
@@ -4984,7 +5131,11 @@ function WebsitePanel({
     setIsCreatingPost(true);
   }
 
-  if (section === "pages" && canManageContent && (isCreatingPage || selectedPage)) {
+  if (
+    section === "pages" &&
+    canManageContent &&
+    (isCreatingPage || selectedPage)
+  ) {
     return (
       <section className="mt-7 grid gap-5">
         <WebsiteEditorHeader
@@ -4993,7 +5144,9 @@ function WebsitePanel({
             setIsCreatingPage(false);
             setSelectedPageKey("");
           }}
-          title={isCreatingPage ? "Add New Page" : selectedPage?.title || "Page"}
+          title={
+            isCreatingPage ? "Add New Page" : selectedPage?.title || "Page"
+          }
         />
         <form
           className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
@@ -5095,7 +5248,9 @@ function WebsitePanel({
             setIsCreatingPost(false);
             setSelectedPostId("");
           }}
-          title={isCreatingPost ? "Add New Post" : selectedPost?.title || "Post"}
+          title={
+            isCreatingPost ? "Add New Post" : selectedPost?.title || "Post"
+          }
         />
         <form
           className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"
@@ -5138,7 +5293,9 @@ function WebsitePanel({
               />
             </label>
             <label className="field">
-              <span className="text-sm font-bold text-ink">Citation summary</span>
+              <span className="text-sm font-bold text-ink">
+                Citation summary
+              </span>
               <textarea
                 className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
                 defaultValue={selectedPost?.citationSummary ?? ""}
@@ -5205,7 +5362,10 @@ function WebsitePanel({
               <div className="mt-4 grid gap-4">
                 <label className="field">
                   <span className="text-sm font-bold text-ink">Meta title</span>
-                  <input defaultValue={selectedPost?.metaTitle ?? ""} name="metaTitle" />
+                  <input
+                    defaultValue={selectedPost?.metaTitle ?? ""}
+                    name="metaTitle"
+                  />
                 </label>
                 <label className="field">
                   <span className="text-sm font-bold text-ink">
@@ -5219,7 +5379,10 @@ function WebsitePanel({
                 </label>
                 <label className="field">
                   <span className="text-sm font-bold text-ink">Keywords</span>
-                  <input defaultValue={selectedPost?.keywords ?? ""} name="keywords" />
+                  <input
+                    defaultValue={selectedPost?.keywords ?? ""}
+                    name="keywords"
+                  />
                 </label>
               </div>
             </div>
@@ -5262,7 +5425,8 @@ function WebsitePanel({
               Pages and blog posts
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Manage website content from a table first, then open one item to edit.
+              Manage website content from a table first, then open one item to
+              edit.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -5506,7 +5670,10 @@ function WebsiteTable({
               onClick={row.onClick}
             >
               {row.cells.map((cell, index) => (
-                <td className="px-4 py-3 text-ink/65" key={`${row.id}-${index}`}>
+                <td
+                  className="px-4 py-3 text-ink/65"
+                  key={`${row.id}-${index}`}
+                >
                   {cell}
                 </td>
               ))}
@@ -5775,8 +5942,7 @@ function RolesPanel({
 }) {
   const [editingRoleId, setEditingRoleId] = useState("");
   const [isCreatingRole, setIsCreatingRole] = useState(false);
-  const editingRole =
-    roles.find((role) => role.id === editingRoleId) ?? null;
+  const editingRole = roles.find((role) => role.id === editingRoleId) ?? null;
 
   async function createRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -5841,7 +6007,9 @@ function RolesPanel({
     const completed = await completeAction(
       async () => {
         await request(`/admin/roles/${role.id}`, { method: "DELETE" });
-        onRolesChange((current) => current.filter((item) => item.id !== role.id));
+        onRolesChange((current) =>
+          current.filter((item) => item.id !== role.id),
+        );
       },
       "Role deleted.",
       { refresh: false },
@@ -5975,16 +6143,13 @@ function permissionGroupLabel(key: string) {
 }
 
 function groupPermissions(permissions: Permission[]) {
-  const grouped = permissions.reduce(
-    (groups, permission) => {
-      const label = permissionGroupLabel(permission.key);
-      const existing = groups.get(label) ?? [];
-      existing.push(permission);
-      groups.set(label, existing);
-      return groups;
-    },
-    new Map<string, Permission[]>(),
-  );
+  const grouped = permissions.reduce((groups, permission) => {
+    const label = permissionGroupLabel(permission.key);
+    const existing = groups.get(label) ?? [];
+    existing.push(permission);
+    groups.set(label, existing);
+    return groups;
+  }, new Map<string, Permission[]>());
 
   return Array.from(grouped.entries())
     .map(([label, items]) => ({
@@ -6101,8 +6266,9 @@ function PermissionsPanel({
 }) {
   const [selectedPermissionKey, setSelectedPermissionKey] = useState("");
   const selectedPermission =
-    permissions.find((permission) => permission.key === selectedPermissionKey) ??
-    null;
+    permissions.find(
+      (permission) => permission.key === selectedPermissionKey,
+    ) ?? null;
   const selectedAssignedRoles = selectedPermission
     ? roles.filter((role) =>
         role.permissions.some(
@@ -6522,42 +6688,42 @@ function StaffPanel({
     <section className="grid gap-5">
       <div className="grid gap-3 rounded-lg border border-ink/10 bg-white p-4 lg:grid-cols-[minmax(260px,1.5fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)_auto] lg:items-end">
         <label className="field">
-            <span className="text-sm font-bold text-ink">Search staff</span>
-            <input
-              onChange={(event) => setStaffSearch(event.target.value)}
-              placeholder="Name, email, role, status"
-              value={staffSearch}
-            />
+          <span className="text-sm font-bold text-ink">Search staff</span>
+          <input
+            onChange={(event) => setStaffSearch(event.target.value)}
+            placeholder="Name, email, role, status"
+            value={staffSearch}
+          />
         </label>
         <label className="field">
-            <span className="text-sm font-bold text-ink">Role</span>
-            <select
-              className="rounded-lg border border-ink/20 bg-white px-3 py-3"
-              onChange={(event) => setRoleFilter(event.target.value)}
-              value={roleFilter}
-            >
-              <option value="">All roles</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
+          <span className="text-sm font-bold text-ink">Role</span>
+          <select
+            className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+            onChange={(event) => setRoleFilter(event.target.value)}
+            value={roleFilter}
+          >
+            <option value="">All roles</option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
-            <span className="text-sm font-bold text-ink">Status</span>
-            <select
-              className="rounded-lg border border-ink/20 bg-white px-3 py-3"
-              onChange={(event) => setStatusFilter(event.target.value)}
-              value={statusFilter}
-            >
-              <option value="">All statuses</option>
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+          <span className="text-sm font-bold text-ink">Status</span>
+          <select
+            className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+            onChange={(event) => setStatusFilter(event.target.value)}
+            value={statusFilter}
+          >
+            <option value="">All statuses</option>
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
         </label>
         {canManage ? (
           <button
@@ -6642,8 +6808,9 @@ function StaffPanel({
                   {member.status}
                 </td>
                 <td className="px-4 py-3 text-ink/60">
-                  {member.roles.map((userRole) => userRole.role.name).join(", ") ||
-                    "No roles"}
+                  {member.roles
+                    .map((userRole) => userRole.role.name)
+                    .join(", ") || "No roles"}
                 </td>
                 <td className="px-4 py-3 text-ink/55">
                   {displayDate(member.lastLoginAt)}
@@ -6666,7 +6833,6 @@ function StaffPanel({
           {isLoadingMore ? "Loading..." : "Load more staff"}
         </button>
       ) : null}
-
     </section>
   );
 }
@@ -6860,27 +7026,27 @@ function UsersPanel({
           </thead>
           <tbody>
             {filteredUsers.map((account) => (
-                <tr
-                  className="cursor-pointer border-t border-ink/10 bg-white"
-                  key={account.id}
-                  onClick={() => setSelectedUserId(account.id)}
-                >
-                  <td className="px-4 py-3">
-                    <p className="font-black text-ink">{account.name}</p>
-                    <p className="break-all text-xs text-ink/45">
-                      {account.email}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 font-bold text-leaf">
-                    {account.status}
-                  </td>
-                  <td className="px-4 py-3 text-ink/55">
-                    {displayDate(account.lastLoginAt)}
-                  </td>
-                  <td className="px-4 py-3 text-ink/55">
-                    {displayDate(account.createdAt)}
-                  </td>
-                </tr>
+              <tr
+                className="cursor-pointer border-t border-ink/10 bg-white"
+                key={account.id}
+                onClick={() => setSelectedUserId(account.id)}
+              >
+                <td className="px-4 py-3">
+                  <p className="font-black text-ink">{account.name}</p>
+                  <p className="break-all text-xs text-ink/45">
+                    {account.email}
+                  </p>
+                </td>
+                <td className="px-4 py-3 font-bold text-leaf">
+                  {account.status}
+                </td>
+                <td className="px-4 py-3 text-ink/55">
+                  {displayDate(account.lastLoginAt)}
+                </td>
+                <td className="px-4 py-3 text-ink/55">
+                  {displayDate(account.createdAt)}
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -6962,7 +7128,9 @@ function AccountActivity({
           : (current?.auditNextSkip ?? auditNextSkip),
       cachedAt: Date.now(),
       sessions: patch.sessions ?? current?.sessions ?? sessions,
-      sessionsLoaded: patch.sessions ? true : (current?.sessionsLoaded ?? false),
+      sessionsLoaded: patch.sessions
+        ? true
+        : (current?.sessionsLoaded ?? false),
       sessionsNextSkip:
         patch.sessionsNextSkip !== undefined
           ? patch.sessionsNextSkip
@@ -6978,7 +7146,8 @@ function AccountActivity({
         const page = await request<PaginatedResponse<Session>>(
           `/admin/accounts/${accountId}/sessions?skip=${skip}&take=30`,
         );
-        const nextSessions = skip === 0 ? page.items : [...sessions, ...page.items];
+        const nextSessions =
+          skip === 0 ? page.items : [...sessions, ...page.items];
         setSessions(nextSessions);
         setSessionsNextSkip(page.nextSkip);
         rememberActivityCache({
