@@ -180,6 +180,7 @@ type InvitationTemplate = {
       supportsBackgroundEffects?: boolean;
     };
   } | null;
+  featureConfig?: InvitationFeatureConfig | null;
   scannedAt?: string | null;
   designId?: string | null;
   design?: {
@@ -223,6 +224,7 @@ type InvitationDesign = {
     rawHtml?: string;
     htmlSize: number;
     scanResult?: InvitationTemplate["scanResult"];
+    featureConfig?: InvitationFeatureConfig | null;
     createdAt: string;
     _count?: { publishedEvents: number };
   }[];
@@ -254,6 +256,22 @@ type AnimationComponent = {
 type ScannedTemplateField = NonNullable<
   NonNullable<InvitationTemplate["scanResult"]>["fields"]
 >[number];
+
+type InvitationFeatureConfig = {
+  countdown?: {
+    available?: boolean;
+    defaultEnabled?: boolean;
+    position?: "top" | "middle" | "bottom";
+  };
+  rsvp?: { available?: boolean; defaultEnabled?: boolean };
+  music?: { available?: boolean; defaultEnabled?: boolean };
+  additionalInfo?: { available?: boolean; defaultEnabled?: boolean };
+  openingAnimation?: { available?: boolean; defaultEnabled?: boolean };
+  theme?: { available?: boolean };
+  sharePreview?: { available?: boolean };
+  print?: { available?: boolean };
+  links?: { available?: boolean };
+};
 
 type PageContent = {
   id: string;
@@ -1971,6 +1989,8 @@ function DesignSetupPanel({
     useState<InvitationTemplate | null>(null);
   const [editorRawHtml, setEditorRawHtml] = useState("");
   const [editorFields, setEditorFields] = useState<TemplateEditorField[]>([]);
+  const [templateFeatureConfig, setTemplateFeatureConfig] =
+    useState<InvitationFeatureConfig>({});
   const [selectedFieldKey, setSelectedFieldKey] = useState<string>("");
 
   const selectedField = editorFields.find(
@@ -2172,6 +2192,9 @@ function DesignSetupPanel({
     templateDetailCache.set(templateId, { cachedAt: Date.now(), template });
     setSelectedTemplate(template);
     setEditorRawHtml(template.rawHtml ?? "");
+    setTemplateFeatureConfig(
+      defaultFeatureConfig(template.scanResult, template.featureConfig),
+    );
     const fields = extractTemplateEditorFields(template);
     setEditorFields(fields);
     setSelectedFieldKey(fields[0]?.key ?? "");
@@ -2184,7 +2207,13 @@ function DesignSetupPanel({
       `/template-design/templates/${selectedTemplate.id}`,
       {
         method: "PATCH",
-        body: JSON.stringify({ rawHtml }),
+        body: JSON.stringify({
+          rawHtml,
+          featureConfig: defaultFeatureConfig(
+            selectedTemplate.scanResult,
+            templateFeatureConfig,
+          ),
+        }),
       },
     );
     const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
@@ -2195,6 +2224,9 @@ function DesignSetupPanel({
     setSelectedTemplate(nextTemplate);
     setEditorRawHtml(rawHtml);
     setEditorFields(extractTemplateEditorFields(nextTemplate));
+    setTemplateFeatureConfig(
+      defaultFeatureConfig(nextTemplate.scanResult, nextTemplate.featureConfig),
+    );
     upsertTemplateSummary(template);
     return nextTemplate;
   }
@@ -2494,8 +2526,10 @@ function DesignSetupPanel({
             canUnpublishTemplates={canUnpublishTemplates}
             editorRawHtml={editorRawHtml}
             editorFields={editorFields}
+            featureConfig={templateFeatureConfig}
             onBack={() => setSelectedTemplateId("")}
             onAssignAnimation={assignAnimation}
+            onFeatureConfigChange={setTemplateFeatureConfig}
             onPublish={publishTemplate}
             onRemoveAnimation={removeAnimationAssignment}
             onSave={saveTemplateDraft}
@@ -2890,8 +2924,10 @@ function DesignSetupPanel({
           animations={animations}
           editorRawHtml={editorRawHtml}
           editorFields={editorFields}
+          featureConfig={templateFeatureConfig}
           onBack={() => setSelectedTemplateId("")}
           onAssignAnimation={assignAnimation}
+          onFeatureConfigChange={setTemplateFeatureConfig}
           onPublish={publishTemplate}
           onRemoveAnimation={removeAnimationAssignment}
           onSave={saveTemplateDraft}
@@ -3398,6 +3434,43 @@ function matchesFeatureFilter(
   if (!feature) return true;
   const capabilities = scanCapabilities(scanResult);
   return Boolean(capabilities[feature as keyof typeof capabilities]);
+}
+
+function defaultFeatureConfig(
+  scanResult: InvitationTemplate["scanResult"] | undefined,
+  config?: InvitationFeatureConfig | null,
+): InvitationFeatureConfig {
+  const capabilities = scanCapabilities(scanResult);
+  return {
+    countdown: {
+      available: capabilities.countdown,
+      defaultEnabled: config?.countdown?.defaultEnabled ?? true,
+      position:
+        config?.countdown?.position ??
+        scanResult?.countdownPosition ??
+        "bottom",
+    },
+    rsvp: {
+      available: capabilities.rsvp,
+      defaultEnabled: config?.rsvp?.defaultEnabled ?? false,
+    },
+    music: {
+      available: capabilities.music,
+      defaultEnabled: config?.music?.defaultEnabled ?? false,
+    },
+    additionalInfo: {
+      available: capabilities.additionalInfo,
+      defaultEnabled: config?.additionalInfo?.defaultEnabled ?? false,
+    },
+    openingAnimation: {
+      available: capabilities.opening,
+      defaultEnabled: config?.openingAnimation?.defaultEnabled ?? false,
+    },
+    theme: { available: capabilities.theme },
+    sharePreview: { available: capabilities.sharePreview },
+    print: { available: capabilities.print },
+    links: { available: capabilities.links },
+  };
 }
 
 function scanCapabilities(
@@ -3958,14 +4031,158 @@ function TemplateScanReview({ template }: { template: InvitationTemplate }) {
   );
 }
 
+function TemplateCapabilityPanel({
+  featureConfig,
+  onChange,
+  scanResult,
+}: {
+  featureConfig: InvitationFeatureConfig;
+  onChange: Dispatch<SetStateAction<InvitationFeatureConfig>>;
+  scanResult: InvitationTemplate["scanResult"] | undefined;
+}) {
+  const config = defaultFeatureConfig(scanResult, featureConfig);
+  const rows = [
+    {
+      key: "rsvp",
+      label: "RSVP entry",
+      detail: "Shows the RSVP button area on invitations.",
+      enabled: config.rsvp?.defaultEnabled,
+      available: config.rsvp?.available,
+    },
+    {
+      key: "music",
+      label: "Music control",
+      detail: "Lets hosts add a music URL later.",
+      enabled: config.music?.defaultEnabled,
+      available: config.music?.available,
+    },
+    {
+      key: "additionalInfo",
+      label: "Additional information",
+      detail: "Optional footer area for contact or extra notes.",
+      enabled: config.additionalInfo?.defaultEnabled,
+      available: config.additionalInfo?.available,
+    },
+    {
+      key: "openingAnimation",
+      label: "Opening animation",
+      detail: "Lets hosts pick or disable assigned opening animation.",
+      enabled: config.openingAnimation?.defaultEnabled,
+      available: config.openingAnimation?.available,
+    },
+  ] as const;
+
+  function updateFeature(
+    key: keyof InvitationFeatureConfig,
+    patch: Record<string, unknown>,
+  ) {
+    onChange((current) =>
+      defaultFeatureConfig(scanResult, {
+        ...current,
+        [key]: {
+          ...(current[key] as Record<string, unknown> | undefined),
+          ...patch,
+        },
+      }),
+    );
+  }
+
+  return (
+    <section className="grid gap-4 border-b border-ink/10 bg-white p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
+            Template capabilities
+          </p>
+          <p className="mt-1 max-w-2xl text-sm text-ink/55">
+            These defaults control what hosts see when creating an invitation
+            from this template.
+          </p>
+        </div>
+        <FeatureBadges scanResult={scanResult} compact />
+      </div>
+
+      {config.countdown?.available ? (
+        <div className="grid gap-3 rounded-lg border border-ink/10 bg-paper/60 p-3 md:grid-cols-[minmax(0,1fr)_160px_150px] md:items-center">
+          <div>
+            <p className="text-sm font-black text-ink">Countdown</p>
+            <p className="mt-1 text-xs font-bold text-ink/50">
+              Host can turn it off. Admin fixes the default position.
+            </p>
+          </div>
+          <select
+            className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold"
+            onChange={(event) =>
+              updateFeature("countdown", { position: event.target.value })
+            }
+            value={config.countdown.position ?? "bottom"}
+          >
+            <option value="top">Top</option>
+            <option value="middle">Middle</option>
+            <option value="bottom">Bottom</option>
+          </select>
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-ink/10 bg-white px-3 py-2 text-sm font-black text-ink">
+            Enabled
+            <input
+              checked={Boolean(config.countdown.defaultEnabled)}
+              onChange={(event) =>
+                updateFeature("countdown", {
+                  defaultEnabled: event.target.checked,
+                })
+              }
+              type="checkbox"
+            />
+          </label>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {rows.map((row) => (
+          <label
+            className={`grid gap-2 rounded-lg border p-3 ${
+              row.available
+                ? "border-ink/10 bg-paper/60"
+                : "border-ink/5 bg-ink/[0.03] text-ink/40"
+            }`}
+            key={row.key}
+          >
+            <span className="flex items-start justify-between gap-3">
+              <span>
+                <span className="block text-sm font-black">{row.label}</span>
+                <span className="mt-1 block text-xs font-bold opacity-70">
+                  {row.available
+                    ? row.detail
+                    : "No matching slot was scanned in this template."}
+                </span>
+              </span>
+              <input
+                checked={Boolean(row.enabled)}
+                disabled={!row.available}
+                onChange={(event) =>
+                  updateFeature(row.key, {
+                    defaultEnabled: event.target.checked,
+                  })
+                }
+                type="checkbox"
+              />
+            </span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TemplateEditorPanel({
   animations,
   canPublishTemplates,
   canUnpublishTemplates,
   editorRawHtml,
   editorFields,
+  featureConfig,
   onBack,
   onAssignAnimation,
+  onFeatureConfigChange,
   onPublish,
   onRemoveAnimation,
   onSave,
@@ -3982,8 +4199,10 @@ function TemplateEditorPanel({
   canUnpublishTemplates: boolean;
   editorRawHtml: string;
   editorFields: TemplateEditorField[];
+  featureConfig: InvitationFeatureConfig;
   onBack: () => void;
   onAssignAnimation: (slotKey: string, animationComponentId: string) => void;
+  onFeatureConfigChange: Dispatch<SetStateAction<InvitationFeatureConfig>>;
   onPublish: (templateId: string) => void;
   onRemoveAnimation: (assignmentId: string) => void;
   onSave: () => void;
@@ -4099,6 +4318,11 @@ function TemplateEditorPanel({
           ) : null}
         </div>
       </div>
+      <TemplateCapabilityPanel
+        featureConfig={featureConfig}
+        scanResult={selectedTemplate.scanResult}
+        onChange={onFeatureConfigChange}
+      />
       {animationSlots.length ? (
         <section className="grid gap-3 border-b border-ink/10 bg-paper/50 p-4">
           <div>

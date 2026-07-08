@@ -1,4 +1,5 @@
 import {
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -28,4 +29,8 @@ export class CreateInvitationTemplateDto {
   @IsOptional()
   @IsString()
   subcategoryId?: string;
+
+  @IsOptional()
+  @IsObject()
+  featureConfig?: Record<string, unknown>;
 }

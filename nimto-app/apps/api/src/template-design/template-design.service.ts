@@ -59,6 +59,8 @@ type TemplateSharePreview = {
   imageFieldKey?: string;
 };
 
+type TemplateFeatureConfig = Prisma.InputJsonObject;
+
 type TemplateScanResult = {
   version: 1;
   title?: string;
@@ -400,6 +402,7 @@ export class TemplateDesignService {
                 rawHtml: true,
                 htmlSize: true,
                 scanResult: true,
+                featureConfig: true,
                 createdAt: true,
               },
             },
@@ -429,6 +432,7 @@ export class TemplateDesignService {
             sourceFileName: true,
             htmlSize: true,
             scanResult: true,
+            featureConfig: true,
             scannedAt: true,
             designId: true,
             design: {
@@ -547,6 +551,7 @@ export class TemplateDesignService {
                 rawHtml: true,
                 htmlSize: true,
                 scanResult: true,
+                featureConfig: true,
                 createdAt: true,
                 _count: { select: { publishedEvents: true } },
               },
@@ -650,6 +655,7 @@ export class TemplateDesignService {
           rawHtml: source.rawHtml,
           htmlSize: source.htmlSize,
           scanResult: source.scanResult ?? undefined,
+          featureConfig: source.featureConfig ?? undefined,
           publishedById: context.actorId,
         },
       });
@@ -670,6 +676,10 @@ export class TemplateDesignService {
   ) {
     this.assertNimtoHtml(dto.rawHtml);
     const scanResult = this.scanTemplateHtml(dto.rawHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      dto.featureConfig,
+      scanResult,
+    );
     await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
 
     const template = await this.prisma.invitationTemplate.create({
@@ -679,6 +689,7 @@ export class TemplateDesignService {
         sourceFileName: dto.sourceFileName?.trim() || null,
         htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
         scanResult,
+        featureConfig,
         scannedAt: new Date(),
         categoryId: dto.categoryId || null,
         subcategoryId: dto.subcategoryId || null,
@@ -691,6 +702,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         designId: true,
         categoryId: true,
@@ -733,6 +745,8 @@ export class TemplateDesignService {
         sourceFileName: template.sourceFileName,
         htmlSize: template.htmlSize,
         scanResult,
+        featureConfig:
+          (template.featureConfig as Prisma.InputJsonValue | null) ?? undefined,
         scannedAt: new Date(),
         categoryId: template.categoryId,
         subcategoryId: template.subcategoryId,
@@ -745,6 +759,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         categoryId: true,
         subcategoryId: true,
@@ -783,6 +798,17 @@ export class TemplateDesignService {
     const scanResult = dto.rawHtml
       ? this.scanTemplateHtml(dto.rawHtml)
       : undefined;
+    const nextScanResult =
+      scanResult ?? (existing.scanResult as TemplateScanResult | undefined);
+    const featureConfig =
+      dto.featureConfig !== undefined
+        ? this.normalizeFeatureConfig(dto.featureConfig, nextScanResult)
+        : scanResult
+          ? this.normalizeFeatureConfig(
+              existing.featureConfig as Record<string, unknown> | null,
+              scanResult,
+            )
+          : undefined;
     if (dto.rawHtml) {
       this.assertNimtoHtml(dto.rawHtml);
     }
@@ -801,6 +827,7 @@ export class TemplateDesignService {
           ? Buffer.byteLength(dto.rawHtml, "utf8")
           : undefined,
         scanResult,
+        featureConfig,
         scannedAt: dto.rawHtml ? new Date() : undefined,
         categoryId: dto.categoryId,
         subcategoryId: dto.subcategoryId,
@@ -813,6 +840,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         designId: true,
         categoryId: true,
@@ -858,6 +886,10 @@ export class TemplateDesignService {
         })),
     );
     const scanResult = this.scanTemplateHtml(publishedHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      template.featureConfig as Record<string, unknown> | null,
+      scanResult,
+    );
     const design = await this.prisma.$transaction(async (tx) => {
       const existingDesign = template.designId
         ? await tx.invitationDesign.findUnique({
@@ -909,6 +941,7 @@ export class TemplateDesignService {
           rawHtml: publishedHtml,
           htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
           scanResult,
+          featureConfig,
           publishedById: context.actorId,
         },
       });
@@ -918,6 +951,7 @@ export class TemplateDesignService {
           status: TemplateStatus.PUBLISHED,
           designId: nextDesign.id,
           scanResult,
+          featureConfig,
           scannedAt: new Date(),
         },
       });
@@ -1001,9 +1035,13 @@ export class TemplateDesignService {
     }
 
     const scanResult = this.scanTemplateHtml(existing.rawHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      existing.featureConfig as Record<string, unknown> | null,
+      scanResult,
+    );
     const template = await this.prisma.invitationTemplate.update({
       where: { id: templateId },
-      data: { scanResult, scannedAt: new Date() },
+      data: { scanResult, featureConfig, scannedAt: new Date() },
       select: {
         id: true,
         name: true,
@@ -1011,6 +1049,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         categoryId: true,
         subcategoryId: true,
@@ -1737,6 +1776,96 @@ export class TemplateDesignService {
         );
       }
     }
+  }
+
+  private normalizeFeatureConfig(
+    value: Record<string, unknown> | null | undefined,
+    scanResult?: TemplateScanResult,
+  ): TemplateFeatureConfig {
+    const source = value && typeof value === "object" ? value : {};
+    const capabilities = scanResult?.capabilities;
+
+    return {
+      countdown: {
+        available: Boolean(capabilities?.supportsCountdown),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["countdown", "defaultEnabled"],
+          true,
+        ),
+        position:
+          this.positionConfig(source, ["countdown", "position"]) ??
+          scanResult?.countdownPosition ??
+          "bottom",
+      },
+      rsvp: {
+        available: Boolean(capabilities?.supportsRsvp),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["rsvp", "defaultEnabled"],
+          false,
+        ),
+      },
+      music: {
+        available: Boolean(capabilities?.supportsMusic),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["music", "defaultEnabled"],
+          false,
+        ),
+      },
+      additionalInfo: {
+        available: Boolean(capabilities?.supportsAdditionalInfo),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["additionalInfo", "defaultEnabled"],
+          false,
+        ),
+      },
+      openingAnimation: {
+        available: Boolean(capabilities?.supportsOpeningAnimation),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["openingAnimation", "defaultEnabled"],
+          false,
+        ),
+      },
+      theme: {
+        available: Boolean(capabilities?.supportsThemeStyles),
+      },
+      sharePreview: {
+        available: Boolean(capabilities?.supportsSharePreview),
+      },
+      print: {
+        available: Boolean(capabilities?.supportsPrintLayout),
+      },
+      links: {
+        available: Boolean(capabilities?.supportsLinkedFields),
+      },
+    };
+  }
+
+  private booleanConfig(
+    source: Record<string, unknown>,
+    path: [string, string],
+    defaultValue: boolean,
+  ) {
+    const group = source[path[0]];
+    if (!group || typeof group !== "object") return defaultValue;
+    const value = (group as Record<string, unknown>)[path[1]];
+    return typeof value === "boolean" ? value : defaultValue;
+  }
+
+  private positionConfig(
+    source: Record<string, unknown>,
+    path: [string, string],
+  ): "top" | "middle" | "bottom" | undefined {
+    const group = source[path[0]];
+    if (!group || typeof group !== "object") return undefined;
+    const value = (group as Record<string, unknown>)[path[1]];
+    return value === "top" || value === "middle" || value === "bottom"
+      ? value
+      : undefined;
   }
 
   private templateMeta(rawHtml: string) {

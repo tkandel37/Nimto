@@ -191,25 +191,26 @@ model DesignSubcategory {
 }
 
 model InvitationTemplate {
-  id             String             @id @default(cuid())
-  name           String
-  status         TemplateStatus     @default(DRAFT)
-  rawHtml        String
-  sourceFileName String?
-  htmlSize       Int
-  scanResult     Json?
-  scannedAt      DateTime?
-  designId       String?
-  design         InvitationDesign?  @relation(fields: [designId], references: [id], onDelete: SetNull)
-  categoryId     String?
-  category       DesignCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  subcategoryId  String?
-  subcategory    DesignSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
-  createdById    String?
-  createdBy      User?              @relation("InvitationTemplatesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  id                   String                        @id @default(cuid())
+  name                 String
+  status               TemplateStatus                @default(DRAFT)
+  rawHtml              String
+  sourceFileName       String?
+  htmlSize             Int
+  scanResult           Json?
+  featureConfig        Json?
+  scannedAt            DateTime?
+  designId             String?
+  design               InvitationDesign?             @relation(fields: [designId], references: [id], onDelete: SetNull)
+  categoryId           String?
+  category             DesignCategory?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subcategoryId        String?
+  subcategory          DesignSubcategory?            @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  createdById          String?
+  createdBy            User?                         @relation("InvitationTemplatesCreated", fields: [createdById], references: [id], onDelete: SetNull)
   animationAssignments TemplateAnimationAssignment[]
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
 
   @@index([status, createdAt])
   @@index([createdById])
@@ -243,23 +244,24 @@ model InvitationDesign {
 }
 
 model DesignVersion {
-  id               String              @id @default(cuid())
+  id               String                @id @default(cuid())
   designId         String
-  design           InvitationDesign    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  design           InvitationDesign      @relation(fields: [designId], references: [id], onDelete: Cascade)
   templateId       String?
   versionNumber    Int
-  status           DesignVersionStatus @default(CURRENT)
+  status           DesignVersionStatus   @default(CURRENT)
   name             String
   rawHtml          String
   htmlSize         Int
   scanResult       Json?
+  featureConfig    Json?
   publishedById    String?
-  publishedBy      User?               @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
-  publishedEvents  Event[]             @relation("PublishedEventDesign")
-  draftEvents      Event[]             @relation("DraftEventDesign")
+  publishedBy      User?                 @relation("DesignVersionsPublished", fields: [publishedById], references: [id], onDelete: SetNull)
+  publishedEvents  Event[]               @relation("PublishedEventDesign")
+  draftEvents      Event[]               @relation("DraftEventDesign")
   eventRevisions   EventDesignRevision[]
   userUsageHistory UserDesignUsage[]
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime              @default(now())
 
   @@unique([designId, versionNumber])
   @@index([status, createdAt])
@@ -317,14 +319,14 @@ model VerificationToken {
 }
 
 model PendingRegistration {
-  id             String   @id @default(cuid())
-  name           String
-  email          String   @unique
-  passwordHash   String
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  passwordHash     String
   verificationCode String
-  expiresAt      DateTime
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([email])
   @@index([expiresAt])
@@ -343,36 +345,38 @@ model PasswordResetToken {
 }
 
 model Event {
-  id                String              @id @default(cuid())
-  userId            String
-  title             String
-  type              EventType           @default(WEDDING)
-  eventDate         DateTime?
-  venue             String?
-  description       String?
-  slug              String              @unique
-  coverImage        String?
-  isPublished       Boolean             @default(false)
-  archivedAt        DateTime?
-  firstOpenedAt     DateTime?
-  lastOpenedAt      DateTime?
-  openCount         Int                 @default(0)
-  rsvpDeadline      DateTime?
-  organizerNotes    String?
-  checklist         Json?
-  designVersionId   String?
-  designVersion     DesignVersion?      @relation("PublishedEventDesign", fields: [designVersionId], references: [id], onDelete: Restrict)
-  designFieldValues Json?
-  draftDesignVersionId String?
-  draftDesignVersion DesignVersion?     @relation("DraftEventDesign", fields: [draftDesignVersionId], references: [id], onDelete: Restrict)
+  id                     String                @id @default(cuid())
+  userId                 String
+  title                  String
+  type                   EventType             @default(WEDDING)
+  eventDate              DateTime?
+  venue                  String?
+  description            String?
+  slug                   String                @unique
+  coverImage             String?
+  isPublished            Boolean               @default(false)
+  archivedAt             DateTime?
+  firstOpenedAt          DateTime?
+  lastOpenedAt           DateTime?
+  openCount              Int                   @default(0)
+  rsvpDeadline           DateTime?
+  organizerNotes         String?
+  checklist              Json?
+  designVersionId        String?
+  designVersion          DesignVersion?        @relation("PublishedEventDesign", fields: [designVersionId], references: [id], onDelete: Restrict)
+  designFieldValues      Json?
+  featureSettings        Json?
+  rsvpConfig             Json?
+  draftDesignVersionId   String?
+  draftDesignVersion     DesignVersion?        @relation("DraftEventDesign", fields: [draftDesignVersionId], references: [id], onDelete: Restrict)
   draftDesignFieldValues Json?
-  draftSavedAt      DateTime?
-  invitees          InvitationInvitee[]
-  designRevisions   EventDesignRevision[]
-  activities        EventActivity[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draftSavedAt           DateTime?
+  invitees               InvitationInvitee[]
+  designRevisions        EventDesignRevision[]
+  activities             EventActivity[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([slug])
@@ -383,30 +387,30 @@ model Event {
 }
 
 model InvitationInvitee {
-  id             String     @id @default(cuid())
-  eventId        String
-  event          Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name           String
-  email          String?
-  phone          String?
-  groupName      String?
-  organizerNotes String?
-  slug           String     @unique
-  linkDisabledAt DateTime?
-  linkExpiresAt  DateTime?
-  lastSharedAt   DateTime?
+  id               String          @id @default(cuid())
+  eventId          String
+  event            Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name             String
+  email            String?
+  phone            String?
+  groupName        String?
+  organizerNotes   String?
+  slug             String          @unique
+  linkDisabledAt   DateTime?
+  linkExpiresAt    DateTime?
+  lastSharedAt     DateTime?
   lastShareChannel String?
-  firstOpenedAt  DateTime?
-  lastOpenedAt   DateTime?
-  openCount      Int        @default(0)
-  rsvpStatus     RsvpStatus @default(PENDING)
-  partySize      Int?
-  mealPreference String?
-  rsvpMessage    String?
-  respondedAt    DateTime?
-  activities     EventActivity[]
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  firstOpenedAt    DateTime?
+  lastOpenedAt     DateTime?
+  openCount        Int             @default(0)
+  rsvpStatus       RsvpStatus      @default(PENDING)
+  partySize        Int?
+  mealPreference   String?
+  rsvpMessage      String?
+  respondedAt      DateTime?
+  activities       EventActivity[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@unique([eventId, name])
   @@index([eventId])
@@ -430,15 +434,15 @@ model EventDesignRevision {
 }
 
 model EventActivity {
-  id         String                @id @default(cuid())
-  eventId    String
-  event      Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  inviteeId  String?
-  invitee    InvitationInvitee?    @relation(fields: [inviteeId], references: [id], onDelete: SetNull)
-  type       String
-  summary    String
-  metadata   Json?
-  createdAt  DateTime              @default(now())
+  id        String             @id @default(cuid())
+  eventId   String
+  event     Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  inviteeId String?
+  invitee   InvitationInvitee? @relation(fields: [inviteeId], references: [id], onDelete: SetNull)
+  type      String
+  summary   String
+  metadata  Json?
+  createdAt DateTime           @default(now())
 
   @@index([eventId, createdAt])
   @@index([inviteeId])
@@ -464,20 +468,20 @@ model UserDesignUsage {
 }
 
 model AnimationComponent {
-  id             String                 @id @default(cuid())
-  type           AnimationComponentType
-  name           String
-  slug           String                 @unique
-  rawHtml        String
-  sourceFileName String?
-  htmlSize       Int
-  scanResult     Json?
-  status         DesignCatalogStatus    @default(ACTIVE)
-  createdById    String?
-  createdBy      User?                  @relation("AnimationComponentsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  id                  String                        @id @default(cuid())
+  type                AnimationComponentType
+  name                String
+  slug                String                        @unique
+  rawHtml             String
+  sourceFileName      String?
+  htmlSize            Int
+  scanResult          Json?
+  status              DesignCatalogStatus           @default(ACTIVE)
+  createdById         String?
+  createdBy           User?                         @relation("AnimationComponentsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   templateAssignments TemplateAnimationAssignment[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
 
   @@index([type, status])
   @@index([createdById])
@@ -489,9 +493,9 @@ model TemplateAnimationAssignment {
   template             InvitationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   animationComponentId String
   animationComponent   AnimationComponent @relation(fields: [animationComponentId], references: [id], onDelete: Cascade)
-  slotKey               String
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  slotKey              String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@unique([templateId, slotKey])
   @@index([animationComponentId])
