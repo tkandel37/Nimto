@@ -32,7 +32,7 @@ export function RsvpForm({
       setDeadlinePassed(
         Boolean(
           rsvpDeadline &&
-            new Date(rsvpDeadline).getTime() < new Date().getTime(),
+          new Date(rsvpDeadline).getTime() < new Date().getTime(),
         ),
       );
     });
@@ -64,7 +64,9 @@ export function RsvpForm({
       setOpen(false);
     } catch (submitError) {
       setError(
-        submitError instanceof Error ? submitError.message : "Could not save RSVP.",
+        submitError instanceof Error
+          ? submitError.message
+          : "Could not save RSVP.",
       );
     } finally {
       setSaving(false);
@@ -72,7 +74,10 @@ export function RsvpForm({
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-[100] max-w-[calc(100vw-2.5rem)]">
+    <div
+      className="fixed bottom-5 right-5 z-[100] max-w-[calc(100vw-2.5rem)]"
+      id="nimto-rsvp-form"
+    >
       {open ? (
         <form
           className="mb-3 w-[min(390px,calc(100vw-2.5rem))] rounded-2xl border border-black/10 bg-white p-5 text-left shadow-2xl"

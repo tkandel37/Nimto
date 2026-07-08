@@ -21,10 +21,38 @@ type InvitationEvent = {
   mealPreference?: string | null;
   rsvpMessage?: string | null;
   rsvpDeadline?: string | null;
+  featureSettings?: InvitationFeatureSettings | null;
+  rsvpConfig?: Record<string, unknown> | null;
   designVersion?: {
     rawHtml: string;
+    featureConfig?: InvitationFeatureConfig | null;
     design?: { name: string; slug: string };
   } | null;
+};
+
+type InvitationFeatureConfig = {
+  countdown?: { available?: boolean; position?: string };
+  rsvp?: { available?: boolean };
+  music?: { available?: boolean };
+  additionalInfo?: { available?: boolean };
+  theme?: { available?: boolean };
+  sharePreview?: { available?: boolean };
+  print?: { available?: boolean };
+  links?: { available?: boolean };
+};
+
+type InvitationFeatureSettings = {
+  countdown?: { enabled?: boolean };
+  rsvp?: { enabled?: boolean };
+  music?: { enabled?: boolean; url?: string };
+  additionalInfo?: { enabled?: boolean; text?: string };
+  links?: { fieldKey: string; url: string }[];
+  theme?: Record<string, string>;
+  sharePreview?: {
+    title?: string;
+    description?: string;
+    imageUrl?: string;
+  };
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -44,7 +72,7 @@ async function getInvitation(slug: string, track = true) {
   const response = await fetch(
     `${serverApiUrl}/events/public/${slug}${track ? "" : "?track=false"}`,
     {
-    cache: "no-store",
+      cache: "no-store",
     },
   );
 
@@ -66,10 +94,13 @@ export async function generateMetadata({
     return { title: "Invitation not found" };
   }
 
-  const title = `${event.title} Invitation`;
+  const sharePreview = event.featureSettings?.sharePreview;
+  const title = sharePreview?.title?.trim() || `${event.title} Invitation`;
   const description =
+    sharePreview?.description?.trim() ||
     event.description ||
     `${event.type} invitation${event.eventDate ? ` on ${displayDate(event.eventDate)}` : ""}.`;
+  const image = sharePreview?.imageUrl?.trim() || event.coverImage || undefined;
 
   return {
     metadataBase: new URL(APP_URL),
@@ -84,13 +115,13 @@ export async function generateMetadata({
       url: `/invite/${slug}`,
       siteName: "myNimto",
       type: "website",
-      images: event.coverImage ? [{ url: event.coverImage }] : undefined,
+      images: image ? [{ url: image }] : undefined,
     },
     twitter: {
-      card: event.coverImage ? "summary_large_image" : "summary",
+      card: image ? "summary_large_image" : "summary",
       title,
       description,
-      images: event.coverImage ? [event.coverImage] : undefined,
+      images: image ? [image] : undefined,
     },
   };
 }
@@ -104,7 +135,7 @@ export default async function InvitationPage({
   const event = await getInvitation(slug);
   if (!event) notFound();
   const renderedHtml = event.designVersion?.rawHtml
-    ? applyFieldValuesToHtml(event.designVersion.rawHtml, event)
+    ? renderInvitationHtml(event.designVersion.rawHtml, event, slug)
     : null;
 
   if (renderedHtml) {
@@ -112,7 +143,7 @@ export default async function InvitationPage({
       <main className="min-h-screen bg-paper">
         <iframe
           className="min-h-screen w-full border-0 bg-white"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
           srcDoc={renderedHtml}
           title={event.title}
         />
@@ -154,7 +185,9 @@ export default async function InvitationPage({
             {displayDate(event.eventDate)}
           </p>
           {event.venue ? (
-            <p className="mt-3 text-base font-bold text-ink/70">{event.venue}</p>
+            <p className="mt-3 text-base font-bold text-ink/70">
+              {event.venue}
+            </p>
           ) : null}
           {event.description ? (
             <p className="mx-auto mt-7 max-w-xl whitespace-pre-wrap text-base leading-8 text-ink/70">
@@ -183,6 +216,15 @@ export default async function InvitationPage({
   );
 }
 
+function renderInvitationHtml(
+  rawHtml: string,
+  event: InvitationEvent,
+  slug: string,
+) {
+  const withValues = applyFieldValuesToHtml(rawHtml, event);
+  return applyInvitationFeatures(withValues, event, slug);
+}
+
 function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
   const values = {
     title: event.title,
@@ -202,6 +244,159 @@ function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
     );
     return html.replace(pattern, `$1${escapeHtml(value)}$4`);
   }, rawHtml);
+}
+
+function applyInvitationFeatures(
+  rawHtml: string,
+  event: InvitationEvent,
+  slug: string,
+) {
+  const config = event.designVersion?.featureConfig ?? {};
+  const settings = event.featureSettings ?? {};
+  let html = rawHtml;
+
+  if (config.theme?.available && settings.theme) {
+    html = injectHeadHtml(
+      html,
+      `<style>:root{${Object.entries(settings.theme)
+        .filter(([, value]) => String(value).trim())
+        .map(
+          ([key, value]) =>
+            `--nimto-${cssName(key)}:${escapeHtml(String(value))};`,
+        )
+        .join("")}}</style>`,
+    );
+  }
+
+  if (config.print?.available) {
+    html = injectHeadHtml(
+      html,
+      "<style>@media print{body{margin:0}.nimto-print-page,[data-nimto-print-page]{break-after:page;page-break-after:always}.nimto-print-page:last-child,[data-nimto-print-page]:last-child{break-after:auto;page-break-after:auto}}</style>",
+    );
+  }
+
+  if (config.links?.available) {
+    html = applyFieldLinks(html, settings.links ?? []);
+  }
+
+  if (config.countdown?.available) {
+    html = applySlotHtml(
+      html,
+      "data-nimto-countdown-slot",
+      settings.countdown?.enabled !== false && event.eventDate
+        ? countdownHtml(event.eventDate)
+        : "",
+    );
+  }
+
+  if (config.rsvp?.available) {
+    html = applySlotHtml(
+      html,
+      "data-nimto-rsvp-slot",
+      settings.rsvp?.enabled
+        ? `<a class="nimto-rsvp-button" href="/invite/${escapeHtml(slug)}#nimto-rsvp-form" target="_top">RSVP</a>`
+        : "",
+    );
+  }
+
+  if (config.music?.available) {
+    const musicUrl = settings.music?.url?.trim();
+    html = applySlotHtml(
+      html,
+      "data-nimto-music-slot",
+      settings.music?.enabled && musicUrl
+        ? `<audio class="nimto-music-player" controls preload="none" src="${escapeHtml(musicUrl)}"></audio>`
+        : "",
+    );
+  }
+
+  if (config.additionalInfo?.available) {
+    html = applySlotHtml(
+      html,
+      "data-nimto-additional-info-slot",
+      settings.additionalInfo?.enabled
+        ? `<div class="nimto-additional-info">${escapeHtml(settings.additionalInfo.text ?? "")}</div>`
+        : "",
+    );
+  }
+
+  return injectHeadHtml(
+    html,
+    `<style>
+      .nimto-rsvp-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}
+      .nimto-music-player{max-width:100%}
+      .nimto-countdown{display:inline-grid;grid-auto-flow:column;gap:.65rem;align-items:center}
+      .nimto-countdown span{display:grid;text-align:center;font-weight:800}
+      .nimto-countdown small{font-size:.68em;text-transform:uppercase;letter-spacing:.08em;opacity:.72}
+      .nimto-additional-info{white-space:pre-wrap}
+    </style>`,
+  );
+}
+
+function applyFieldLinks(
+  html: string,
+  links: { fieldKey: string; url: string }[],
+) {
+  return links.reduce((result, link) => {
+    if (!link.fieldKey || !link.url) return result;
+    const pattern = new RegExp(
+      `(<[^>]*data-nimto-field=(["'])${escapeRegExp(link.fieldKey)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
+      "gis",
+    );
+    return result.replace(
+      pattern,
+      `$1<a href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank">$3</a>$4`,
+    );
+  }, html);
+}
+
+function applySlotHtml(html: string, attribute: string, replacement: string) {
+  const pattern = new RegExp(
+    `(<[^>]*${attribute}(?:=(["'])[^"']*\\2)?[^>]*>)(.*?)(<\\/[^>]+>)`,
+    "gis",
+  );
+  return html.replace(pattern, `$1${replacement}$4`);
+}
+
+function countdownHtml(eventDate: string) {
+  const target = escapeHtml(eventDate);
+  return `<div class="nimto-countdown" data-nimto-countdown-target="${target}">
+    <span><b data-nimto-countdown-days>0</b><small>Days</small></span>
+    <span><b data-nimto-countdown-hours>0</b><small>Hours</small></span>
+    <span><b data-nimto-countdown-minutes>0</b><small>Minutes</small></span>
+  </div>
+  <script>
+    (function(){
+      var root=document.currentScript.previousElementSibling;
+      if(!root)return;
+      var target=new Date(root.getAttribute("data-nimto-countdown-target")).getTime();
+      function tick(){
+        var diff=Math.max(0,target-Date.now());
+        var minutes=Math.floor(diff/60000);
+        var days=Math.floor(minutes/1440);
+        var hours=Math.floor((minutes%1440)/60);
+        root.querySelector("[data-nimto-countdown-days]").textContent=days;
+        root.querySelector("[data-nimto-countdown-hours]").textContent=hours;
+        root.querySelector("[data-nimto-countdown-minutes]").textContent=minutes%60;
+      }
+      tick(); window.setInterval(tick,60000);
+    })();
+  </script>`;
+}
+
+function injectHeadHtml(html: string, injection: string) {
+  if (!injection.trim()) return html;
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${injection}</head>`);
+  }
+  return `${injection}${html}`;
+}
+
+function cssName(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .toLowerCase();
 }
 
 function escapeHtml(value: string) {
