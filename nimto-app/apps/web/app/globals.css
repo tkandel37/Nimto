@@ -34,7 +34,11 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 12% 18%, rgba(200, 137, 24, 0.08), transparent 18rem),
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(200, 137, 24, 0.08),
+      transparent 18rem
+    ),
     linear-gradient(120deg, rgba(22, 116, 94, 0.1), transparent 36%),
     linear-gradient(310deg, rgba(177, 63, 95, 0.08), transparent 34%),
     var(--background);
@@ -51,7 +55,9 @@ body::before {
   background-image:
     linear-gradient(rgba(23, 32, 51, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(23, 32, 51, 0.018) 1px, transparent 1px);
-  background-size: 42px 42px, 42px 42px;
+  background-size:
+    42px 42px,
+    42px 42px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 72%);
 }
 
@@ -106,7 +112,11 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
   background:
-    radial-gradient(circle at 18% 20%, rgba(246, 200, 95, 0.18), transparent 22rem),
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(246, 200, 95, 0.18),
+      transparent 22rem
+    ),
     linear-gradient(135deg, #f9f1df, #eef4ec 52%, #f7f0f2);
 }
 
@@ -190,8 +200,16 @@ a {
   min-height: 100vh;
   position: relative;
   background:
-    radial-gradient(circle at top left, rgba(255, 224, 149, 0.28), transparent 28rem),
-    radial-gradient(circle at 92% 8%, rgba(22, 116, 94, 0.14), transparent 22rem),
+    radial-gradient(
+      circle at top left,
+      rgba(255, 224, 149, 0.28),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 92% 8%,
+      rgba(22, 116, 94, 0.14),
+      transparent 22rem
+    ),
     linear-gradient(
       180deg,
       rgba(255, 253, 248, 0.96),
@@ -369,8 +387,16 @@ a {
   border: 1px solid rgba(23, 32, 51, 0.12);
   border-radius: 32px;
   background:
-    radial-gradient(circle at 12% 15%, rgba(255, 224, 149, 0.44), transparent 9rem),
-    linear-gradient(150deg, rgba(255, 253, 248, 0.96), rgba(255, 248, 231, 0.92)),
+    radial-gradient(
+      circle at 12% 15%,
+      rgba(255, 224, 149, 0.44),
+      transparent 9rem
+    ),
+    linear-gradient(
+      150deg,
+      rgba(255, 253, 248, 0.96),
+      rgba(255, 248, 231, 0.92)
+    ),
     url("/invitation-preview.svg");
   background-size: cover;
   padding: 18px;
@@ -397,7 +423,11 @@ a {
   border: 1px solid rgba(23, 32, 51, 0.08);
   border-radius: 26px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 253, 248, 0.86)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.74),
+      rgba(255, 253, 248, 0.86)
+    ),
     rgba(255, 255, 255, 0.75);
   padding: 34px 28px;
   text-align: center;
@@ -555,8 +585,11 @@ a {
   align-items: center;
   border: 1px solid rgba(23, 32, 51, 0.08);
   border-radius: 22px;
-  background:
-    linear-gradient(90deg, rgba(255, 249, 233, 0.86), rgba(255, 255, 255, 0.78));
+  background: linear-gradient(
+    90deg,
+    rgba(255, 249, 233, 0.86),
+    rgba(255, 255, 255, 0.78)
+  );
   padding: 18px;
 }
 
@@ -598,7 +631,11 @@ a {
   border: 1px solid rgba(23, 32, 51, 0.09);
   border-radius: 36px;
   background:
-    radial-gradient(circle at 18% 20%, rgba(255, 224, 149, 0.36), transparent 18rem),
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(255, 224, 149, 0.36),
+      transparent 18rem
+    ),
     linear-gradient(135deg, rgba(22, 116, 94, 0.1), rgba(255, 255, 255, 0.72));
   padding: 56px 24px;
   text-align: center;
@@ -1422,7 +1459,11 @@ a {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   background:
-    radial-gradient(circle at 8% 10%, rgba(246, 200, 95, 0.12), transparent 22rem),
+    radial-gradient(
+      circle at 8% 10%,
+      rgba(246, 200, 95, 0.12),
+      transparent 22rem
+    ),
     linear-gradient(135deg, #f6f4ee, #eef5ef 58%, #f7f4f0);
   color: var(--ink);
 }
@@ -1565,8 +1606,11 @@ a {
   min-width: 0;
   border: 1px solid rgba(23, 32, 51, 0.1);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(255, 255, 255, 0.84));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 248, 0.92),
+    rgba(255, 255, 255, 0.84)
+  );
   padding: 22px;
   box-shadow: 0 18px 50px rgba(23, 32, 51, 0.06);
 }
@@ -3469,6 +3513,129 @@ a {
   font-size: 0.8rem;
 }
 
+.event-feature-setup {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid rgb(23 37 29 / 0.12);
+  border-radius: 0.9rem;
+  background: #fffaf0;
+  padding: 0.9rem;
+}
+
+.event-feature-setup > div:first-child p,
+.event-feature-muted {
+  margin: 0.15rem 0 0;
+  color: rgb(23 37 29 / 0.62);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.event-feature-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 1px solid rgb(23 37 29 / 0.1);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.75rem;
+}
+
+.event-feature-toggle.disabled {
+  opacity: 0.58;
+}
+
+.event-feature-toggle span {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.event-feature-toggle small {
+  color: rgb(23 37 29 / 0.6);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.event-feature-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #16745e;
+}
+
+.event-feature-block {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid rgb(23 37 29 / 0.1);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.75rem;
+}
+
+.event-feature-block input,
+.event-feature-block textarea,
+.event-feature-block select,
+.event-link-row input,
+.event-link-row select {
+  width: 100%;
+  border: 1px solid rgba(23, 32, 51, 0.14);
+  border-radius: 8px;
+  background: white;
+  padding: 10px 11px;
+  color: var(--ink);
+  outline: none;
+}
+
+.event-feature-heading,
+.event-feature-inline,
+.event-link-row,
+.event-style-slot {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.event-feature-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  font-weight: 900;
+}
+
+.event-feature-heading button,
+.event-feature-inline button,
+.event-link-row button {
+  border-radius: 0.65rem;
+  background: #17251d;
+  color: white;
+  padding: 0.58rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.event-feature-heading button:disabled,
+.event-feature-inline button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.event-feature-inline {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.event-link-row {
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.2fr) auto;
+}
+
+.event-link-row button {
+  background: #f4efe4;
+  color: #17251d;
+}
+
+.event-style-slot {
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 0.8fr);
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
 .event-device-switcher {
   display: flex;
   justify-content: center;
@@ -3554,7 +3721,11 @@ a {
     grid-template-columns: 128px minmax(0, 1fr);
     background:
       radial-gradient(circle at 0 0, rgb(246 200 95 / 0.14), transparent 28%),
-      radial-gradient(circle at 88% 18%, rgb(63 143 95 / 0.08), transparent 26%),
+      radial-gradient(
+        circle at 88% 18%,
+        rgb(63 143 95 / 0.08),
+        transparent 26%
+      ),
       #f5f4ee;
   }
 
@@ -3569,8 +3740,11 @@ a {
     overflow: hidden;
     border: 1px solid rgb(23 32 51 / 0.08);
     border-radius: 28px;
-    background:
-      linear-gradient(180deg, rgb(255 253 248 / 0.92), rgb(250 247 238 / 0.86));
+    background: linear-gradient(
+      180deg,
+      rgb(255 253 248 / 0.92),
+      rgb(250 247 238 / 0.86)
+    );
     padding: 12px 9px;
     color: var(--ink);
     box-shadow:
@@ -3776,7 +3950,11 @@ a {
   padding: 42px 22px;
   text-align: center;
   background:
-    radial-gradient(circle at 16% 18%, rgb(246 200 95 / 0.2), transparent 14rem),
+    radial-gradient(
+      circle at 16% 18%,
+      rgb(246 200 95 / 0.2),
+      transparent 14rem
+    ),
     linear-gradient(145deg, #fffdf8, #f0f7ef);
 }
 

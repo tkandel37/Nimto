@@ -51,6 +51,8 @@ export class EventsService {
         firstOpenedAt: true,
         lastOpenedAt: true,
         rsvpDeadline: true,
+        featureSettings: true,
+        rsvpConfig: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { invitees: true } },
@@ -88,6 +90,8 @@ export class EventsService {
         rsvpDeadline: true,
         organizerNotes: true,
         checklist: true,
+        featureSettings: true,
+        rsvpConfig: true,
         designFieldValues: true,
         draftDesignVersionId: true,
         draftDesignFieldValues: true,
@@ -105,6 +109,7 @@ export class EventsService {
             },
             rawHtml: true,
             scanResult: true,
+            featureConfig: true,
           },
         },
         draftDesignVersion: {
@@ -113,6 +118,7 @@ export class EventsService {
             versionNumber: true,
             rawHtml: true,
             scanResult: true,
+            featureConfig: true,
             design: {
               select: { id: true, name: true, slug: true, status: true },
             },
@@ -275,7 +281,10 @@ export class EventsService {
     for (const record of dto.guests) {
       const name = record.name.trim().replace(/\s+/g, " ");
       if (!name || existing.has(name.toLowerCase())) {
-        skipped.push({ name: name || "Empty row", reason: "Duplicate or empty" });
+        skipped.push({
+          name: name || "Empty row",
+          reason: "Duplicate or empty",
+        });
         continue;
       }
       const invitee = await this.prisma.invitationInvitee.create({
@@ -330,19 +339,22 @@ export class EventsService {
       where: { id: inviteeId },
       data: {
         name: dto.name?.trim(),
-        email: dto.email !== undefined ? dto.email.trim().toLowerCase() || null : undefined,
+        email:
+          dto.email !== undefined
+            ? dto.email.trim().toLowerCase() || null
+            : undefined,
         phone: dto.phone !== undefined ? dto.phone.trim() || null : undefined,
         groupName:
-          dto.groupName !== undefined ? dto.groupName.trim() || null : undefined,
+          dto.groupName !== undefined
+            ? dto.groupName.trim() || null
+            : undefined,
         organizerNotes:
           dto.organizerNotes !== undefined
             ? dto.organizerNotes.trim() || null
             : undefined,
         rsvpStatus: dto.rsvpStatus,
         partySize:
-          dto.rsvpStatus === RsvpStatus.DECLINED
-            ? null
-            : dto.partySize,
+          dto.rsvpStatus === RsvpStatus.DECLINED ? null : dto.partySize,
         mealPreference:
           dto.mealPreference !== undefined
             ? dto.mealPreference.trim() || null
@@ -418,7 +430,8 @@ export class EventsService {
           where: { id: inviteeId, eventId },
         })
       : null;
-    if (inviteeId && !invitee) throw new NotFoundException("Invitee not found.");
+    if (inviteeId && !invitee)
+      throw new NotFoundException("Invitee not found.");
     if (invitee) {
       await this.prisma.invitationInvitee.update({
         where: { id: invitee.id },
@@ -474,6 +487,10 @@ export class EventsService {
       data: {
         draftDesignVersionId: designData.designVersionId,
         draftDesignFieldValues: designData.designFieldValues,
+        featureSettings:
+          dto.featureSettings !== undefined
+            ? (dto.featureSettings as Prisma.InputJsonObject)
+            : undefined,
         draftSavedAt: new Date(),
       },
     });
@@ -491,6 +508,8 @@ export class EventsService {
       data: {
         designVersionId: event.draftDesignVersionId,
         designFieldValues: fieldValues,
+        featureSettings:
+          (event.featureSettings as Prisma.InputJsonObject | null) ?? {},
         isPublished: true,
       },
     });
@@ -697,7 +716,10 @@ export class EventsService {
         action: "event.duplicated",
         entityType: "Event",
         entityId: duplicate.id,
-        metadata: { sourceEventId: source.id, invitees: source.invitees.length },
+        metadata: {
+          sourceEventId: source.id,
+          invitees: source.invitees.length,
+        },
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       }),
@@ -759,8 +781,10 @@ export class EventsService {
     return {
       totalInvitees: event.invitees.length,
       invitationOpens: event.openCount,
-      openedInvitees: event.invitees.filter((item) => item.openCount > 0).length,
-      unopenedInvitees: event.invitees.filter((item) => item.openCount === 0).length,
+      openedInvitees: event.invitees.filter((item) => item.openCount > 0)
+        .length,
+      unopenedInvitees: event.invitees.filter((item) => item.openCount === 0)
+        .length,
       pending: event.invitees.filter(
         (item) => item.rsvpStatus === RsvpStatus.PENDING,
       ).length,
@@ -788,10 +812,7 @@ export class EventsService {
         : 0,
       mealTotals: Object.entries(
         event.invitees.reduce<Record<string, number>>((totals, item) => {
-          if (
-            item.rsvpStatus === RsvpStatus.ATTENDING &&
-            item.mealPreference
-          ) {
+          if (item.rsvpStatus === RsvpStatus.ATTENDING && item.mealPreference) {
             totals[item.mealPreference] =
               (totals[item.mealPreference] ?? 0) + (item.partySize ?? 1);
           }
@@ -1064,10 +1085,7 @@ export class EventsService {
     ) {
       throw new NotFoundException("Personalized invitation not found.");
     }
-    if (
-      invitee.event.rsvpDeadline &&
-      invitee.event.rsvpDeadline < new Date()
-    ) {
+    if (invitee.event.rsvpDeadline && invitee.event.rsvpDeadline < new Date()) {
       throw new BadRequestException("The RSVP deadline has passed.");
     }
 
@@ -1105,8 +1123,7 @@ export class EventsService {
             ? new Date(dto.eventDate)
             : null
           : undefined,
-      venue:
-        dto.venue !== undefined ? dto.venue.trim() || null : undefined,
+      venue: dto.venue !== undefined ? dto.venue.trim() || null : undefined,
       description:
         dto.description !== undefined
           ? dto.description.trim() || null
@@ -1133,9 +1150,7 @@ export class EventsService {
     };
   }
 
-  private async designEventData(
-    dto: CreateEventDto | UpdateEventDto,
-  ): Promise<{
+  private async designEventData(dto: CreateEventDto | UpdateEventDto): Promise<{
     designVersionId?: string;
     designId?: string;
     designFieldValues?: Prisma.InputJsonObject;
@@ -1144,7 +1159,9 @@ export class EventsService {
       return {};
     }
     if (!dto.designVersionId) {
-      throw new BadRequestException("Design version is required for design fields.");
+      throw new BadRequestException(
+        "Design version is required for design fields.",
+      );
     }
 
     const version = await this.prisma.designVersion.findUnique({
@@ -1162,7 +1179,8 @@ export class EventsService {
     return {
       designVersionId: version.id,
       designId: version.designId,
-      designFieldValues: (dto.designFieldValues ?? {}) as Prisma.InputJsonObject,
+      designFieldValues: (dto.designFieldValues ??
+        {}) as Prisma.InputJsonObject,
     };
   }
 
