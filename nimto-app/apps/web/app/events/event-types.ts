@@ -1,3 +1,30 @@
+export type RsvpFieldType =
+  | "single_choice"
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "email"
+  | "phone";
+
+export type RsvpFieldConfig = {
+  id: string;
+  key: string;
+  label: string;
+  type: RsvpFieldType;
+  required: boolean;
+  enabled: boolean;
+  builtIn?: boolean;
+  options?: string[];
+  placeholder?: string | null;
+};
+
+export type RsvpConfig = {
+  note: string;
+  closedMessage: string;
+  fields: RsvpFieldConfig[];
+};
+
 export type UserEvent = {
   id: string;
   title: string;
@@ -82,6 +109,7 @@ export type InvitationInvitee = {
   partySize?: number | null;
   mealPreference?: string | null;
   rsvpMessage?: string | null;
+  rsvpAnswers?: Record<string, unknown> | null;
   respondedAt?: string | null;
   linkDisabledAt?: string | null;
   linkExpiresAt?: string | null;
@@ -100,6 +128,8 @@ export type EventStatistics = {
   expectedGuests: number;
   unopenedInvitees: number;
   responseRate: number;
+  publicResponses?: number;
+  lastResponseAt?: string | null;
   mealTotals: { meal: string; count: number }[];
 };
 

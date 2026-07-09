@@ -529,12 +529,14 @@ function DesignsContent({
                 onClick={() => previewInvitation(design)}
                 type="button"
               >
-                <iframe
-                  loading="lazy"
-                  sandbox="allow-scripts"
-                  srcDoc={current?.rawHtml ?? ""}
-                  title={`${design.name} preview`}
-                />
+                <div className="design-card-stage">
+                  <iframe
+                    loading="lazy"
+                    sandbox="allow-scripts"
+                    srcDoc={current?.rawHtml ?? ""}
+                    title={`${design.name} preview`}
+                  />
+                </div>
                 <span className="design-preview-overlay">
                   Preview invitation
                 </span>
@@ -601,9 +603,16 @@ function DesignsContent({
       </div>
 
       {isLoading && !designs.length ? (
-        <div className="invitation-card-skeletons" aria-label="Loading invitations">
+        <div
+          className="invitation-card-skeletons"
+          aria-label="Loading invitations"
+        >
           {[1, 2, 3].map((item) => (
-            <div key={item}><span /><i /><b /></div>
+            <div key={item}>
+              <span />
+              <i />
+              <b />
+            </div>
           ))}
         </div>
       ) : null}

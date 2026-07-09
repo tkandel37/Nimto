@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { serverApiUrl } from "@/lib/server-api";
+import { RsvpConfig, RsvpFieldConfig } from "../../events/event-types";
 import { RsvpForm } from "./rsvp-form";
 
 type InvitationEvent = {
@@ -22,7 +23,7 @@ type InvitationEvent = {
   rsvpMessage?: string | null;
   rsvpDeadline?: string | null;
   featureSettings?: InvitationFeatureSettings | null;
-  rsvpConfig?: Record<string, unknown> | null;
+  rsvpConfig?: RsvpConfig | Record<string, unknown> | null;
   designVersion?: {
     rawHtml: string;
     featureConfig?: InvitationFeatureConfig | null;
@@ -154,14 +155,13 @@ export default async function InvitationPage({
         />
         {rsvpEnabled || (event.inviteeSlug && event.inviteeName) ? (
           <RsvpForm
+            config={rsvpConfig}
             initialMealPreference={event.mealPreference}
             initialMessage={event.rsvpMessage}
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
             inviteeName={event.inviteeName ?? event.title}
-            note={rsvpConfig.note}
             publicMode={!event.inviteeSlug}
-            closedMessage={rsvpConfig.closedMessage}
             rsvpDeadline={event.rsvpDeadline}
             slug={event.inviteeSlug ?? slug}
           />
@@ -210,14 +210,13 @@ export default async function InvitationPage({
         </article>
         {rsvpEnabled || (event.inviteeSlug && event.inviteeName) ? (
           <RsvpForm
+            config={rsvpConfig}
             initialMealPreference={event.mealPreference}
             initialMessage={event.rsvpMessage}
             initialPartySize={event.partySize}
             initialStatus={event.rsvpStatus}
             inviteeName={event.inviteeName ?? event.title}
-            note={rsvpConfig.note}
             publicMode={!event.inviteeSlug}
-            closedMessage={rsvpConfig.closedMessage}
             rsvpDeadline={event.rsvpDeadline}
             slug={event.inviteeSlug ?? slug}
           />
@@ -410,12 +409,64 @@ function cssName(value: string) {
     .toLowerCase();
 }
 
-function normalizeRsvpConfig(config?: Record<string, unknown> | null) {
+function normalizeRsvpConfig(
+  config?: Record<string, unknown> | RsvpConfig | null,
+): RsvpConfig {
   return {
     note: String(config?.note ?? ""),
     closedMessage: String(
       config?.closedMessage ?? "Sorry, RSVP is closed for this event.",
     ),
+    fields: Array.isArray(config?.fields)
+      ? (config.fields as RsvpFieldConfig[])
+      : [
+          {
+            id: "attendance_status",
+            key: "attendance_status",
+            label: "Will you attend?",
+            type: "single_choice",
+            required: true,
+            enabled: true,
+            builtIn: true,
+            options: ["Attending", "Cannot attend"],
+          },
+          {
+            id: "full_name",
+            key: "full_name",
+            label: "Full name",
+            type: "text",
+            required: true,
+            enabled: true,
+            builtIn: true,
+          },
+          {
+            id: "phone_number",
+            key: "phone_number",
+            label: "Phone number",
+            type: "phone",
+            required: false,
+            enabled: true,
+            builtIn: true,
+          },
+          {
+            id: "email_address",
+            key: "email_address",
+            label: "Email address",
+            type: "email",
+            required: false,
+            enabled: true,
+            builtIn: true,
+          },
+          {
+            id: "number_of_guests",
+            key: "number_of_guests",
+            label: "How many people are coming?",
+            type: "number",
+            required: false,
+            enabled: true,
+            builtIn: true,
+          },
+        ],
   };
 }
 

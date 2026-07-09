@@ -27,13 +27,13 @@
     [data-nimto-opening-slot]{position:fixed;z-index:30;inset:0;pointer-events:none}
     @keyframes float{50%{transform:translateY(-20px) rotate(5deg)}}
     @media(max-width:850px){.shell{grid-template-columns:1fr;padding:44px 22px 80px}.eyebrow{margin-top:48px}.panel{margin-top:4px}.footer{left:22px}h1{font-size:clamp(50px,16vw,82px)}}
-  </style>
+  :root{--nimto-primary-color:#17251d;--nimto-secondary-color:#6b5a4b;--nimto-accent-color:#b78431;--nimto-heading-font:Georgia,serif;--nimto-body-font:Arial,sans-serif}body{font-family:var(--nimto-body-font,inherit)}h1,h2,h3,.names,.number,.year,.date,[data-nimto-field="event_title"],[data-nimto-field="business_name"],[data-nimto-field="school_name"],[data-nimto-field="couple_name"],[data-nimto-field="bride_name"],[data-nimto-field="groom_name"],[data-nimto-field="family_name"],[data-nimto-field="baby_name"],[data-nimto-field="child_name"],[data-nimto-field="celebrant_name"]{font-family:var(--nimto-heading-font,inherit);color:var(--nimto-primary-color,currentColor)}.label,.top,.number,.year,.date,.amp,[data-nimto-field="event_label"],[data-nimto-field="event_date"],[data-nimto-field="event_time"],[data-nimto-field="venue_name"]{color:var(--nimto-accent-color,currentColor)}.message,.msg,.guest,.venue,.details,.line,.pill,.box,[data-nimto-field="event_message"],[data-nimto-field="venue_address"]{color:var(--nimto-secondary-color,currentColor)}.nimto-template-extras{display:grid;gap:14px;justify-items:center;width:min(100%,560px);margin:30px auto 0}.nimto-countdown-slot,.nimto-rsvp-slot,.nimto-music-slot,.nimto-additional-info-slot{width:100%;text-align:center}.nimto-countdown-slot{font-weight:900}.nimto-rsvp-button{display:inline-flex;align-items:center;justify-content:center;min-width:170px;border-radius:999px;background:var(--nimto-primary-color,#17251d);color:#fff;padding:12px 22px;text-decoration:none}.nimto-music-slot audio{width:min(100%,320px)}.nimto-additional-info-slot{font-size:14px;line-height:1.6}.nimto-style-marker{display:none}</style>
 </head>
-<body>
+<body data-nimto-share-description-field="event_message" data-nimto-share-title-field="event_label" data-nimto-countdown-position="bottom">
   <div class="page">
     <div class="grid"></div><div class="orb one"></div><div class="orb two"></div>
     <div data-nimto-opening-slot="corporate-reveal"></div>
-    <main class="shell">
+    <main class="shell" data-nimto-print-page="page_main">
       <section>
         <div class="brand"><span class="mark">N</span><span data-nimto-field="company_name" data-nimto-label="Company Name" data-nimto-type="text" data-nimto-required="true">Northstar Group</span></div>
         <p class="eyebrow" data-nimto-field="event_label" data-nimto-label="Event Label" data-nimto-type="text">Executive Forum · 2026</p>
@@ -54,7 +54,7 @@
         <div class="guest"><small>Reserved for</small><strong data-nimto-field="invitee_name" data-nimto-label="Invitee Name" data-nimto-type="custom_name">Our Esteemed Guest</strong></div>
         <span class="cta" data-nimto-field="cta_text" data-nimto-label="Call to Action" data-nimto-type="text">Kindly confirm your attendance</span>
       </aside>
-    </main>
+    <div class="nimto-template-extras"><div class="nimto-countdown-slot" data-nimto-countdown-slot="countdown_main" data-nimto-label="Countdown"></div><div class="nimto-rsvp-slot" data-nimto-rsvp-slot="rsvp_main" data-nimto-label="RSVP"></div><div class="nimto-music-slot" data-nimto-music-slot="music_main" data-nimto-label="Music"></div><div class="nimto-additional-info-slot" data-nimto-additional-info-slot="additional_info_main" data-nimto-label="Additional Information"></div><span class="nimto-style-marker" data-nimto-style-slot="primary_color" data-nimto-style-type="color" data-nimto-label="Primary Color" data-nimto-default="#17251d"></span><span class="nimto-style-marker" data-nimto-style-slot="secondary_color" data-nimto-style-type="color" data-nimto-label="Secondary Color" data-nimto-default="#6b5a4b"></span><span class="nimto-style-marker" data-nimto-style-slot="accent_color" data-nimto-style-type="color" data-nimto-label="Accent Color" data-nimto-default="#b78431"></span><span class="nimto-style-marker" data-nimto-style-slot="heading_font" data-nimto-style-type="font" data-nimto-label="Heading Font" data-nimto-default="Georgia, serif"></span><span class="nimto-style-marker" data-nimto-style-slot="body_font" data-nimto-style-type="font" data-nimto-label="Body Font" data-nimto-default="Arial, sans-serif"></span></div></main>
     <div class="footer">Strategy · Innovation · Connection</div>
   </div>
 </body>

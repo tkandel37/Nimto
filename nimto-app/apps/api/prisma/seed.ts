@@ -3,6 +3,7 @@ import {
   DesignCatalogStatus,
   DesignStatus,
   DesignVersionStatus,
+  Prisma,
   PrismaClient,
   TemplateStatus,
   UserStatus,
@@ -11,11 +12,13 @@ import bcrypt from "bcryptjs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PERMISSION_CATALOG } from "../src/auth/permissions";
+import { TemplateDesignService } from "../src/template-design/template-design.service";
 
 const prisma = new PrismaClient();
 const SUPER_ADMIN_ROLE = "SUPER_ADMIN";
 const CORPORATE_TEMPLATE_FILE = "corporate-summit-2026.html";
 const CORPORATE_ANIMATION_FILE = "corporate-opening-animation.html";
+const STANDALONE_TEMPLATE_FILES = ["nepali-wedding-invitation.html"] as const;
 
 const corporateFields = [
   ["company_name", "Company Name", "text", true],
@@ -322,56 +325,55 @@ const simpleDesigns = [
   },
 ] as const;
 
-function simpleScanResult(
-  title: string,
-  categoryHint: string,
-  fields: readonly (readonly [string, string, string, boolean])[],
-) {
+function createTemplateScanner() {
+  const service = new TemplateDesignService(
+    prisma as never,
+    {
+      record: async () => null,
+    } as never,
+  );
+
   return {
-    version: 1,
-    title,
-    categoryHint,
-    sections: [],
-    fields: fields.map(([key, label, type, required]) => ({
-      key,
-      label,
-      type,
-      required,
-      paid: false,
-      locked: false,
-    })),
-    countdownFieldKey: "event_date",
-    countdownFieldStatus: "valid",
-    customNameFieldKeys: ["invitee_name"],
-    hasOpeningSlot: false,
-    openingSlots: [],
-    hasBackgroundEffectSlot: false,
-    backgroundEffectSlots: [],
-    effectAreas: [],
-    effectSlots: [],
-    hasGallery: false,
-    hasMusic: false,
-    hasMap: false,
-    capabilities: {
-      supportsCountdown: true,
-      supportsInviteeName: true,
-      supportsGallery: false,
-      supportsMusic: false,
-      supportsMap: false,
-      supportsOpeningAnimation: false,
-      supportsBackgroundEffects: false,
+    scanTemplateHtml(rawHtml: string, title = "Invitation Template") {
+      const htmlWithMeta = /id=["']nimto-template-meta["']/i.test(rawHtml)
+        ? rawHtml
+        : rawHtml.replace(
+            /<head[^>]*>/i,
+            (match) =>
+              `${match}\n<script type="application/json" id="nimto-template-meta">${JSON.stringify({ title, version: "1.0.0" })}</script>`,
+          );
+      return (
+        service as unknown as {
+          scanTemplateHtml: (html: string) => Prisma.InputJsonObject;
+        }
+      ).scanTemplateHtml(htmlWithMeta);
+    },
+    normalizeFeatureConfig(
+      value: Record<string, unknown> | null | undefined,
+      scanResult: Prisma.InputJsonObject,
+    ) {
+      return (
+        service as unknown as {
+          normalizeFeatureConfig: (
+            source: Record<string, unknown> | null | undefined,
+            result: Prisma.InputJsonObject,
+          ) => Prisma.InputJsonObject;
+        }
+      ).normalizeFeatureConfig(value, scanResult);
     },
   };
 }
 
-async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
+async function seedSimpleDesigns(
+  userId: string,
+  fixtureDirectory: string,
+  scanner: ReturnType<typeof createTemplateScanner>,
+) {
   for (const fixture of simpleDesigns) {
     const rawHtml = readFileSync(join(fixtureDirectory, fixture.file), "utf8");
-    const scanResult = simpleScanResult(
-      fixture.name,
-      fixture.category,
-      fixture.fields,
-    );
+    const scanResult = scanner.scanTemplateHtml(rawHtml, fixture.name);
+    const featureConfig = scanner.normalizeFeatureConfig(null, scanResult);
+    const htmlSize = Buffer.byteLength(rawHtml, "utf8");
     const category = await prisma.designCategory.upsert({
       where: { slug: fixture.categorySlug },
       update: {
@@ -394,8 +396,9 @@ async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
           data: {
             name: fixture.name,
             rawHtml,
-            htmlSize: Buffer.byteLength(rawHtml, "utf8"),
-            scanResult,
+            htmlSize,
+            scanResult: scanResult as Prisma.InputJsonValue,
+            featureConfig: featureConfig as Prisma.InputJsonValue,
             scannedAt: new Date(),
             categoryId: category.id,
             status: TemplateStatus.PUBLISHED,
@@ -406,8 +409,9 @@ async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
             name: fixture.name,
             rawHtml,
             sourceFileName: fixture.file,
-            htmlSize: Buffer.byteLength(rawHtml, "utf8"),
-            scanResult,
+            htmlSize,
+            scanResult: scanResult as Prisma.InputJsonValue,
+            featureConfig: featureConfig as Prisma.InputJsonValue,
             scannedAt: new Date(),
             categoryId: category.id,
             status: TemplateStatus.PUBLISHED,
@@ -440,8 +444,9 @@ async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
         data: {
           name: fixture.name,
           rawHtml,
-          htmlSize: Buffer.byteLength(rawHtml, "utf8"),
-          scanResult,
+          htmlSize,
+          scanResult: scanResult as Prisma.InputJsonValue,
+          featureConfig: featureConfig as Prisma.InputJsonValue,
           templateId: template.id,
         },
       });
@@ -454,8 +459,9 @@ async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
           status: DesignVersionStatus.CURRENT,
           name: fixture.name,
           rawHtml,
-          htmlSize: Buffer.byteLength(rawHtml, "utf8"),
-          scanResult,
+          htmlSize,
+          scanResult: scanResult as Prisma.InputJsonValue,
+          featureConfig: featureConfig as Prisma.InputJsonValue,
           publishedById: userId,
         },
       });
@@ -464,6 +470,68 @@ async function seedSimpleDesigns(userId: string, fixtureDirectory: string) {
       where: { id: template.id },
       data: { designId: design.id, status: TemplateStatus.PUBLISHED },
     });
+  }
+}
+
+async function syncStandaloneTemplateFiles(fixtureDirectory: string) {
+  const scanner = createTemplateScanner();
+
+  for (const fileName of STANDALONE_TEMPLATE_FILES) {
+    const absolutePath = join(fixtureDirectory, fileName);
+    const rawHtml = readFileSync(absolutePath, "utf8");
+    const scanResult = scanner.scanTemplateHtml(rawHtml, fileName);
+    const htmlSize = Buffer.byteLength(rawHtml, "utf8");
+
+    const templates = await prisma.invitationTemplate.findMany({
+      where: { sourceFileName: fileName },
+      select: {
+        id: true,
+        featureConfig: true,
+      },
+    });
+
+    for (const template of templates) {
+      const featureConfig = scanner.normalizeFeatureConfig(
+        template.featureConfig as Record<string, unknown> | null | undefined,
+        scanResult,
+      );
+
+      await prisma.invitationTemplate.update({
+        where: { id: template.id },
+        data: {
+          rawHtml,
+          htmlSize,
+          scanResult: scanResult as Prisma.InputJsonValue,
+          featureConfig: featureConfig as Prisma.InputJsonValue,
+          scannedAt: new Date(),
+        },
+      });
+
+      const versions = await prisma.designVersion.findMany({
+        where: { templateId: template.id },
+        select: {
+          id: true,
+          featureConfig: true,
+        },
+      });
+
+      for (const version of versions) {
+        const versionFeatureConfig = scanner.normalizeFeatureConfig(
+          version.featureConfig as Record<string, unknown> | null | undefined,
+          scanResult,
+        );
+
+        await prisma.designVersion.update({
+          where: { id: version.id },
+          data: {
+            rawHtml,
+            htmlSize,
+            scanResult: scanResult as Prisma.InputJsonValue,
+            featureConfig: versionFeatureConfig as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
   }
 }
 
@@ -571,6 +639,15 @@ async function main() {
     join(fixtureDirectory, CORPORATE_ANIMATION_FILE),
     "utf8",
   );
+  const scanner = createTemplateScanner();
+  const corporateTemplateScan = scanner.scanTemplateHtml(
+    templateHtml,
+    "Corporate Executive Forum",
+  );
+  const corporateTemplateFeatureConfig = scanner.normalizeFeatureConfig(
+    null,
+    corporateTemplateScan,
+  );
   const category = await prisma.designCategory.upsert({
     where: { slug: "corporate" },
     update: {
@@ -635,7 +712,9 @@ async function main() {
           name: "Corporate Executive Forum",
           rawHtml: templateHtml,
           htmlSize: Buffer.byteLength(templateHtml, "utf8"),
-          scanResult: templateScanResult(),
+          scanResult: corporateTemplateScan as Prisma.InputJsonValue,
+          featureConfig:
+            corporateTemplateFeatureConfig as Prisma.InputJsonValue,
           scannedAt: new Date(),
           categoryId: category.id,
           status: TemplateStatus.PUBLISHED,
@@ -647,7 +726,9 @@ async function main() {
           rawHtml: templateHtml,
           sourceFileName: CORPORATE_TEMPLATE_FILE,
           htmlSize: Buffer.byteLength(templateHtml, "utf8"),
-          scanResult: templateScanResult(),
+          scanResult: corporateTemplateScan as Prisma.InputJsonValue,
+          featureConfig:
+            corporateTemplateFeatureConfig as Prisma.InputJsonValue,
           scannedAt: new Date(),
           categoryId: category.id,
           status: TemplateStatus.PUBLISHED,
@@ -689,6 +770,14 @@ async function main() {
     /(<[^>]+data-nimto-opening-slot=["']corporate-reveal["'][^>]*>)/i,
     `$1${animationHtml}`,
   );
+  const corporatePublishedScan = scanner.scanTemplateHtml(
+    publishedHtml,
+    "Corporate Executive Forum",
+  );
+  const corporatePublishedFeatureConfig = scanner.normalizeFeatureConfig(
+    null,
+    corporatePublishedScan,
+  );
   const currentVersion = await prisma.designVersion.findFirst({
     where: { designId: design.id, status: DesignVersionStatus.CURRENT },
   });
@@ -699,7 +788,8 @@ async function main() {
         name: design.name,
         rawHtml: publishedHtml,
         htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
-        scanResult: templateScanResult(),
+        scanResult: corporatePublishedScan as Prisma.InputJsonValue,
+        featureConfig: corporatePublishedFeatureConfig as Prisma.InputJsonValue,
         templateId: template.id,
       },
     });
@@ -713,7 +803,8 @@ async function main() {
         name: design.name,
         rawHtml: publishedHtml,
         htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
-        scanResult: templateScanResult(),
+        scanResult: corporatePublishedScan as Prisma.InputJsonValue,
+        featureConfig: corporatePublishedFeatureConfig as Prisma.InputJsonValue,
         publishedById: user.id,
       },
     });
@@ -722,7 +813,8 @@ async function main() {
     where: { id: template.id },
     data: { designId: design.id, status: TemplateStatus.PUBLISHED },
   });
-  await seedSimpleDesigns(user.id, fixtureDirectory);
+  await seedSimpleDesigns(user.id, fixtureDirectory, scanner);
+  await syncStandaloneTemplateFiles(fixtureDirectory);
 
   console.log(`Seeded Super Admin: ${email}`);
   console.log("Seeded Corporate Executive Forum design and opening animation.");

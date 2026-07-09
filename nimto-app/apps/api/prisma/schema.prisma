@@ -424,6 +424,7 @@ model InvitationInvitee {
   partySize        Int?
   mealPreference   String?
   rsvpMessage      String?
+  rsvpAnswers      Json?
   respondedAt      DateTime?
   activities       EventActivity[]
   createdAt        DateTime        @default(now())

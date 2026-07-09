@@ -12,6 +12,8 @@ import {
   EventActivity,
   EventDesignRevision,
   EventRsvpResponse,
+  RsvpConfig,
+  RsvpFieldConfig,
   UserEvent,
 } from "../event-types";
 import {
@@ -69,7 +71,7 @@ const eventTabs: { id: EventTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "invitation", label: "Invitation" },
   { id: "guests", label: "Guests" },
-  { id: "rsvp", label: "RSVP & meals" },
+  { id: "rsvp", label: "RSVP" },
   { id: "sharing", label: "Sharing" },
   { id: "activity", label: "Activity" },
   { id: "settings", label: "Settings" },
@@ -127,6 +129,7 @@ function EventDetailContent({
   const [activity, setActivity] = useState<EventActivity[]>([]);
   const [revisions, setRevisions] = useState<EventDesignRevision[]>([]);
   const [designs, setDesigns] = useState<PublicDesign[]>([]);
+  const [rsvpDraft, setRsvpDraft] = useState<RsvpConfig>(defaultRsvpConfig());
   const [csvImport, setCsvImport] = useState<CsvImportState>(null);
   const [deletedInvitee, setDeletedInvitee] =
     useState<InvitationInvitee | null>(null);
@@ -216,6 +219,11 @@ function EventDetailContent({
       expiresAt: Date.now() + 5 * 60_000,
     });
   }, [cacheKey, event, invitees]);
+
+  useEffect(() => {
+    if (!event) return;
+    setRsvpDraft(normalizeRsvpConfig(event.rsvpConfig));
+  }, [event]);
 
   useEffect(() => {
     setShowEventMenu(false);
@@ -459,53 +467,29 @@ function EventDetailContent({
   }
 
   function downloadRsvpCsv() {
-    const inviteeRows = invitees
-      .filter((invitee) => invitee.rsvpStatus !== "PENDING")
-      .map((invitee) =>
-        [
-          "Guest link",
-          invitee.respondedAt ?? "",
-          invitee.rsvpStatus,
-          invitee.name,
-          invitee.phone ?? "",
-          invitee.email ?? "",
-          String(invitee.partySize ?? ""),
-          invitee.mealPreference ?? "",
-          invitee.rsvpMessage ?? "",
-        ]
-          .map(csvCell)
-          .join(","),
-      );
-    const publicRows = rsvpResponses.map((response) => {
-      const answers = response.answers ?? {};
-      return [
-        "Public link",
+    const exportFields = rsvpDraft.fields.filter((field) => field.enabled);
+    const rows = buildRsvpResponseRows(
+      invitees,
+      rsvpResponses,
+      exportFields,
+    ).map((response) =>
+      [
+        response.source,
         response.submittedAt,
-        response.status,
-        String(answers.fullName ?? ""),
-        String(answers.phone ?? ""),
-        String(answers.email ?? ""),
-        String(response.guestCount ?? answers.numberOfGuests ?? ""),
-        String(answers.mealPreference ?? ""),
-        String(answers.message ?? ""),
+        ...exportFields.map((field) =>
+          csvResponseValue(response.answers, field.key),
+        ),
       ]
         .map(csvCell)
-        .join(",");
-    });
+        .join(","),
+    );
     const csv = [
       [
         "Source",
         "Submitted At",
-        "Status",
-        "Full Name",
-        "Phone",
-        "Email",
-        "Number Of Guests",
-        "Meal Preference",
-        "Message",
+        ...exportFields.map((field) => field.label),
       ].join(","),
-      ...inviteeRows,
-      ...publicRows,
+      ...rows,
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -681,11 +665,14 @@ function EventDetailContent({
               : Boolean(event.checklist?.shared),
           },
           rsvpConfig: {
-            ...rsvpConfig,
-            note: String(form.get("rsvpNote") || ""),
-            closedMessage:
-              String(form.get("rsvpClosedMessage") || "") ||
-              "Sorry, RSVP is closed for this event.",
+            ...rsvpDraft,
+            note: form.has("rsvpNote")
+              ? String(form.get("rsvpNote") || "")
+              : rsvpDraft.note,
+            closedMessage: form.has("rsvpClosedMessage")
+              ? String(form.get("rsvpClosedMessage") || "") ||
+                "Sorry, RSVP is closed for this event."
+              : rsvpDraft.closedMessage,
           },
           isPublished: form.has("isPublished")
             ? wantsPublished
@@ -703,6 +690,75 @@ function EventDetailContent({
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function saveRsvpSetup(eventForm: FormEvent<HTMLFormElement>) {
+    eventForm.preventDefault();
+    if (!event) return;
+    const form = new FormData(eventForm.currentTarget);
+    setIsSaving(true);
+    try {
+      const updated = await apiRequest<UserEvent>(`/events/${event.id}`, {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({
+          rsvpDeadline: form.get("rsvpDeadline") || null,
+          rsvpConfig: rsvpDraft,
+        }),
+      });
+      setEvent((current) => (current ? { ...current, ...updated } : updated));
+      setRsvpDraft(normalizeRsvpConfig(updated.rsvpConfig));
+      markEventsChanged();
+      showToast("RSVP setup saved.");
+      void refreshInsights();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Could not save RSVP setup.",
+        "error",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function updateRsvpField(fieldId: string, patch: Partial<RsvpFieldConfig>) {
+    setRsvpDraft((current) => ({
+      ...current,
+      fields: current.fields.map((field) =>
+        field.id === fieldId ? { ...field, ...patch } : field,
+      ),
+    }));
+  }
+
+  function removeRsvpField(fieldId: string) {
+    setRsvpDraft((current) => ({
+      ...current,
+      fields: current.fields.filter(
+        (field) => field.id !== fieldId || field.builtIn,
+      ),
+    }));
+  }
+
+  function addCustomRsvpField() {
+    const suffix =
+      rsvpDraft.fields.filter((field) => !field.builtIn).length + 1;
+    setRsvpDraft((current) => ({
+      ...current,
+      fields: [
+        ...current.fields,
+        {
+          id: `custom_${Date.now()}_${suffix}`,
+          key: `custom_field_${suffix}`,
+          label: `Custom field ${suffix}`,
+          type: "text",
+          required: false,
+          enabled: true,
+          builtIn: false,
+          options: [],
+          placeholder: "",
+        },
+      ],
+    }));
   }
 
   async function duplicateEvent() {
@@ -878,7 +934,12 @@ function EventDetailContent({
   const rsvpClosed = Boolean(
     event.rsvpDeadline && new Date(event.rsvpDeadline).getTime() < Date.now(),
   );
-  const rsvpConfig = normalizeRsvpConfig(event.rsvpConfig);
+  const rsvpConfig = rsvpDraft;
+  const rsvpResponseRows = buildRsvpResponseRows(
+    invitees,
+    rsvpResponses,
+    rsvpConfig.fields,
+  );
   const status = event.archivedAt
     ? "Archived"
     : invitationDraft
@@ -1418,21 +1479,30 @@ function EventDetailContent({
               <strong>{statistics?.expectedGuests ?? 0}</strong>
             </article>
             <article>
-              <span>Declined</span>
-              <strong>{statistics?.declined ?? 0}</strong>
+              <span>Public replies</span>
+              <strong>
+                {statistics?.publicResponses ?? rsvpResponses.length}
+              </strong>
             </article>
             <article>
-              <span>Unopened</span>
-              <strong>{statistics?.unopenedInvitees ?? 0}</strong>
+              <span>Last reply</span>
+              <strong>
+                {statistics?.lastResponseAt
+                  ? formatEventDate(statistics.lastResponseAt)
+                  : "No replies yet"}
+              </strong>
             </article>
           </section>
           <section className="event-refinement-grid">
-            <form className="user-panel" onSubmit={saveEventDetails}>
+            <form
+              className="user-panel event-rsvp-builder"
+              onSubmit={saveRsvpSetup}
+            >
               <p className="user-kicker">RSVP form</p>
               <h2>Response setup</h2>
               <p>
-                Default fields are status, full name, phone, email, number of
-                guests, and message.
+                Configure the fields guests see when they open RSVP from the
+                invitation.
               </p>
               <label className="user-field">
                 <span>RSVP deadline</span>
@@ -1445,41 +1515,155 @@ function EventDetailContent({
               <label className="user-field">
                 <span>Host note above form</span>
                 <textarea
-                  defaultValue={rsvpConfig.note}
                   name="rsvpNote"
+                  onChange={(changeEvent) =>
+                    setRsvpDraft((current) => ({
+                      ...current,
+                      note: changeEvent.target.value,
+                    }))
+                  }
                   rows={3}
+                  value={rsvpConfig.note}
                 />
               </label>
               <label className="user-field">
                 <span>Closed message</span>
                 <textarea
-                  defaultValue={rsvpConfig.closedMessage}
                   name="rsvpClosedMessage"
+                  onChange={(changeEvent) =>
+                    setRsvpDraft((current) => ({
+                      ...current,
+                      closedMessage: changeEvent.target.value,
+                    }))
+                  }
                   rows={2}
+                  value={rsvpConfig.closedMessage}
                 />
               </label>
-              <input defaultValue={event.title} name="title" type="hidden" />
-              <input defaultValue={event.type} name="type" type="hidden" />
-              <input
-                defaultValue={event.eventDate?.slice(0, 16) ?? ""}
-                name="eventDate"
-                type="hidden"
-              />
-              <input
-                defaultValue={event.venue ?? ""}
-                name="venue"
-                type="hidden"
-              />
-              <input
-                defaultValue={event.description ?? ""}
-                name="description"
-                type="hidden"
-              />
-              <input
-                defaultValue={event.organizerNotes ?? ""}
-                name="organizerNotes"
-                type="hidden"
-              />
+              <div className="event-rsvp-fields-editor">
+                {rsvpConfig.fields.map((field) => (
+                  <div
+                    className={
+                      field.builtIn
+                        ? "event-rsvp-field-card built-in"
+                        : "event-rsvp-field-card"
+                    }
+                    key={field.id}
+                  >
+                    <div className="event-rsvp-field-row">
+                      <label className="user-field">
+                        <span>Field label</span>
+                        <input
+                          onChange={(changeEvent) =>
+                            updateRsvpField(field.id, {
+                              label: changeEvent.target.value,
+                            })
+                          }
+                          value={field.label}
+                        />
+                      </label>
+                      <label className="user-field">
+                        <span>Type</span>
+                        <select
+                          disabled={field.builtIn}
+                          onChange={(changeEvent) =>
+                            updateRsvpField(field.id, {
+                              type: changeEvent.target
+                                .value as RsvpFieldConfig["type"],
+                              options:
+                                changeEvent.target.value === "single_choice"
+                                  ? field.options?.length
+                                    ? field.options
+                                    : ["Option 1"]
+                                  : [],
+                            })
+                          }
+                          value={field.type}
+                        >
+                          <option value="text">Text</option>
+                          <option value="textarea">Long text</option>
+                          <option value="number">Number</option>
+                          <option value="date">Date</option>
+                          <option value="single_choice">Single choice</option>
+                          <option value="email">Email</option>
+                          <option value="phone">Phone</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="event-rsvp-field-row compact">
+                      <label className="event-inline-toggle">
+                        <input
+                          checked={field.enabled}
+                          onChange={(changeEvent) =>
+                            updateRsvpField(field.id, {
+                              enabled: changeEvent.target.checked,
+                            })
+                          }
+                          type="checkbox"
+                        />
+                        Enabled
+                      </label>
+                      <label className="event-inline-toggle">
+                        <input
+                          checked={field.required}
+                          onChange={(changeEvent) =>
+                            updateRsvpField(field.id, {
+                              required: changeEvent.target.checked,
+                            })
+                          }
+                          type="checkbox"
+                        />
+                        Required
+                      </label>
+                      {!field.builtIn ? (
+                        <button
+                          className="user-text-button"
+                          onClick={() => removeRsvpField(field.id)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <span className="event-rsvp-built-in-label">
+                          Default field
+                        </span>
+                      )}
+                    </div>
+                    {field.type === "single_choice" ? (
+                      <label className="user-field">
+                        <span>Choices</span>
+                        <input
+                          onChange={(changeEvent) =>
+                            updateRsvpField(field.id, {
+                              options: changeEvent.target.value
+                                .split(",")
+                                .map((option) => option.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          value={(field.options ?? []).join(", ")}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="event-rsvp-actions">
+                <button
+                  className="user-secondary-button"
+                  onClick={addCustomRsvpField}
+                  type="button"
+                >
+                  Add custom field
+                </button>
+                <button
+                  className="user-secondary-button"
+                  onClick={downloadRsvpCsv}
+                  type="button"
+                >
+                  Export CSV
+                </button>
+              </div>
               <button
                 className="user-primary-button"
                 disabled={isSaving}
@@ -1487,14 +1671,31 @@ function EventDetailContent({
               >
                 Save RSVP setup
               </button>
-              <button
-                className="user-secondary-button"
-                onClick={downloadRsvpCsv}
-                type="button"
-              >
-                Export CSV
-              </button>
             </form>
+            <article className="user-panel">
+              <p className="user-kicker">Recent responses</p>
+              <h2>Latest guests who replied</h2>
+              {rsvpResponseRows.length ? (
+                <div className="event-rsvp-response-list">
+                  {rsvpResponseRows.slice(0, 8).map((response) => (
+                    <div key={response.id}>
+                      <div>
+                        <strong>
+                          {csvResponseValue(response.answers, "full_name") ||
+                            "Unnamed guest"}
+                        </strong>
+                        <span>
+                          {response.source} · {response.statusLabel}
+                        </span>
+                      </div>
+                      <time>{formatEventDate(response.submittedAt)}</time>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>No RSVP responses yet.</p>
+              )}
+            </article>
             <article className="user-panel">
               <p className="user-kicker">Meal summary</p>
               <h2>Expected meal requirements</h2>
@@ -2167,14 +2368,186 @@ function mappedCsvGuest(
   };
 }
 
-function normalizeRsvpConfig(config?: Record<string, unknown> | null) {
+function defaultRsvpConfig(): RsvpConfig {
   return {
-    note: String(config?.note ?? ""),
-    closedMessage: String(
-      config?.closedMessage ?? "Sorry, RSVP is closed for this event.",
-    ),
-    fields: Array.isArray(config?.fields) ? config.fields : [],
+    note: "",
+    closedMessage: "Sorry, RSVP is closed for this event.",
+    fields: [
+      {
+        id: "attendance_status",
+        key: "attendance_status",
+        label: "Will you attend?",
+        type: "single_choice",
+        required: true,
+        enabled: true,
+        builtIn: true,
+        options: ["Attending", "Cannot attend"],
+      },
+      {
+        id: "full_name",
+        key: "full_name",
+        label: "Full name",
+        type: "text",
+        required: true,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "phone_number",
+        key: "phone_number",
+        label: "Phone number",
+        type: "phone",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "email_address",
+        key: "email_address",
+        label: "Email address",
+        type: "email",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "number_of_guests",
+        key: "number_of_guests",
+        label: "How many people are coming?",
+        type: "number",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "meal_preference",
+        key: "meal_preference",
+        label: "Meal preference",
+        type: "text",
+        required: false,
+        enabled: false,
+        builtIn: true,
+      },
+      {
+        id: "message",
+        key: "message",
+        label: "Message",
+        type: "textarea",
+        required: false,
+        enabled: false,
+        builtIn: true,
+      },
+    ],
   };
+}
+
+function normalizeRsvpConfig(
+  config?: Record<string, unknown> | null,
+): RsvpConfig {
+  const defaults = defaultRsvpConfig();
+  const providedFields = Array.isArray(config?.fields)
+    ? (config.fields as Partial<RsvpFieldConfig>[])
+    : [];
+  const mergedDefaults = defaults.fields.map((field) => {
+    const provided = providedFields.find((item) => item?.key === field.key);
+    return {
+      ...field,
+      label: provided?.label || field.label,
+      type: provided?.type || field.type,
+      required:
+        typeof provided?.required === "boolean"
+          ? provided.required
+          : field.required,
+      enabled:
+        typeof provided?.enabled === "boolean"
+          ? provided.enabled
+          : field.enabled,
+      options:
+        field.type === "single_choice"
+          ? Array.isArray(provided?.options) && provided.options.length
+            ? provided.options
+            : field.options
+          : undefined,
+    };
+  });
+  const customFields = providedFields.flatMap((field, index) => {
+    if (!field?.key || defaults.fields.some((item) => item.key === field.key)) {
+      return [];
+    }
+    return [
+      {
+        id: field.id || `custom_${index + 1}_${field.key}`,
+        key: field.key,
+        label: field.label || field.key,
+        type: field.type || "text",
+        required: Boolean(field.required),
+        enabled: field.enabled !== false,
+        builtIn: false,
+        options: Array.isArray(field.options) ? field.options : [],
+        placeholder:
+          typeof field.placeholder === "string" ? field.placeholder : "",
+      } satisfies RsvpFieldConfig,
+    ];
+  });
+  return {
+    note: String(config?.note ?? defaults.note),
+    closedMessage: String(config?.closedMessage ?? defaults.closedMessage),
+    fields: [...mergedDefaults, ...customFields],
+  };
+}
+
+function buildRsvpResponseRows(
+  invitees: InvitationInvitee[],
+  responses: EventRsvpResponse[],
+  fields: RsvpFieldConfig[],
+) {
+  const enabledKeys = new Set(
+    fields.filter((field) => field.enabled).map((field) => field.key),
+  );
+  const inviteeRows = invitees
+    .filter((invitee) => invitee.rsvpStatus !== "PENDING")
+    .map((invitee) => {
+      const answers = {
+        attendance_status:
+          invitee.rsvpStatus === "ATTENDING" ? "Attending" : "Cannot attend",
+        full_name: invitee.name,
+        phone_number: invitee.phone ?? "",
+        email_address: invitee.email ?? "",
+        number_of_guests: invitee.partySize ?? "",
+        meal_preference: invitee.mealPreference ?? "",
+        message: invitee.rsvpMessage ?? "",
+        ...(invitee.rsvpAnswers ?? {}),
+      };
+      return {
+        id: invitee.id,
+        source: "Guest link",
+        submittedAt: invitee.respondedAt ?? invitee.updatedAt,
+        statusLabel:
+          invitee.rsvpStatus === "ATTENDING" ? "Attending" : "Declined",
+        answers: Object.fromEntries(
+          Object.entries(answers).filter(([key]) => enabledKeys.has(key)),
+        ),
+      };
+    });
+  const publicRows = responses.map((response) => ({
+    id: response.id,
+    source: "Public link",
+    submittedAt: response.submittedAt,
+    statusLabel: response.status === "ATTENDING" ? "Attending" : "Declined",
+    answers: Object.fromEntries(
+      Object.entries(response.answers ?? {}).filter(([key]) =>
+        enabledKeys.has(key),
+      ),
+    ),
+  }));
+  return [...inviteeRows, ...publicRows].sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
+}
+
+function csvResponseValue(answers: Record<string, unknown>, key: string) {
+  const value = answers[key];
+  return value === undefined || value === null ? "" : String(value);
 }
 
 function reviewCsvImport(

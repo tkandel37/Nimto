@@ -27,6 +27,31 @@ type ActorContext = {
   userAgent?: string;
 };
 
+type NormalizedRsvpField = {
+  id: string;
+  key: string;
+  label: string;
+  type:
+    | "single_choice"
+    | "text"
+    | "textarea"
+    | "number"
+    | "date"
+    | "email"
+    | "phone";
+  required: boolean;
+  enabled: boolean;
+  builtIn?: boolean;
+  options?: string[];
+  placeholder?: string | null;
+};
+
+type NormalizedRsvpConfig = {
+  note: string;
+  closedMessage: string;
+  fields: NormalizedRsvpField[];
+};
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -710,6 +735,8 @@ export class EventsService {
           groupName: invitee.groupName,
           organizerNotes: invitee.organizerNotes,
           mealPreference: invitee.mealPreference,
+          rsvpAnswers:
+            (invitee.rsvpAnswers as Prisma.InputJsonValue | null) ?? undefined,
           slug: await this.uniqueInviteeSlug(duplicate.slug, invitee.name),
         },
       });
@@ -775,12 +802,15 @@ export class EventsService {
             rsvpStatus: true,
             partySize: true,
             mealPreference: true,
+            respondedAt: true,
           },
         },
         rsvpResponses: {
           select: {
             status: true,
             guestCount: true,
+            answers: true,
+            submittedAt: true,
           },
         },
       },
@@ -839,14 +869,36 @@ export class EventsService {
               100,
           )
         : 0,
+      publicResponses: event.rsvpResponses.length,
+      lastResponseAt:
+        [
+          ...event.invitees
+            .map((item) => item.respondedAt?.toISOString() ?? null)
+            .filter((item): item is string => Boolean(item)),
+          ...event.rsvpResponses.map((item) => item.submittedAt.toISOString()),
+        ]
+          .sort()
+          .at(-1) ?? null,
       mealTotals: Object.entries(
-        event.invitees.reduce<Record<string, number>>((totals, item) => {
-          if (item.rsvpStatus === RsvpStatus.ATTENDING && item.mealPreference) {
-            totals[item.mealPreference] =
-              (totals[item.mealPreference] ?? 0) + (item.partySize ?? 1);
-          }
-          return totals;
-        }, {}),
+        event.rsvpResponses.reduce<Record<string, number>>(
+          (totals, item) => {
+            const meal = this.answerText(item.answers, "meal_preference");
+            if (item.status === RsvpStatus.ATTENDING && meal) {
+              totals[meal] = (totals[meal] ?? 0) + (item.guestCount ?? 1);
+            }
+            return totals;
+          },
+          event.invitees.reduce<Record<string, number>>((totals, item) => {
+            if (
+              item.rsvpStatus === RsvpStatus.ATTENDING &&
+              item.mealPreference
+            ) {
+              totals[item.mealPreference] =
+                (totals[item.mealPreference] ?? 0) + (item.partySize ?? 1);
+            }
+            return totals;
+          }, {}),
+        ),
       ).map(([meal, count]) => ({ meal, count })),
     };
   }
@@ -1110,6 +1162,7 @@ export class EventsService {
             isPublished: true,
             archivedAt: true,
             rsvpDeadline: true,
+            rsvpConfig: true,
           },
         },
       },
@@ -1140,9 +1193,15 @@ export class EventsService {
         throw new BadRequestException("The RSVP deadline has passed.");
       }
 
-      const answers = (dto.answers ?? {}) as Record<string, unknown>;
+      const config = this.normalizeRsvpConfig(event.rsvpConfig);
+      const answers = this.normalizeSubmittedRsvpAnswers(
+        dto,
+        config,
+        undefined,
+      );
+      this.validateRsvpSubmission(config, answers, true);
       const guestCountValue = Number(
-        answers.numberOfGuests ?? answers.guestCount ?? dto.partySize ?? 1,
+        answers.number_of_guests ?? dto.partySize ?? 1,
       );
       const response = await this.prisma.eventRsvpResponse.create({
         data: {
@@ -1158,10 +1217,7 @@ export class EventsService {
                   ),
                 )
               : null,
-          answers: {
-            ...answers,
-            message: dto.message?.trim() || answers.message || "",
-          } as Prisma.InputJsonObject,
+          answers: answers as Prisma.InputJsonObject,
         },
       });
       await this.activity(
@@ -1185,17 +1241,37 @@ export class EventsService {
       throw new BadRequestException("The RSVP deadline has passed.");
     }
 
+    const config = this.normalizeRsvpConfig(invitee.event.rsvpConfig);
+    const answers = this.normalizeSubmittedRsvpAnswers(
+      dto,
+      config,
+      invitee.name,
+    );
+    this.validateRsvpSubmission(config, answers, false);
+
     const updated = await this.prisma.invitationInvitee.update({
       where: { id: invitee.id },
       data: {
         rsvpStatus: dto.status,
         partySize:
-          dto.status === RsvpStatus.ATTENDING ? (dto.partySize ?? 1) : null,
+          dto.status === RsvpStatus.ATTENDING
+            ? (this.answerNumber(answers, "number_of_guests") ??
+              dto.partySize ??
+              1)
+            : null,
         mealPreference:
           dto.status === RsvpStatus.ATTENDING
-            ? dto.mealPreference?.trim() || null
+            ? (this.answerText(answers, "meal_preference") ??
+              dto.mealPreference?.trim() ??
+              null)
             : null,
-        rsvpMessage: dto.message?.trim() || null,
+        rsvpMessage:
+          this.answerText(answers, "message") ?? dto.message?.trim() ?? null,
+        email:
+          this.answerText(answers, "email_address") ?? invitee.email ?? null,
+        phone:
+          this.answerText(answers, "phone_number") ?? invitee.phone ?? null,
+        rsvpAnswers: answers as Prisma.InputJsonObject,
         respondedAt: new Date(),
       },
     });
@@ -1245,9 +1321,311 @@ export class EventsService {
           : undefined,
       rsvpConfig:
         "rsvpConfig" in dto && dto.rsvpConfig !== undefined
-          ? (dto.rsvpConfig as Prisma.InputJsonObject)
+          ? (this.normalizeRsvpConfig(dto.rsvpConfig) as Prisma.InputJsonObject)
           : undefined,
     };
+  }
+
+  private normalizeRsvpConfig(
+    config?: Record<string, unknown> | Prisma.JsonValue | null,
+  ): NormalizedRsvpConfig {
+    const source =
+      config && typeof config === "object" && !Array.isArray(config)
+        ? (config as Record<string, unknown>)
+        : {};
+    const providedFields = Array.isArray(source.fields) ? source.fields : [];
+    const defaults: NormalizedRsvpField[] = [
+      {
+        id: "attendance_status",
+        key: "attendance_status",
+        label: "Will you attend?",
+        type: "single_choice",
+        required: true,
+        enabled: true,
+        builtIn: true,
+        options: ["Attending", "Cannot attend"],
+      },
+      {
+        id: "full_name",
+        key: "full_name",
+        label: "Full name",
+        type: "text",
+        required: true,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "phone_number",
+        key: "phone_number",
+        label: "Phone number",
+        type: "phone",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "email_address",
+        key: "email_address",
+        label: "Email address",
+        type: "email",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "number_of_guests",
+        key: "number_of_guests",
+        label: "How many people are coming?",
+        type: "number",
+        required: false,
+        enabled: true,
+        builtIn: true,
+      },
+      {
+        id: "meal_preference",
+        key: "meal_preference",
+        label: "Meal preference",
+        type: "text",
+        required: false,
+        enabled: false,
+        builtIn: true,
+      },
+      {
+        id: "message",
+        key: "message",
+        label: "Message",
+        type: "textarea",
+        required: false,
+        enabled: false,
+        builtIn: true,
+      },
+    ];
+
+    const merged = defaults.map((field) => {
+      const provided = providedFields.find(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          (item as Record<string, unknown>).key === field.key,
+      ) as Record<string, unknown> | undefined;
+      return {
+        ...field,
+        label:
+          typeof provided?.label === "string" && provided.label.trim()
+            ? provided.label.trim()
+            : field.label,
+        required:
+          typeof provided?.required === "boolean"
+            ? provided.required
+            : field.required,
+        enabled:
+          typeof provided?.enabled === "boolean"
+            ? provided.enabled
+            : field.enabled,
+        options:
+          field.type === "single_choice"
+            ? this.normalizeChoiceOptions(provided?.options, field.options)
+            : undefined,
+      };
+    });
+
+    const custom = providedFields.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      const field = item as Record<string, unknown>;
+      if (
+        typeof field.key !== "string" ||
+        defaults.some((base) => base.key === field.key)
+      ) {
+        return [];
+      }
+      const key = this.slugify(field.key).replace(/-/g, "_");
+      if (!key) return [];
+      const type = this.normalizeRsvpFieldType(field.type);
+      return [
+        {
+          id:
+            typeof field.id === "string" && field.id.trim()
+              ? field.id
+              : `custom_${index + 1}_${key}`,
+          key,
+          label:
+            typeof field.label === "string" && field.label.trim()
+              ? field.label.trim()
+              : this.labelizeRsvpKey(key),
+          type,
+          required: Boolean(field.required),
+          enabled: field.enabled !== false,
+          builtIn: false,
+          options:
+            type === "single_choice"
+              ? this.normalizeChoiceOptions(field.options, ["Option 1"])
+              : undefined,
+          placeholder:
+            typeof field.placeholder === "string" ? field.placeholder : null,
+        } satisfies NormalizedRsvpField,
+      ];
+    });
+
+    return {
+      note: typeof source.note === "string" ? source.note : "",
+      closedMessage:
+        typeof source.closedMessage === "string" && source.closedMessage.trim()
+          ? source.closedMessage
+          : "Sorry, RSVP is closed for this event.",
+      fields: [...merged, ...custom],
+    };
+  }
+
+  private normalizeRsvpFieldType(value: unknown): NormalizedRsvpField["type"] {
+    switch (value) {
+      case "single_choice":
+      case "textarea":
+      case "number":
+      case "date":
+      case "email":
+      case "phone":
+        return value;
+      default:
+        return "text";
+    }
+  }
+
+  private normalizeChoiceOptions(value: unknown, fallback: string[] = []) {
+    const options = Array.isArray(value)
+      ? value
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    return options.length ? options : fallback;
+  }
+
+  private labelizeRsvpKey(value: string) {
+    return value
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (character) => character.toUpperCase());
+  }
+
+  private normalizeSubmittedRsvpAnswers(
+    dto: SubmitRsvpDto,
+    config: NormalizedRsvpConfig,
+    inviteeName?: string,
+  ) {
+    const rawAnswers =
+      dto.answers && typeof dto.answers === "object" ? dto.answers : {};
+    const answers: Record<string, string | number> = {
+      attendance_status:
+        dto.status === RsvpStatus.ATTENDING ? "Attending" : "Cannot attend",
+    };
+
+    for (const field of config.fields) {
+      if (!field.enabled || field.key === "attendance_status") continue;
+      const rawValue = rawAnswers[field.key];
+      if (field.key === "full_name" && inviteeName) {
+        answers[field.key] = inviteeName;
+        continue;
+      }
+      if (field.type === "number") {
+        const value =
+          typeof rawValue === "number"
+            ? rawValue
+            : Number(String(rawValue ?? "").trim() || "0");
+        if (Number.isFinite(value) && value > 0) {
+          answers[field.key] = value;
+        }
+        continue;
+      }
+      const text = String(rawValue ?? "").trim();
+      if (text) answers[field.key] = text;
+    }
+
+    if (!answers.number_of_guests && dto.partySize) {
+      answers.number_of_guests = dto.partySize;
+    }
+    if (!answers.meal_preference && dto.mealPreference?.trim()) {
+      answers.meal_preference = dto.mealPreference.trim();
+    }
+    if (!answers.message && dto.message?.trim()) {
+      answers.message = dto.message.trim();
+    }
+
+    return answers;
+  }
+
+  private validateRsvpSubmission(
+    config: NormalizedRsvpConfig,
+    answers: Record<string, string | number>,
+    requireName: boolean,
+  ) {
+    const attending =
+      String(answers.attendance_status ?? "").toLowerCase() === "attending";
+    for (const field of config.fields) {
+      if (!field.enabled) continue;
+      if (
+        !attending &&
+        ["number_of_guests", "meal_preference"].includes(field.key)
+      ) {
+        continue;
+      }
+      if (
+        requireName &&
+        field.key === "full_name" &&
+        field.required &&
+        !String(answers.full_name ?? "").trim()
+      ) {
+        throw new BadRequestException(`${field.label} is required.`);
+      }
+      if (
+        field.required &&
+        field.key !== "full_name" &&
+        field.key !== "number_of_guests" &&
+        !String(answers[field.key] ?? "").trim()
+      ) {
+        throw new BadRequestException(`${field.label} is required.`);
+      }
+      if (
+        field.key === "number_of_guests" &&
+        field.required &&
+        !this.answerNumber(answers, "number_of_guests")
+      ) {
+        throw new BadRequestException(`${field.label} is required.`);
+      }
+      if (field.type === "single_choice" && field.options?.length) {
+        const value = this.answerText(answers, field.key);
+        if (value && !field.options.includes(value)) {
+          throw new BadRequestException(
+            `${field.label} has an invalid option.`,
+          );
+        }
+      }
+    }
+  }
+
+  private answerText(
+    answers: Prisma.JsonValue | Record<string, unknown>,
+    key: string,
+  ) {
+    const value =
+      answers && typeof answers === "object" && !Array.isArray(answers)
+        ? (answers as Record<string, unknown>)[key]
+        : undefined;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  private answerNumber(
+    answers: Record<string, string | number> | Prisma.JsonValue,
+    key: string,
+  ) {
+    const value =
+      answers && typeof answers === "object" && !Array.isArray(answers)
+        ? (answers as Record<string, unknown>)[key]
+        : undefined;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+    return null;
   }
 
   private async designEventData(dto: CreateEventDto | UpdateEventDto): Promise<{

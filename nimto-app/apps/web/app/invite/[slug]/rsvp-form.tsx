@@ -1,37 +1,48 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { RsvpConfig, RsvpFieldConfig } from "../../events/event-types";
+
+type RsvpStatus = "PENDING" | "ATTENDING" | "DECLINED";
 
 export function RsvpForm({
+  config,
   initialMealPreference,
   initialMessage,
   initialPartySize,
   initialStatus,
   inviteeName,
-  note,
   publicMode = false,
-  closedMessage = "Sorry, RSVP is closed for this event.",
   rsvpDeadline,
   slug,
 }: {
+  config: RsvpConfig;
   initialMealPreference?: string | null;
   initialMessage?: string | null;
   initialPartySize?: number | null;
-  initialStatus?: "PENDING" | "ATTENDING" | "DECLINED";
+  initialStatus?: RsvpStatus;
   inviteeName: string;
-  note?: string;
   publicMode?: boolean;
-  closedMessage?: string;
   rsvpDeadline?: string | null;
   slug: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState(initialStatus ?? "PENDING");
+  const [status, setStatus] = useState<RsvpStatus>(initialStatus ?? "PENDING");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(initialStatus !== "PENDING");
   const [error, setError] = useState("");
   const [deadlinePassed, setDeadlinePassed] = useState(false);
+  const fields = useMemo(
+    () => config.fields.filter((field) => field.enabled),
+    [config.fields],
+  );
+  const attendanceField =
+    fields.find((field) => field.key === "attendance_status") ?? null;
+  const visibleFields = fields.filter(
+    (field) =>
+      field.key !== "attendance_status" &&
+      !(status !== "ATTENDING" && isAttendanceOnlyField(field.key)),
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -57,30 +68,26 @@ export function RsvpForm({
           status,
           partySize:
             status === "ATTENDING"
-              ? Number(form.get("partySize") || 1)
+              ? Number(form.get("number_of_guests") || initialPartySize || 1)
               : undefined,
           mealPreference:
             status === "ATTENDING"
-              ? String(form.get("mealPreference") || "")
+              ? String(
+                  form.get("meal_preference") || initialMealPreference || "",
+                )
               : undefined,
-          message: String(form.get("message") || ""),
-          answers: publicMode
-            ? {
-                status,
-                fullName: String(form.get("fullName") || ""),
-                phone: String(form.get("phone") || ""),
-                email: String(form.get("email") || ""),
-                numberOfGuests:
-                  status === "ATTENDING"
-                    ? Number(form.get("partySize") || 1)
-                    : 0,
-                message: String(form.get("message") || ""),
-              }
-            : undefined,
+          message: String(form.get("message") || initialMessage || ""),
+          answers: collectAnswers(form, fields, {
+            initialMealPreference,
+            initialMessage,
+            initialPartySize,
+            inviteeName,
+            publicMode,
+            status,
+          }),
         }),
       });
       setSaved(true);
-      setOpen(false);
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -93,148 +100,245 @@ export function RsvpForm({
   }
 
   return (
-    <div
-      className="fixed bottom-5 right-5 z-[100] max-w-[calc(100vw-2.5rem)]"
-      id="nimto-rsvp-form"
-    >
-      {open ? (
-        <form
-          className="mb-3 w-[min(390px,calc(100vw-2.5rem))] rounded-2xl border border-black/10 bg-white p-5 text-left shadow-2xl"
-          onSubmit={submit}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">
-                RSVP for {inviteeName}
+    <section className="nimto-rsvp-section" id="nimto-rsvp-form">
+      <div className="nimto-rsvp-shell">
+        <div className="nimto-rsvp-heading">
+          <div>
+            <p className="nimto-rsvp-kicker">
+              {publicMode ? "RSVP" : `RSVP for ${inviteeName}`}
+            </p>
+            <h2>{attendanceField?.label ?? "Will you join us?"}</h2>
+            {rsvpDeadline ? (
+              <p className="nimto-rsvp-meta">
+                Please respond by{" "}
+                {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
+                  new Date(rsvpDeadline),
+                )}
               </p>
-              <h2 className="mt-1 text-xl font-black text-slate-900">
-                Will you join us?
-              </h2>
-            </div>
-            <button
-              aria-label="Close RSVP form"
-              className="text-xl text-slate-500"
-              onClick={() => setOpen(false)}
-              type="button"
-            >
-              ×
-            </button>
+            ) : null}
           </div>
-          {rsvpDeadline ? (
-            <p className="mt-2 text-xs font-bold text-slate-500">
-              Please respond by{" "}
-              {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-                new Date(rsvpDeadline),
+          {saved ? (
+            <span className="nimto-rsvp-saved">Response saved</span>
+          ) : null}
+        </div>
+
+        {config.note ? <p className="nimto-rsvp-note">{config.note}</p> : null}
+        {deadlinePassed ? (
+          <div className="nimto-rsvp-closed">{config.closedMessage}</div>
+        ) : null}
+
+        {!deadlinePassed ? (
+          <form className="nimto-rsvp-form" onSubmit={submit}>
+            <div className="nimto-rsvp-choice-group" role="group">
+              {(attendanceField?.options?.length
+                ? attendanceField.options
+                : ["Attending", "Cannot attend"]
+              ).map((option, index) => {
+                const optionStatus = index === 0 ? "ATTENDING" : "DECLINED";
+                return (
+                  <button
+                    className={status === optionStatus ? "active" : ""}
+                    key={option}
+                    onClick={() => setStatus(optionStatus)}
+                    type="button"
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="nimto-rsvp-fields">
+              {visibleFields.map((field) =>
+                renderField(field, {
+                  inviteeName,
+                  initialMealPreference,
+                  initialMessage,
+                  initialPartySize,
+                  publicMode,
+                }),
               )}
-            </p>
-          ) : null}
-          {note ? (
-            <p className="mt-3 whitespace-pre-wrap rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
-              {note}
-            </p>
-          ) : null}
-          {deadlinePassed ? (
-            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">
-              {closedMessage}
-            </p>
-          ) : null}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {(["ATTENDING", "DECLINED"] as const).map((option) => (
-              <button
-                className={
-                  status === option
-                    ? "rounded-xl bg-emerald-700 px-3 py-3 font-bold text-white"
-                    : "rounded-xl border border-slate-200 px-3 py-3 font-bold text-slate-700"
-                }
-                key={option}
-                onClick={() => setStatus(option)}
-                type="button"
-              >
-                {option === "ATTENDING" ? "Attending" : "Cannot attend"}
-              </button>
-            ))}
-          </div>
-          {publicMode ? (
-            <div className="mt-3 grid gap-3">
-              <label className="grid gap-1 text-sm font-bold text-slate-700">
-                Full name
-                <input
-                  className="rounded-lg border border-slate-200 px-3 py-2"
-                  name="fullName"
-                  required
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1 text-sm font-bold text-slate-700">
-                  Phone number
-                  <input
-                    className="rounded-lg border border-slate-200 px-3 py-2"
-                    name="phone"
-                  />
-                </label>
-                <label className="grid gap-1 text-sm font-bold text-slate-700">
-                  Email address
-                  <input
-                    className="rounded-lg border border-slate-200 px-3 py-2"
-                    name="email"
-                    type="email"
-                  />
-                </label>
-              </div>
             </div>
-          ) : null}
-          {status === "ATTENDING" ? (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="grid gap-1 text-sm font-bold text-slate-700">
-                Party size
-                <input
-                  className="rounded-lg border border-slate-200 px-3 py-2"
-                  defaultValue={initialPartySize ?? 1}
-                  max={20}
-                  min={1}
-                  name="partySize"
-                  type="number"
-                />
-              </label>
-              <label className="grid gap-1 text-sm font-bold text-slate-700">
-                Meal preference
-                <input
-                  className="rounded-lg border border-slate-200 px-3 py-2"
-                  defaultValue={initialMealPreference ?? ""}
-                  name="mealPreference"
-                  placeholder="Optional"
-                />
-              </label>
-            </div>
-          ) : null}
-          <label className="mt-3 grid gap-1 text-sm font-bold text-slate-700">
-            Message
-            <textarea
-              className="rounded-lg border border-slate-200 px-3 py-2"
-              defaultValue={initialMessage ?? ""}
-              name="message"
-              placeholder="Optional note for the host"
-              rows={3}
-            />
-          </label>
-          {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-          <button
-            className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white"
-            disabled={saving || status === "PENDING" || deadlinePassed}
-            type="submit"
-          >
-            {saving ? "Saving..." : "Save RSVP"}
-          </button>
-        </form>
-      ) : null}
-      <button
-        className="ml-auto block rounded-full bg-emerald-700 px-5 py-3 font-black text-white shadow-xl"
-        disabled={deadlinePassed}
-        onClick={() => setOpen((value) => !value)}
-        type="button"
-      >
-        {deadlinePassed ? "RSVP closed" : saved ? "RSVP saved ✓" : "RSVP"}
-      </button>
-    </div>
+
+            {error ? <p className="nimto-rsvp-error">{error}</p> : null}
+            <button
+              className="nimto-rsvp-submit"
+              disabled={saving || status === "PENDING"}
+              type="submit"
+            >
+              {saving ? "Saving..." : saved ? "Update RSVP" : "Send RSVP"}
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </section>
   );
+}
+
+function renderField(
+  field: RsvpFieldConfig,
+  context: {
+    inviteeName: string;
+    initialMealPreference?: string | null;
+    initialMessage?: string | null;
+    initialPartySize?: number | null;
+    publicMode: boolean;
+  },
+) {
+  const commonLabel = (
+    <span>
+      {field.label}
+      {field.required ? " *" : ""}
+    </span>
+  );
+
+  if (field.key === "full_name" && !context.publicMode) {
+    return (
+      <label className="nimto-rsvp-field" key={field.id}>
+        {commonLabel}
+        <input
+          defaultValue={context.inviteeName}
+          name={field.key}
+          readOnly
+          type="text"
+        />
+      </label>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <label className="nimto-rsvp-field span-2" key={field.id}>
+        {commonLabel}
+        <textarea
+          defaultValue={
+            field.key === "message" ? (context.initialMessage ?? "") : ""
+          }
+          name={field.key}
+          placeholder={field.placeholder ?? undefined}
+          required={field.required}
+          rows={4}
+        />
+      </label>
+    );
+  }
+
+  if (field.type === "single_choice") {
+    return (
+      <label className="nimto-rsvp-field" key={field.id}>
+        {commonLabel}
+        <select defaultValue="" name={field.key} required={field.required}>
+          <option value="">Select</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  return (
+    <label className="nimto-rsvp-field" key={field.id}>
+      {commonLabel}
+      <input
+        defaultValue={defaultFieldValue(field.key, context)}
+        min={field.type === "number" ? 1 : undefined}
+        name={field.key}
+        placeholder={field.placeholder ?? undefined}
+        required={field.required}
+        type={inputType(field.type)}
+      />
+    </label>
+  );
+}
+
+function defaultFieldValue(
+  key: string,
+  context: {
+    inviteeName: string;
+    initialMealPreference?: string | null;
+    initialMessage?: string | null;
+    initialPartySize?: number | null;
+    publicMode: boolean;
+  },
+) {
+  switch (key) {
+    case "full_name":
+      return context.publicMode ? "" : context.inviteeName;
+    case "number_of_guests":
+      return context.initialPartySize ?? 1;
+    case "meal_preference":
+      return context.initialMealPreference ?? "";
+    default:
+      return "";
+  }
+}
+
+function collectAnswers(
+  form: FormData,
+  fields: RsvpFieldConfig[],
+  context: {
+    initialMealPreference?: string | null;
+    initialMessage?: string | null;
+    initialPartySize?: number | null;
+    inviteeName: string;
+    publicMode: boolean;
+    status: RsvpStatus;
+  },
+) {
+  const answers: Record<string, string | number> = {
+    attendance_status:
+      context.status === "ATTENDING" ? "Attending" : "Cannot attend",
+  };
+  for (const field of fields) {
+    if (!field.enabled || field.key === "attendance_status") continue;
+    if (context.status !== "ATTENDING" && isAttendanceOnlyField(field.key)) {
+      continue;
+    }
+    if (field.key === "full_name" && !context.publicMode) {
+      answers[field.key] = context.inviteeName;
+      continue;
+    }
+    const raw = form.get(field.key);
+    if (field.type === "number") {
+      const value = Number(raw || 0);
+      if (Number.isFinite(value) && value > 0) {
+        answers[field.key] = value;
+      }
+      continue;
+    }
+    const value = String(raw ?? "").trim();
+    if (value) answers[field.key] = value;
+  }
+  if (!answers.meal_preference && context.initialMealPreference) {
+    answers.meal_preference = context.initialMealPreference;
+  }
+  if (!answers.message && context.initialMessage) {
+    answers.message = context.initialMessage;
+  }
+  if (!answers.number_of_guests && context.initialPartySize) {
+    answers.number_of_guests = context.initialPartySize;
+  }
+  return answers;
+}
+
+function inputType(type: RsvpFieldConfig["type"]) {
+  switch (type) {
+    case "date":
+      return "date";
+    case "number":
+      return "number";
+    case "email":
+      return "email";
+    case "phone":
+      return "tel";
+    default:
+      return "text";
+  }
+}
+
+function isAttendanceOnlyField(key: string) {
+  return key === "number_of_guests" || key === "meal_preference";
 }
