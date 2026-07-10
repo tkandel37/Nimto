@@ -2619,6 +2619,12 @@ a {
   cursor: pointer;
 }
 
+.user-mobile-fields-toggle,
+.user-fields-backdrop,
+.user-mobile-fields-header {
+  display: none;
+}
+
 .user-fields-panel {
   display: grid;
   gap: 14px;
@@ -5930,34 +5936,95 @@ button.user-design-preview {
   }
 
   .user-editor-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .user-live-preview,
-  .user-fields-panel {
-    grid-column: 1;
+    display: block;
   }
 
   .user-live-preview {
     position: relative;
-    top: auto;
-    grid-row: 2;
-    height: 65dvh;
+    top: 0;
+    height: min(72dvh, 720px);
   }
 
   .user-fields-panel {
-    grid-row: 1;
-    padding-bottom: 82px;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 61;
+    display: grid;
+    max-height: min(82dvh, 760px);
+    gap: 14px;
+    overflow-y: auto;
+    border: 1px solid rgba(23, 32, 51, 0.12);
+    border-radius: 18px 18px 0 0;
+    background: #fffdf8;
+    padding: 16px 14px calc(92px + env(safe-area-inset-bottom));
+    box-shadow: 0 -16px 48px rgba(23, 32, 51, 0.2);
+    transform: translateY(calc(100% + 24px));
+    transition: transform 180ms ease-out;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .user-fields-panel.is-open {
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .user-mobile-fields-header {
+    position: sticky;
+    top: -16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: -16px -14px 0;
+    border-bottom: 1px solid rgba(23, 32, 51, 0.1);
+    background: #fffdf8;
+    padding: 14px;
+  }
+
+  .user-mobile-fields-header strong {
+    display: block;
+    margin-top: 2px;
+    color: var(--ink);
+  }
+
+  .user-mobile-fields-toggle {
+    position: fixed;
+    right: 12px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    left: 12px;
+    z-index: 55;
+    display: block;
+    width: calc(100% - 24px);
+    border: 0;
+    border-radius: 8px;
+    background: var(--leaf);
+    padding: 13px 16px;
+    box-shadow: 0 12px 30px rgb(23 37 29 / 0.22);
+    color: white;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .user-fields-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    border: 0;
+    background: rgba(23, 32, 51, 0.32);
+    cursor: default;
   }
 
   .user-fields-panel > .user-primary-button {
-    position: fixed;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-    z-index: 45;
-    width: auto;
-    box-shadow: 0 12px 30px rgb(23 37 29 / 0.22);
+    position: static;
+    width: 100%;
+    box-shadow: none;
   }
 
   .guest-add-modal {

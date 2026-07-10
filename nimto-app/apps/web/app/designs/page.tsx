@@ -732,17 +732,13 @@ function DesignEditor({
   const draftKey = `nimto_design_draft_${design.id}`;
   const [values, setValues] = useState<Record<string, string>>({});
   const [draftStatus, setDraftStatus] = useState("Changes save automatically");
-  const [previewEditFieldKey, setPreviewEditFieldKey] = useState("");
+  const [isFieldsPanelOpen, setIsFieldsPanelOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [device, setDevice] = useState<"mobile" | "desktop">("desktop");
   const valuesRef = useRef(values);
   const activeFieldKeyRef = useRef(selectedFieldKey);
   const fieldsRef = useRef(fields);
   const lastSyncedActiveFieldKeyRef = useRef(selectedFieldKey);
-  const previewEditorInputRef = useRef<HTMLInputElement | null>(null);
-  const previewEditField = fields.find(
-    (field) => field.key === previewEditFieldKey,
-  );
   const previewHtml = useMemo(
     () => installPreviewFieldSync(current?.rawHtml ?? "", fields),
     [current?.rawHtml, fields],
@@ -793,29 +789,6 @@ function DesignEditor({
         shouldScroll: false,
       },
     );
-    bindPreviewFrameEditing(
-      previewRef.current,
-      fieldsRef.current,
-      applyPreviewFieldValue,
-      selectField,
-      openPreviewValueEditor,
-    );
-  }
-
-  function openPreviewValueEditor(fieldKey: string) {
-    setPreviewEditFieldKey(fieldKey);
-    const frameDocument = previewRef.current?.contentDocument;
-    const field = fieldsRef.current.find(
-      (candidate) => candidate.key === fieldKey,
-    );
-    if (!frameDocument || !field) return;
-
-    const element = previewFieldElements(frameDocument, field)[0];
-    if (!element) return;
-    const initialValue = readPreviewElementValue(element).trim();
-    if (!Object.prototype.hasOwnProperty.call(valuesRef.current, fieldKey)) {
-      applyPreviewFieldValue(fieldKey, initialValue);
-    }
   }
 
   useEffect(() => {
@@ -829,20 +802,7 @@ function DesignEditor({
     updatePreviewFrame(previewRef.current, values, selectedFieldKey, fields, {
       shouldScroll,
     });
-    bindPreviewFrameEditing(
-      previewRef.current,
-      fields,
-      applyPreviewFieldValue,
-      selectField,
-      openPreviewValueEditor,
-    );
   }, [fields, selectedFieldKey, values]);
-
-  useEffect(() => {
-    if (!previewEditFieldKey) return;
-    previewEditorInputRef.current?.focus();
-    previewEditorInputRef.current?.select();
-  }, [previewEditFieldKey]);
 
   useEffect(() => {
     function receivePreviewMessage(event: MessageEvent) {
@@ -850,7 +810,6 @@ function DesignEditor({
       if (event.data.type === "selectField" && event.data.fieldKey) {
         const fieldKey = String(event.data.fieldKey);
         selectField(fieldKey);
-        window.setTimeout(() => openPreviewValueEditor(fieldKey), 0);
       }
       if (event.data.type === "ready") {
         updatePreviewFrame(
@@ -1054,13 +1013,6 @@ function DesignEditor({
                 },
               );
               previewRef.current?.contentWindow?.scrollTo(0, 0);
-              bindPreviewFrameEditing(
-                previewRef.current,
-                fields,
-                applyPreviewFieldValue,
-                selectField,
-                openPreviewValueEditor,
-              );
               window.setTimeout(() => {
                 updatePreviewFrame(
                   previewRef.current,
@@ -1070,49 +1022,45 @@ function DesignEditor({
                   { shouldScroll: false },
                 );
                 previewRef.current?.contentWindow?.scrollTo(0, 0);
-                bindPreviewFrameEditing(
-                  previewRef.current,
-                  fieldsRef.current,
-                  applyPreviewFieldValue,
-                  selectField,
-                  openPreviewValueEditor,
-                );
               }, 80);
             }}
           />
-          {previewEditField ? (
-            <div className="user-preview-inline-editor">
-              <label>
-                <span>{previewEditField.label}</span>
-                <input
-                  ref={previewEditorInputRef}
-                  onChange={(event) =>
-                    applyPreviewFieldValue(
-                      previewEditField.key,
-                      event.target.value,
-                    )
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === "Escape") {
-                      event.preventDefault();
-                      setPreviewEditFieldKey("");
-                    }
-                  }}
-                  value={values[previewEditField.key] ?? ""}
-                />
-              </label>
-              <button
-                aria-label="Close preview editor"
-                onClick={() => setPreviewEditFieldKey("")}
-                type="button"
-              >
-                Done
-              </button>
-            </div>
-          ) : null}
         </div>
 
-        <form className="user-fields-panel" onSubmit={submit}>
+        <button
+          aria-expanded={isFieldsPanelOpen}
+          className="user-mobile-fields-toggle"
+          onClick={() => setIsFieldsPanelOpen(true)}
+          type="button"
+        >
+          Edit fields
+        </button>
+        {isFieldsPanelOpen ? (
+          <button
+            aria-label="Close edit fields"
+            className="user-fields-backdrop"
+            onClick={() => setIsFieldsPanelOpen(false)}
+            type="button"
+          />
+        ) : null}
+        <form
+          className={`user-fields-panel${isFieldsPanelOpen ? " is-open" : ""}`}
+          onSubmit={submit}
+        >
+          <div className="user-mobile-fields-header">
+            <div>
+              <p className="user-kicker">Invitation details</p>
+              <strong>Edit fields</strong>
+            </div>
+            <button
+              aria-label="Close edit fields"
+              className="user-secondary-button"
+              onClick={() => setIsFieldsPanelOpen(false)}
+              type="button"
+            >
+              Done
+            </button>
+          </div>
           <div className="user-field-nav">
             <button
               className="user-secondary-button"
@@ -1354,75 +1302,6 @@ function updatePreviewFrameDom(
       }
     }
   });
-}
-
-function bindPreviewFrameEditing(
-  iframe: HTMLIFrameElement | null,
-  fields: NormalizedField[],
-  onValue: (key: string, value: string) => void,
-  onSelect: (key: string) => void,
-  onOpenEditor: (key: string) => void,
-) {
-  const document = iframe?.contentDocument;
-  if (!document) return;
-
-  fields.forEach((field) => {
-    previewFieldElements(document, field).forEach((element) => {
-      element.setAttribute("data-nimto-user-editable", "true");
-      if (!isPreviewFormElement(element) && isPreviewHtmlElement(element)) {
-        element.setAttribute("contenteditable", "true");
-      }
-      if (element.getAttribute("data-nimto-user-edit-bound") === "true") return;
-      element.setAttribute("data-nimto-user-edit-bound", "true");
-
-      const startSvgEdit = (event: Event) => {
-        if (isPreviewFormElement(element) || isPreviewHtmlElement(element))
-          return;
-        event.preventDefault();
-        event.stopPropagation();
-        onSelect(field.key);
-        onOpenEditor(field.key);
-      };
-
-      element.addEventListener("pointerdown", startSvgEdit, true);
-      element.addEventListener("click", (event) => {
-        onSelect(field.key);
-        if (isPreviewFormElement(element)) {
-          focusPreviewEditableElement(element);
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        onOpenEditor(field.key);
-      });
-
-      ["input", "blur", "keyup", "compositionend"].forEach((eventName) => {
-        element.addEventListener(eventName, () => {
-          onValue(field.key, readPreviewElementValue(element));
-        });
-      });
-    });
-  });
-}
-
-function focusPreviewEditableElement(element: Element) {
-  if (isPreviewFormElement(element)) {
-    element.focus();
-    if ("select" in element && typeof element.select === "function") {
-      element.select();
-    }
-    return;
-  }
-  if (!isPreviewHtmlElement(element)) return;
-  element.focus();
-  const document = element.ownerDocument;
-  const selection = document.defaultView?.getSelection();
-  if (!selection) return;
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
 }
 
 function applyPreviewHighlight(element: Element) {
