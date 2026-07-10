@@ -733,6 +733,7 @@ function DesignEditor({
   const [values, setValues] = useState<Record<string, string>>({});
   const [draftStatus, setDraftStatus] = useState("Changes save automatically");
   const [isFieldsPanelOpen, setIsFieldsPanelOpen] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [device, setDevice] = useState<"mobile" | "desktop">("desktop");
   const valuesRef = useRef(values);
@@ -843,6 +844,17 @@ function DesignEditor({
   useEffect(() => {
     previewRef.current?.contentWindow?.scrollTo(0, 0);
   }, [device]);
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 768px)");
+    const updateLayout = () => {
+      setIsMobileLayout(mobileQuery.matches);
+      if (mobileQuery.matches) setDevice("mobile");
+    };
+    updateLayout();
+    mobileQuery.addEventListener("change", updateLayout);
+    return () => mobileQuery.removeEventListener("change", updateLayout);
+  }, []);
 
   function updateValue(key: string, value: string) {
     setValues((currentValues) => {
@@ -1045,6 +1057,7 @@ function DesignEditor({
         ) : null}
         <form
           className={`user-fields-panel${isFieldsPanelOpen ? " is-open" : ""}`}
+          hidden={isMobileLayout && !isFieldsPanelOpen}
           onSubmit={submit}
         >
           <div className="user-mobile-fields-header">
