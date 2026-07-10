@@ -281,6 +281,9 @@ Use checks proportional to the change. For a full-stack change:
 - Inspect `git status` before editing. Preserve unrelated user changes.
 - Do not commit local secrets or generated environment files.
 - Do not reset, delete, or overwrite user work without explicit permission.
+- Default delivery rule: after verification, commit and push completed work to
+  `origin/main` so production receives it. Do not leave completed work only on
+  a `codex/...` branch unless the user explicitly asks for that workflow.
 - Keep the public README focused on users and contributors; keep detailed
   implementation handoff information in this file.
 - Update this file when architecture, setup, major features, or limitations
@@ -310,3 +313,24 @@ The Docker Compose stack was previously verified with:
 
 Re-run verification after meaningful code or infrastructure changes; this
 section records prior success, not a permanent guarantee.
+
+## 15. Recent handoff notes
+
+- As of June 27, 2026, the latest completed auth work was on branch
+  `codex/auth-email-otp-flow`.
+- Recent completed commits:
+  - `5de19a7` - Add OTP email verification and password reset flow
+  - `ec7c6f5` - Handle SMTP failures with generic auth errors
+  - `f9b840c` - Create users only after email verification
+- Registration now uses a pending-registration flow. A user record is created
+  only after the email verification code is confirmed successfully.
+- Local email sending is implemented for verification and password reset.
+- In local development, emails are sent through Mailpit, not to public inbox
+  providers by default. Mailpit UI: `http://localhost:8025`.
+- If asked "where were we?" the safest short answer is: we were finishing the
+  email OTP verification and password-reset auth flow, then tightening
+  registration so accounts are only created after successful email
+  verification.
+- As of July 10, 2026, RSVP/template support, secure template uploads,
+  invitation preview fixes, and mobile direct-editing work are completed and
+  must be delivered through `main` by default.
