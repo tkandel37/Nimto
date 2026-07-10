@@ -3647,10 +3647,33 @@ function TemplateCreatePanel({
   onTogglePanel: () => void;
 }) {
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const [uploadValidationErrors, setUploadValidationErrors] = useState<
+    string[]
+  >([]);
+
+  function setHtmlForUpload(html: string) {
+    onFileHtml(html);
+    setUploadValidationErrors(validateTemplateUploadHtml(html));
+  }
 
   async function readHtmlFile(file?: File) {
     if (!file || file.size === 0) return;
-    onFileHtml(await file.text());
+    const fileErrors = validateTemplateUploadFile(file);
+    if (fileErrors.length) {
+      setUploadValidationErrors(fileErrors);
+      return;
+    }
+    setHtmlForUpload(await file.text());
+  }
+
+  function submitTemplate(event: FormEvent<HTMLFormElement>) {
+    const errors = validateTemplateUploadHtml(createPreviewHtml);
+    setUploadValidationErrors(errors);
+    if (errors.length) {
+      event.preventDefault();
+      return;
+    }
+    onSubmit(event);
   }
 
   return (
@@ -3694,7 +3717,7 @@ function TemplateCreatePanel({
         {isCreatePanelCollapsed ? null : (
           <form
             className="border border-ink/10 bg-white p-4"
-            onSubmit={onSubmit}
+            onSubmit={submitTemplate}
           >
             <>
               <div className="flex items-center justify-between gap-3">
@@ -3762,19 +3785,36 @@ function TemplateCreatePanel({
                   <textarea
                     className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
                     name="rawHtml"
-                    onChange={(event) => onFileHtml(event.target.value)}
+                    onChange={(event) => setHtmlForUpload(event.target.value)}
                     value={createPreviewHtml}
                   />
                 </label>
+                {uploadValidationErrors.length ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                    <p className="font-black">Template blocked</p>
+                    <ul className="mt-2 grid gap-1">
+                      {uploadValidationErrors.slice(0, 5).map((error) => (
+                        <li key={error}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : createPreviewHtml ? (
+                  <div className="rounded-lg border border-leaf/20 bg-leaf/5 px-3 py-3 text-sm font-bold text-leaf">
+                    Template passed browser safety checks.
+                  </div>
+                ) : null}
               </div>
-              <button className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
+              <button
+                className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
+                disabled={uploadValidationErrors.length > 0}
+              >
                 Create draft
               </button>
             </>
           </form>
         )}
 
-        <div className="min-h-[720px] border border-ink/10 bg-white">
+        <div className="min-h-[62vh] border border-ink/10 bg-white md:min-h-[720px]">
           <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3">
             <h3 className="font-black text-ink">
               {isSourceMode ? "Source" : "Preview"}
@@ -3793,19 +3833,29 @@ function TemplateCreatePanel({
           </div>
           {isSourceMode ? (
             <textarea
-              className="min-h-[672px] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
-              onChange={(event) => onFileHtml(event.target.value)}
+              className="min-h-[58vh] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none md:min-h-[672px]"
+              onChange={(event) => setHtmlForUpload(event.target.value)}
               value={createPreviewHtml}
             />
-          ) : createPreviewHtml ? (
+          ) : createPreviewHtml && !uploadValidationErrors.length ? (
             <iframe
-              className="h-full min-h-[672px] w-full border-0 bg-white"
+              className="h-full min-h-[58vh] w-full border-0 bg-white md:min-h-[672px]"
               sandbox="allow-scripts"
               srcDoc={createPreviewHtml}
               title="Template preview"
             />
+          ) : uploadValidationErrors.length ? (
+            <div className="grid min-h-[58vh] place-items-center p-6 text-center md:min-h-[672px]">
+              <div className="max-w-sm">
+                <h3 className="text-xl font-black text-ink">Preview blocked</h3>
+                <p className="mt-2 text-sm leading-6 text-ink/55">
+                  Fix the highlighted template safety issues before previewing
+                  or saving this HTML.
+                </p>
+              </div>
+            </div>
           ) : (
-            <div className="grid min-h-[672px] place-items-center p-6 text-center">
+            <div className="grid min-h-[58vh] place-items-center p-6 text-center md:min-h-[672px]">
               <div>
                 <h3 className="text-xl font-black text-ink">Preview</h3>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-ink/55">
@@ -4997,6 +5047,79 @@ async function templatePayload(form: FormData) {
     categoryId: categoryId || undefined,
     subcategoryId: subcategoryId || undefined,
   };
+}
+
+function validateTemplateUploadFile(file: File) {
+  const errors: string[] = [];
+  const fileName = file.name.toLowerCase();
+  if (!fileName.endsWith(".html") && file.type !== "text/html") {
+    errors.push("Only .html files are accepted.");
+  }
+  if (file.size > 1_000_000) {
+    errors.push("Template file must be 1 MB or smaller.");
+  }
+  return errors;
+}
+
+function validateTemplateUploadHtml(rawHtml: string) {
+  const html = rawHtml.trim();
+  const errors: string[] = [];
+
+  if (!html) {
+    errors.push("Template HTML is required.");
+    return errors;
+  }
+  if (html.length < 80) {
+    errors.push("Template HTML is too short.");
+  }
+  if (!/<!doctype\s+html/i.test(html)) {
+    errors.push("Template must include <!doctype html>.");
+  }
+  if (!/<html[\s>]/i.test(html) || !/<head[\s>]/i.test(html)) {
+    errors.push("Template must include html and head tags.");
+  }
+  if (!/<body[\s>]/i.test(html)) {
+    errors.push("Template must include a body tag.");
+  }
+  if (!/id\s*=\s*["']nimto-template-meta["']/i.test(html)) {
+    errors.push("Template must include nimto-template-meta metadata.");
+  }
+  if (!/data-nimto-field/i.test(html)) {
+    errors.push("Template must include at least one data-nimto-field marker.");
+  }
+  if (/<\?(?:php|=)|<%|%>/i.test(html)) {
+    errors.push("Server-side code markers like PHP, ASP, or JSP are blocked.");
+  }
+  if (
+    /<\s*(iframe|object|embed|svg|math|img|video|source|link|base)\b/i.test(
+      html,
+    )
+  ) {
+    errors.push(
+      "Unsafe tags like iframe, image, svg, video, link, or embed are blocked.",
+    );
+  }
+  if (/<script\b(?![^>]*id\s*=\s*["']nimto-template-meta["'])/i.test(html)) {
+    errors.push("Only the nimto-template-meta JSON script is allowed.");
+  }
+  if (/\son[a-z]+\s*=/i.test(html)) {
+    errors.push("Event handler attributes like onclick are blocked.");
+  }
+  if (
+    /\b(?:src|srcset|href|action|formaction|poster|data|srcdoc)\s*=/i.test(html)
+  ) {
+    errors.push(
+      "URL attributes like src, href, action, and srcdoc are blocked.",
+    );
+  }
+  if (/\b(?:javascript|vbscript|data):/i.test(html)) {
+    errors.push("javascript:, vbscript:, and data: URLs are blocked.");
+  }
+  if (/@import\b/i.test(html) || /url\s*\(/i.test(html)) {
+    errors.push("CSS imports and url() assets are blocked.");
+  }
+
+  return [...new Set(errors)];
 }
 
 function extractTemplateEditorFields(template: InvitationTemplate) {

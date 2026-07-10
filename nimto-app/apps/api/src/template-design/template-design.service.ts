@@ -121,6 +121,37 @@ type ScannedSection = { key: string; label: string; index: number };
 const TEMPLATE_ACCESS_CACHE_MS = 30_000;
 const TEMPLATE_DETAIL_CACHE_MS = 60_000;
 const PUBLIC_DESIGN_CACHE_MS = 60_000;
+const SAFE_TEMPLATE_SCRIPT_ID = "nimto-template-meta";
+
+const BLOCKED_TEMPLATE_TAGS = new Set([
+  "applet",
+  "base",
+  "embed",
+  "frame",
+  "frameset",
+  "iframe",
+  "img",
+  "link",
+  "math",
+  "object",
+  "picture",
+  "source",
+  "svg",
+  "track",
+  "video",
+]);
+
+const URL_LIKE_TEMPLATE_ATTRIBUTES = new Set([
+  "action",
+  "data",
+  "formaction",
+  "href",
+  "poster",
+  "src",
+  "srcdoc",
+  "srcset",
+  "xlink:href",
+]);
 
 type TemplateAccess = {
   updateAll: boolean;
@@ -674,6 +705,7 @@ export class TemplateDesignService {
     dto: CreateInvitationTemplateDto,
     context: ActorContext,
   ) {
+    this.assertStrictTemplateUpload(dto.rawHtml);
     this.assertNimtoHtml(dto.rawHtml);
     const scanResult = this.scanTemplateHtml(dto.rawHtml);
     const featureConfig = this.normalizeFeatureConfig(
@@ -795,6 +827,9 @@ export class TemplateDesignService {
       throw new ForbiddenException("You cannot update this template.");
     }
 
+    if (dto.rawHtml) {
+      this.assertStrictTemplateUpload(dto.rawHtml);
+    }
     const scanResult = dto.rawHtml
       ? this.scanTemplateHtml(dto.rawHtml)
       : undefined;
@@ -809,9 +844,6 @@ export class TemplateDesignService {
               scanResult,
             )
           : undefined;
-    if (dto.rawHtml) {
-      this.assertNimtoHtml(dto.rawHtml);
-    }
     await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
 
     const template = await this.prisma.invitationTemplate.update({
@@ -1281,6 +1313,97 @@ export class TemplateDesignService {
         "Template must include nimto-template-meta metadata.",
       );
     }
+  }
+
+  private assertStrictTemplateUpload(rawHtml: string) {
+    const errors = this.strictTemplateUploadErrors(rawHtml);
+    if (errors.length) {
+      throw new BadRequestException(
+        `Template upload blocked: ${errors.slice(0, 5).join(" ")}`,
+      );
+    }
+  }
+
+  private strictTemplateUploadErrors(rawHtml: string) {
+    const errors: string[] = [];
+
+    if (rawHtml.includes("\0")) {
+      errors.push("File contains invalid null bytes.");
+    }
+
+    if (/<\?(?:php|=)|<%|%>/i.test(rawHtml)) {
+      errors.push(
+        "Server-side code markers like PHP, ASP, or JSP are blocked.",
+      );
+    }
+
+    if (/\b(?:javascript|vbscript|data):/i.test(rawHtml)) {
+      errors.push("javascript:, vbscript:, and data: URLs are blocked.");
+    }
+
+    if (/@import\b/i.test(rawHtml) || /url\s*\(/i.test(rawHtml)) {
+      errors.push("CSS imports and url() assets are blocked in templates.");
+    }
+
+    if (/\bexpression\s*\(/i.test(rawHtml)) {
+      errors.push("CSS expression() is blocked.");
+    }
+
+    for (const match of rawHtml.matchAll(/<\s*\/?\s*([a-z0-9:-]+)([^>]*)>/gi)) {
+      if (/^<\s*\//.test(match[0])) {
+        continue;
+      }
+
+      const tagName = match[1].toLowerCase();
+      const fullTag = match[0];
+      if (BLOCKED_TEMPLATE_TAGS.has(tagName)) {
+        errors.push(`<${tagName}> is not allowed in uploaded templates.`);
+        continue;
+      }
+
+      const attrs = this.attributes(fullTag);
+      for (const [name, value] of Object.entries(attrs)) {
+        if (/^on/i.test(name)) {
+          errors.push(`Event handler attribute "${name}" is not allowed.`);
+        }
+
+        if (URL_LIKE_TEMPLATE_ATTRIBUTES.has(name)) {
+          errors.push(`URL attribute "${name}" is not allowed in templates.`);
+        }
+
+        if (/\b(?:javascript|vbscript|data):/i.test(value)) {
+          errors.push(`Unsafe URL value found in "${name}".`);
+        }
+      }
+
+      if (tagName === "script" && !this.isTemplateMetaScript(attrs)) {
+        errors.push("Only the nimto-template-meta JSON script is allowed.");
+      }
+
+      if (
+        tagName === "meta" &&
+        attrs["http-equiv"]?.toLowerCase() === "refresh"
+      ) {
+        errors.push("Meta refresh redirects are blocked.");
+      }
+
+      if (
+        tagName === "script" &&
+        this.isTemplateMetaScript(attrs) &&
+        attrs.type &&
+        attrs.type !== "application/json"
+      ) {
+        errors.push(
+          "nimto-template-meta script must use type application/json.",
+        );
+      }
+    }
+
+    return [...new Set(errors)];
+  }
+
+  private isTemplateMetaScript(attrs: Record<string, string>) {
+    return attrs.id === SAFE_TEMPLATE_SCRIPT_ID;
   }
 
   private assertSafeUploadedHtml(

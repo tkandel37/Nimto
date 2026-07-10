@@ -45,7 +45,9 @@ export async function apiRequest<T>(
     const message =
       typeof data.message === "string"
         ? data.message
-        : "Something went wrong. Please try again.";
+        : Array.isArray(data.message)
+          ? data.message.join(" ")
+          : "Something went wrong. Please try again.";
     throw new ApiError(message, response.status);
   }
 
