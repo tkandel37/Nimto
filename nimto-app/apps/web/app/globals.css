@@ -4104,13 +4104,15 @@ a {
 }
 
 button.user-design-preview {
+  --design-card-preview-scale: 0.74;
+
   position: relative;
   display: grid;
   place-items: center;
   width: 100%;
   height: auto;
   min-height: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 0.72;
   padding: 12px;
   text-align: left;
   background: linear-gradient(
@@ -4138,7 +4140,7 @@ button.user-design-preview {
   height: 680px;
   max-width: none;
   border: 0;
-  transform: scale(var(--design-card-preview-scale, 0.48));
+  transform: scale(var(--design-card-preview-scale));
   transform-origin: top center;
   pointer-events: none;
 }
@@ -4743,9 +4745,9 @@ button.user-design-preview {
   }
 
   button.user-design-preview {
-    --design-card-preview-scale: 0.38;
+    --design-card-preview-scale: 0.62;
 
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 0.72;
   }
 
   .event-setup-checklist {
@@ -4814,9 +4816,9 @@ button.user-design-preview {
   }
 
   button.user-design-preview {
-    --design-card-preview-scale: 0.47;
+    --design-card-preview-scale: 0.74;
 
-    aspect-ratio: 0.82;
+    aspect-ratio: 0.72;
     padding: 10px;
   }
 

@@ -533,7 +533,7 @@ function DesignsContent({
                   <iframe
                     loading="lazy"
                     sandbox="allow-scripts"
-                    srcDoc={current?.rawHtml ?? ""}
+                    srcDoc={designCardPreviewHtml(current?.rawHtml ?? "")}
                     title={`${design.name} preview`}
                   />
                 </div>
@@ -1492,6 +1492,16 @@ function readPreviewElementValue(element: Element) {
     return element.value;
   }
   return element.textContent ?? "";
+}
+
+function designCardPreviewHtml(rawHtml: string) {
+  if (!rawHtml) return "";
+  const previewCss =
+    '<style id="nimto-card-preview-style">html,body{overflow:hidden!important;scroll-behavior:auto!important}*,*::before,*::after{transition:none!important;animation-duration:.001s!important;animation-iteration-count:1!important}</style>';
+  if (/<\/head>/i.test(rawHtml)) {
+    return rawHtml.replace(/<\/head>/i, `${previewCss}</head>`);
+  }
+  return `${previewCss}${rawHtml}`;
 }
 
 function isPreviewHtmlElement(element: Element): element is HTMLElement {

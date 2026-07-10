@@ -674,60 +674,6 @@
           transform: translateY(0);
         }
       }
-      :root {
-        --nimto-primary-color: #17251d;
-        --nimto-secondary-color: #6b5a4b;
-        --nimto-accent-color: #b78431;
-        --nimto-heading-font: Georgia, serif;
-        --nimto-body-font: Arial, sans-serif;
-      }
-      body {
-        font-family: var(--nimto-body-font, inherit);
-      }
-      h1,
-      h2,
-      h3,
-      .names,
-      .number,
-      .year,
-      .date,
-      [data-nimto-field="event_title"],
-      [data-nimto-field="business_name"],
-      [data-nimto-field="school_name"],
-      [data-nimto-field="couple_name"],
-      [data-nimto-field="bride_name"],
-      [data-nimto-field="groom_name"],
-      [data-nimto-field="family_name"],
-      [data-nimto-field="baby_name"],
-      [data-nimto-field="child_name"],
-      [data-nimto-field="celebrant_name"] {
-        font-family: var(--nimto-heading-font, inherit);
-        color: var(--nimto-primary-color, currentColor);
-      }
-      .label,
-      .top,
-      .number,
-      .year,
-      .date,
-      .amp,
-      [data-nimto-field="event_label"],
-      [data-nimto-field="event_date"],
-      [data-nimto-field="event_time"],
-      [data-nimto-field="venue_name"] {
-        color: var(--nimto-accent-color, currentColor);
-      }
-      .message,
-      .msg,
-      .guest,
-      .venue,
-      .details,
-      .line,
-      .pill,
-      .box,
-      [data-nimto-field="event_message"],
-      [data-nimto-field="venue_address"] {
-        color: var(--nimto-secondary-color, currentColor);
-      }
       .nimto-template-extras {
         display: grid;
         gap: 14px;
@@ -751,7 +697,7 @@
         justify-content: center;
         min-width: 170px;
         border-radius: 999px;
-        background: var(--nimto-primary-color, #17251d);
+        background: currentColor;
         color: #fff;
         padding: 12px 22px;
         text-decoration: none;
