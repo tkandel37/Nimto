@@ -60,6 +60,8 @@ type EventTab =
   | "activity"
   | "settings";
 
+type RsvpWorkspaceTab = "form" | "responses" | "follow-up";
+
 type MobileAction = {
   label: string;
   action?: () => void;
@@ -130,6 +132,10 @@ function EventDetailContent({
   const [revisions, setRevisions] = useState<EventDesignRevision[]>([]);
   const [designs, setDesigns] = useState<PublicDesign[]>([]);
   const [rsvpDraft, setRsvpDraft] = useState<RsvpConfig>(defaultRsvpConfig());
+  const [rsvpWorkspaceTab, setRsvpWorkspaceTab] =
+    useState<RsvpWorkspaceTab>("form");
+  const [isRsvpDeadlineEnabled, setIsRsvpDeadlineEnabled] = useState(false);
+  const [isRsvpNoteEnabled, setIsRsvpNoteEnabled] = useState(false);
   const [csvImport, setCsvImport] = useState<CsvImportState>(null);
   const [deletedInvitee, setDeletedInvitee] =
     useState<InvitationInvitee | null>(null);
@@ -222,7 +228,10 @@ function EventDetailContent({
 
   useEffect(() => {
     if (!event) return;
-    setRsvpDraft(normalizeRsvpConfig(event.rsvpConfig));
+    const config = normalizeRsvpConfig(event.rsvpConfig);
+    setRsvpDraft(config);
+    setIsRsvpDeadlineEnabled(Boolean(event.rsvpDeadline));
+    setIsRsvpNoteEnabled(Boolean(config.note.trim()));
   }, [event]);
 
   useEffect(() => {
@@ -646,7 +655,9 @@ function EventDetailContent({
           description: String(
             form.get("description") || event.description || "",
           ),
-          rsvpDeadline: form.get("rsvpDeadline") || null,
+          rsvpDeadline: isRsvpDeadlineEnabled
+            ? form.get("rsvpDeadline") || null
+            : null,
           organizerNotes: String(
             form.get("organizerNotes") || event.organizerNotes || "",
           ),
@@ -703,7 +714,10 @@ function EventDetailContent({
         headers: authHeaders,
         body: JSON.stringify({
           rsvpDeadline: form.get("rsvpDeadline") || null,
-          rsvpConfig: rsvpDraft,
+          rsvpConfig: {
+            ...rsvpDraft,
+            note: isRsvpNoteEnabled ? rsvpDraft.note : "",
+          },
         }),
       });
       setEvent((current) => (current ? { ...current, ...updated } : updated));
@@ -939,6 +953,9 @@ function EventDetailContent({
     invitees,
     rsvpResponses,
     rsvpConfig.fields,
+  );
+  const rsvpFollowUpGuests = invitees.filter(
+    (guest) => guest.rsvpStatus === "PENDING" || guest.openCount === 0,
   );
   const status = event.archivedAt
     ? "Archived"
@@ -1465,296 +1482,218 @@ function EventDetailContent({
 
       {activeTab === "rsvp" ? (
         <div className="event-tab-content">
-          <section className="event-meta-grid">
-            <article>
-              <span>Total responses</span>
-              <strong>
-                {statistics?.totalResponses ??
-                  invitees.filter((guest) => guest.rsvpStatus !== "PENDING")
-                    .length + rsvpResponses.length}
-              </strong>
-            </article>
-            <article>
-              <span>Expected guests</span>
-              <strong>{statistics?.expectedGuests ?? 0}</strong>
-            </article>
-            <article>
-              <span>Public replies</span>
-              <strong>
-                {statistics?.publicResponses ?? rsvpResponses.length}
-              </strong>
-            </article>
-            <article>
-              <span>Last reply</span>
-              <strong>
-                {statistics?.lastResponseAt
-                  ? formatEventDate(statistics.lastResponseAt)
-                  : "No replies yet"}
-              </strong>
-            </article>
-          </section>
-          <section className="event-refinement-grid">
-            <form
-              className="user-panel event-rsvp-builder"
-              onSubmit={saveRsvpSetup}
-            >
-              <p className="user-kicker">RSVP form</p>
-              <h2>Response setup</h2>
-              <p>
-                Configure the fields guests see when they open RSVP from the
-                invitation.
-              </p>
-              <label className="user-field">
-                <span>RSVP deadline</span>
-                <input
-                  defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""}
-                  name="rsvpDeadline"
-                  type="datetime-local"
-                />
-              </label>
-              <label className="user-field">
-                <span>Host note above form</span>
-                <textarea
-                  name="rsvpNote"
-                  onChange={(changeEvent) =>
-                    setRsvpDraft((current) => ({
-                      ...current,
-                      note: changeEvent.target.value,
-                    }))
-                  }
-                  rows={3}
-                  value={rsvpConfig.note}
-                />
-              </label>
-              <label className="user-field">
-                <span>Closed message</span>
-                <textarea
-                  name="rsvpClosedMessage"
-                  onChange={(changeEvent) =>
-                    setRsvpDraft((current) => ({
-                      ...current,
-                      closedMessage: changeEvent.target.value,
-                    }))
-                  }
-                  rows={2}
-                  value={rsvpConfig.closedMessage}
-                />
-              </label>
-              <div className="event-rsvp-fields-editor">
-                {rsvpConfig.fields.map((field) => (
-                  <div
-                    className={
-                      field.builtIn
-                        ? "event-rsvp-field-card built-in"
-                        : "event-rsvp-field-card"
-                    }
-                    key={field.id}
-                  >
-                    <div className="event-rsvp-field-row">
-                      <label className="user-field">
-                        <span>Field label</span>
+          <section className="rsvp-workspace">
+            <header className="rsvp-workspace-header">
+              <div>
+                <p className="user-kicker">RSVP</p>
+                <h2>Collect guest responses</h2>
+                <p>Build the form, review replies, and follow up from one place.</p>
+              </div>
+              <div className="rsvp-stat-strip">
+                <span><b>{rsvpResponseRows.length}</b> replies</span>
+                <span><b>{statistics?.expectedGuests ?? 0}</b> guests</span>
+                <span><b>{rsvpClosed ? "Closed" : "Open"}</b> status</span>
+              </div>
+            </header>
+
+            <div className="rsvp-workspace-tabs" role="tablist">
+              {([
+                ["form", "Form"],
+                ["responses", `Responses (${rsvpResponseRows.length})`],
+                ["follow-up", "Follow-up"],
+              ] as const).map(([tab, label]) => (
+                <button
+                  aria-selected={rsvpWorkspaceTab === tab}
+                  className={rsvpWorkspaceTab === tab ? "active" : ""}
+                  key={tab}
+                  onClick={() => setRsvpWorkspaceTab(tab)}
+                  role="tab"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {rsvpWorkspaceTab === "form" ? (
+              <form className="rsvp-form-workspace" onSubmit={saveRsvpSetup}>
+                <header className="rsvp-workspace-section-heading">
+                  <div>
+                    <h3>Guest questions</h3>
+                    <p>Only enabled questions appear on the invitation.</p>
+                  </div>
+                  <button className="user-primary-button" disabled={isSaving} type="submit">
+                    {isSaving ? "Saving..." : "Save changes"}
+                  </button>
+                </header>
+                <div className="rsvp-question-list">
+                  {rsvpConfig.fields.filter((field) => field.enabled).map((field) => (
+                    <article className="rsvp-question-row" key={field.id}>
+                      <div className="rsvp-question-main">
                         <input
+                          aria-label="Question"
                           onChange={(changeEvent) =>
-                            updateRsvpField(field.id, {
-                              label: changeEvent.target.value,
-                            })
+                            updateRsvpField(field.id, { label: changeEvent.target.value })
                           }
                           value={field.label}
                         />
-                      </label>
-                      <label className="user-field">
-                        <span>Type</span>
+                        {field.builtIn ? <span>Standard</span> : null}
+                      </div>
+                      <div className="rsvp-question-controls">
                         <select
+                          aria-label="Answer format"
                           disabled={field.builtIn}
                           onChange={(changeEvent) =>
                             updateRsvpField(field.id, {
-                              type: changeEvent.target
-                                .value as RsvpFieldConfig["type"],
-                              options:
-                                changeEvent.target.value === "single_choice"
-                                  ? field.options?.length
-                                    ? field.options
-                                    : ["Option 1"]
-                                  : [],
+                              type: changeEvent.target.value as RsvpFieldConfig["type"],
+                              options: changeEvent.target.value === "single_choice"
+                                ? field.options?.length ? field.options : ["Option 1"]
+                                : [],
                             })
                           }
                           value={field.type}
                         >
-                          <option value="text">Text</option>
+                          <option value="text">Short text</option>
                           <option value="textarea">Long text</option>
                           <option value="number">Number</option>
                           <option value="date">Date</option>
-                          <option value="single_choice">Single choice</option>
+                          <option value="single_choice">Choice</option>
                           <option value="email">Email</option>
                           <option value="phone">Phone</option>
                         </select>
-                      </label>
-                    </div>
-                    <div className="event-rsvp-field-row compact">
-                      <label className="event-inline-toggle">
+                        <label className="event-inline-toggle">
+                          <input checked={field.enabled} onChange={(changeEvent) => updateRsvpField(field.id, { enabled: changeEvent.target.checked })} type="checkbox" />
+                          Show
+                        </label>
+                        <label className="event-inline-toggle">
+                          <input checked={field.required} onChange={(changeEvent) => updateRsvpField(field.id, { required: changeEvent.target.checked })} type="checkbox" />
+                          Required
+                        </label>
+                        {!field.builtIn ? (
+                          <button className="user-text-button" onClick={() => removeRsvpField(field.id)} type="button">Remove</button>
+                        ) : null}
+                      </div>
+                      {field.type === "single_choice" ? (
                         <input
-                          checked={field.enabled}
-                          onChange={(changeEvent) =>
-                            updateRsvpField(field.id, {
-                              enabled: changeEvent.target.checked,
-                            })
-                          }
-                          type="checkbox"
-                        />
-                        Enabled
-                      </label>
-                      <label className="event-inline-toggle">
-                        <input
-                          checked={field.required}
-                          onChange={(changeEvent) =>
-                            updateRsvpField(field.id, {
-                              required: changeEvent.target.checked,
-                            })
-                          }
-                          type="checkbox"
-                        />
-                        Required
-                      </label>
-                      {!field.builtIn ? (
-                        <button
-                          className="user-text-button"
-                          onClick={() => removeRsvpField(field.id)}
-                          type="button"
-                        >
-                          Remove
-                        </button>
-                      ) : (
-                        <span className="event-rsvp-built-in-label">
-                          Default field
-                        </span>
-                      )}
-                    </div>
-                    {field.type === "single_choice" ? (
-                      <label className="user-field">
-                        <span>Choices</span>
-                        <input
-                          onChange={(changeEvent) =>
-                            updateRsvpField(field.id, {
-                              options: changeEvent.target.value
-                                .split(",")
-                                .map((option) => option.trim())
-                                .filter(Boolean),
-                            })
-                          }
+                          aria-label="Choices, separated by commas"
+                          className="rsvp-question-options"
+                          onChange={(changeEvent) => updateRsvpField(field.id, {
+                            options: changeEvent.target.value.split(",").map((option) => option.trim()).filter(Boolean),
+                          })}
+                          placeholder="Choices, separated by commas"
                           value={(field.options ?? []).join(", ")}
                         />
-                      </label>
-                    ) : null}
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+                {rsvpConfig.fields.some((field) => !field.enabled) ? (
+                  <div className="rsvp-question-additions">
+                    <span>Add a common question</span>
+                    {rsvpConfig.fields.filter((field) => !field.enabled).map((field) => (
+                      <button
+                        key={field.id}
+                        onClick={() => updateRsvpField(field.id, { enabled: true })}
+                        type="button"
+                      >
+                        {field.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="event-rsvp-actions">
-                <button
-                  className="user-secondary-button"
-                  onClick={addCustomRsvpField}
-                  type="button"
-                >
-                  Add custom field
+                ) : null}
+                <button className="user-secondary-button" onClick={addCustomRsvpField} type="button">
+                  Add custom question
                 </button>
-                <button
-                  className="user-secondary-button"
-                  onClick={downloadRsvpCsv}
-                  type="button"
-                >
-                  Export CSV
-                </button>
-              </div>
-              <button
-                className="user-primary-button"
-                disabled={isSaving}
-                type="submit"
-              >
-                Save RSVP setup
-              </button>
-            </form>
-            <article className="user-panel">
-              <p className="user-kicker">Recent responses</p>
-              <h2>Latest guests who replied</h2>
-              {rsvpResponseRows.length ? (
-                <div className="event-rsvp-response-list">
-                  {rsvpResponseRows.slice(0, 8).map((response) => (
-                    <div key={response.id}>
-                      <div>
-                        <strong>
-                          {csvResponseValue(response.answers, "full_name") ||
-                            "Unnamed guest"}
-                        </strong>
-                        <span>
-                          {response.source} · {response.statusLabel}
-                        </span>
+
+                <section className="rsvp-optional-settings">
+                  <label className="event-inline-toggle">
+                    <input checked={isRsvpNoteEnabled} onChange={(changeEvent) => setIsRsvpNoteEnabled(changeEvent.target.checked)} type="checkbox" />
+                    Add a note for guests
+                  </label>
+                  {isRsvpNoteEnabled ? (
+                    <textarea
+                      aria-label="Note for guests"
+                      name="rsvpNote"
+                      onChange={(changeEvent) => setRsvpDraft((current) => ({ ...current, note: changeEvent.target.value }))}
+                      placeholder="For example: Please reply before the deadline so we can plan the celebration."
+                      rows={3}
+                      value={rsvpConfig.note}
+                    />
+                  ) : null}
+                </section>
+                <section className="rsvp-optional-settings">
+                  <label className="event-inline-toggle">
+                    <input checked={isRsvpDeadlineEnabled} onChange={(changeEvent) => setIsRsvpDeadlineEnabled(changeEvent.target.checked)} type="checkbox" />
+                    Set an RSVP deadline
+                  </label>
+                  {isRsvpDeadlineEnabled ? (
+                    <div className="rsvp-deadline-settings">
+                      <input defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""} name="rsvpDeadline" type="datetime-local" />
+                      <textarea
+                        aria-label="Message after RSVP closes"
+                        name="rsvpClosedMessage"
+                        onChange={(changeEvent) => setRsvpDraft((current) => ({ ...current, closedMessage: changeEvent.target.value }))}
+                        placeholder="Message guests see after the deadline"
+                        rows={2}
+                        value={rsvpConfig.closedMessage}
+                      />
+                    </div>
+                  ) : null}
+                </section>
+              </form>
+            ) : null}
+
+            {rsvpWorkspaceTab === "responses" ? (
+              <section className="rsvp-responses-workspace">
+                <header className="rsvp-workspace-section-heading">
+                  <div>
+                    <h3>Responses</h3>
+                    <p>Every reply is ready to export in the same order as your form.</p>
+                  </div>
+                  <button className="user-secondary-button" onClick={downloadRsvpCsv} type="button">Export CSV</button>
+                </header>
+                {statistics?.mealTotals.length ? (
+                  <div className="rsvp-meal-summary">
+                    <span>Meal needs</span>
+                    {statistics.mealTotals.map((meal) => <b key={meal.meal}>{meal.count} {meal.meal}</b>)}
+                  </div>
+                ) : null}
+                {rsvpResponseRows.length ? (
+                  <div className="event-rsvp-response-list rsvp-response-list-full">
+                    {rsvpResponseRows.map((response) => (
+                      <div key={response.id}>
+                        <div>
+                          <strong>{csvResponseValue(response.answers, "full_name") || "Unnamed guest"}</strong>
+                          <span>{response.source} · {response.statusLabel}</span>
+                        </div>
+                        <time>{formatEventDate(response.submittedAt)}</time>
                       </div>
-                      <time>{formatEventDate(response.submittedAt)}</time>
+                    ))}
+                  </div>
+                ) : <div className="user-empty"><h3>No responses yet</h3><p>Responses will appear here once guests submit the form.</p></div>}
+              </section>
+            ) : null}
+
+            {rsvpWorkspaceTab === "follow-up" ? (
+              <section className="rsvp-responses-workspace">
+                <header className="rsvp-workspace-section-heading">
+                  <div>
+                    <h3>Follow up with guests</h3>
+                    <p>Only guests who have not replied are shown here.</p>
+                  </div>
+                </header>
+                <div className="event-rsvp-response-list rsvp-response-list-full">
+                  {rsvpFollowUpGuests.map((guest) => (
+                    <div key={guest.id}>
+                      <div><strong>{guest.name}</strong><span>{guest.openCount === 0 ? "Invitation not opened" : "Awaiting RSVP"}</span></div>
+                      {guest.phone ? <a href={`https://wa.me/${guest.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Reminder: please view and RSVP to ${event.title}: ${typeof window === "undefined" ? "" : window.location.origin}/invite/${guest.slug}`)}`} onClick={() => void logInviteeShare(guest, "WHATSAPP")} target="_blank">Remind</a> : null}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p>No RSVP responses yet.</p>
-              )}
-            </article>
-            <article className="user-panel">
-              <p className="user-kicker">Meal summary</p>
-              <h2>Expected meal requirements</h2>
-              {statistics?.mealTotals.length ? (
-                statistics.mealTotals.map((meal) => (
-                  <p key={meal.meal}>
-                    <strong>{meal.count}</strong> {meal.meal}
-                  </p>
-                ))
-              ) : (
-                <p>No attending meal choices yet.</p>
-              )}
-            </article>
-            <article className="user-panel event-reminder-panel">
-              <p className="user-kicker">Follow-up list</p>
-              <h2>Guests needing a reminder</h2>
-              {invitees
-                .filter(
-                  (guest) =>
-                    guest.rsvpStatus === "PENDING" || guest.openCount === 0,
-                )
-                .slice(0, 8)
-                .map((guest) => (
-                  <div key={guest.id}>
-                    <span>
-                      <strong>{guest.name}</strong>
-                      {guest.openCount === 0
-                        ? " · unopened"
-                        : " · awaiting RSVP"}
-                    </span>
-                    <a
-                      href={`https://wa.me/${guest.phone?.replace(/\D/g, "") ?? ""}?text=${encodeURIComponent(`Reminder: please view and RSVP to ${event.title}: ${typeof window === "undefined" ? "" : window.location.origin}/invite/${guest.slug}`)}`}
-                      onClick={() => void logInviteeShare(guest, "WHATSAPP")}
-                      target="_blank"
-                    >
-                      Remind
-                    </a>
-                  </div>
-                ))}
-              {!invitees.length ? (
-                <p>Add guests first to track responses.</p>
-              ) : null}
-            </article>
-            <article className="user-panel">
-              <p className="user-kicker">RSVP deadline</p>
-              <h2>{formatEventDate(event.rsvpDeadline)}</h2>
-              <p>
-                {rsvpClosed
-                  ? "RSVP collection is closed."
-                  : "Responses are open."}
-              </p>
-              <button
-                className="user-text-button"
-                onClick={() => setActiveTab("settings")}
-                type="button"
-              >
-                Change deadline →
-              </button>
-            </article>
+                {!invitees.length ? <div className="user-empty"><h3>No guests yet</h3><p>Add guests to send personalized RSVP reminders.</p></div> : null}
+                {invitees.length && !rsvpFollowUpGuests.length ? <div className="user-empty"><h3>Everyone has replied</h3><p>There are no guests waiting for a reminder.</p></div> : null}
+              </section>
+            ) : null}
           </section>
         </div>
       ) : null}
