@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -14,10 +16,22 @@ import { AuditService } from "../audit/audit.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
+import { ResendVerificationDto } from "./dto/resend-verification.dto";
 import { SUPER_ADMIN_ROLE } from "./permissions";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly passwordResetMessage =
+    "If an account with that email exists, a password reset link has been sent.";
+  private readonly verificationResendMessage =
+    "If a pending email verification exists for that address, a new verification code has been sent.";
+  private readonly genericMailFailureMessage =
+    "We couldn't complete your request right now. Please try again in a few minutes.";
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -27,51 +41,145 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
+    const trimmedName = dto.name.trim();
     const passwordHash = await bcrypt.hash(dto.password, 12);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        emailVerifiedAt: true,
+      },
+    });
 
-    try {
-      const user = await this.prisma.user.create({
-        data: {
-          name: dto.name.trim(),
-          email: normalizedEmail,
-          passwordHash,
-        },
-      });
-
-      const token = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
-
-      await this.prisma.verificationToken.create({
-        data: {
-          userId: user.id,
-          token,
-          expiresAt,
-        },
-      });
-
-      // Send verification email asynchronously
-      this.mailService.sendVerificationEmail(user.email, token).catch((err) => {
-        console.error("Failed to send verification email", err);
-      });
-
-      await this.record(user.id, "auth.registered", "User", user.id, {
-        email: user.email,
-      });
-
-      return await this.buildAuthResponse(user.id);
-    } catch (error) {
+    if (existingUser) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        existingUser.status === "ACTIVE" &&
+        !existingUser.emailVerifiedAt
       ) {
-        throw new BadRequestException(
-          "An account with this email already exists.",
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name: trimmedName,
+            passwordHash,
+          },
+        });
+
+        try {
+          await this.sendVerificationCode(existingUser.id, existingUser.email);
+        } catch (resendError) {
+          this.logger.error(
+            `Failed to resend verification email during registration retry for ${existingUser.email}`,
+            resendError instanceof Error
+              ? resendError.stack
+              : String(resendError),
+          );
+          throw new ServiceUnavailableException(
+            this.genericMailFailureMessage,
+          );
+        }
+
+        await this.record(
+          existingUser.id,
+          "auth.registered.retry_pending_verification",
+          "User",
+          existingUser.id,
+          {
+            email: existingUser.email,
+          },
         );
+
+        return {
+          message:
+            "This account is still waiting for verification. We updated your details and sent a new code.",
+          email: existingUser.email,
+        };
       }
 
-      throw error;
+      throw new BadRequestException(
+        "An account with this email already exists.",
+      );
     }
+
+    const previousPendingRegistration =
+      await this.prisma.pendingRegistration.findUnique({
+        where: { email: normalizedEmail },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          verificationCode: true,
+          expiresAt: true,
+        },
+      });
+    const verificationCode = this.generateNumericCode();
+    const expiresAt = this.buildVerificationExpiry();
+
+    const pendingRegistration = previousPendingRegistration
+      ? await this.prisma.pendingRegistration.update({
+          where: { id: previousPendingRegistration.id },
+          data: {
+            name: trimmedName,
+            passwordHash,
+            verificationCode,
+            expiresAt,
+          },
+          select: {
+            id: true,
+            email: true,
+          },
+        })
+      : await this.prisma.pendingRegistration.create({
+          data: {
+            name: trimmedName,
+            email: normalizedEmail,
+            passwordHash,
+            verificationCode,
+            expiresAt,
+          },
+          select: {
+            id: true,
+            email: true,
+          },
+        });
+
+    try {
+      await this.mailService.sendVerificationEmail(
+        pendingRegistration.email,
+        verificationCode,
+      );
+    } catch (error) {
+      if (previousPendingRegistration) {
+        await this.prisma.pendingRegistration.update({
+          where: { id: previousPendingRegistration.id },
+          data: {
+            name: previousPendingRegistration.name,
+            passwordHash: previousPendingRegistration.passwordHash,
+            verificationCode: previousPendingRegistration.verificationCode,
+            expiresAt: previousPendingRegistration.expiresAt,
+          },
+        });
+      } else {
+        await this.prisma.pendingRegistration.delete({
+          where: { id: pendingRegistration.id },
+        });
+      }
+
+      this.logger.error(
+        `Failed to send verification email during registration for ${pendingRegistration.email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(this.genericMailFailureMessage);
+    }
+
+    return {
+      message: previousPendingRegistration
+        ? "This email is still waiting for verification. We updated your details and sent a new code."
+        : "Account almost ready. Check your email for the verification code.",
+      email: pendingRegistration.email,
+    };
   }
 
   async login(dto: LoginDto) {
@@ -96,6 +204,11 @@ export class AuthService {
     }
 
     this.assertUserCanAuthenticate(user);
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException(
+        "Please verify your email before logging in.",
+      );
+    }
 
     this.runAfterResponse(
       this.prisma.user.update({
@@ -202,6 +315,353 @@ export class AuthService {
     ]);
 
     return { message: "Email successfully verified." };
+  }
+
+  async verifyEmailCode(dto: VerifyEmailDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const pendingRegistration =
+      await this.prisma.pendingRegistration.findUnique({
+        where: { email: normalizedEmail },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          passwordHash: true,
+          verificationCode: true,
+          expiresAt: true,
+        },
+      });
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+        status: true,
+      },
+    });
+
+    if (user?.emailVerifiedAt) {
+      return { message: "Email is already verified." };
+    }
+
+    if (pendingRegistration) {
+      if (pendingRegistration.verificationCode !== dto.code) {
+        throw new BadRequestException("Invalid verification code.");
+      }
+
+      if (pendingRegistration.expiresAt < new Date()) {
+        await this.prisma.pendingRegistration.delete({
+          where: { id: pendingRegistration.id },
+        });
+        throw new BadRequestException("Verification code has expired.");
+      }
+
+      if (user) {
+        this.assertUserCanAuthenticate(user);
+
+        await this.prisma.$transaction([
+          this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              emailVerifiedAt: new Date(),
+            },
+          }),
+          this.prisma.pendingRegistration.delete({
+            where: { id: pendingRegistration.id },
+          }),
+          this.prisma.verificationToken.deleteMany({
+            where: { userId: user.id },
+          }),
+        ]);
+
+        await this.record(user.id, "auth.verified", "User", user.id, {
+          method: "otp",
+        });
+
+        return { message: "Email successfully verified." };
+      }
+
+      try {
+        const createdUser = await this.prisma.$transaction(async (tx) => {
+          const newUser = await tx.user.create({
+            data: {
+              name: pendingRegistration.name,
+              email: pendingRegistration.email,
+              passwordHash: pendingRegistration.passwordHash,
+              emailVerifiedAt: new Date(),
+            },
+            select: {
+              id: true,
+              email: true,
+            },
+          });
+
+          await tx.pendingRegistration.delete({
+            where: { id: pendingRegistration.id },
+          });
+
+          return newUser;
+        });
+
+        await this.record(
+          createdUser.id,
+          "auth.registered",
+          "User",
+          createdUser.id,
+          {
+            email: createdUser.email,
+          },
+        );
+        await this.record(
+          createdUser.id,
+          "auth.verified",
+          "User",
+          createdUser.id,
+          {
+            method: "otp",
+          },
+        );
+
+        return { message: "Email successfully verified." };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new BadRequestException(
+            "An account with this email already exists.",
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    if (!user) {
+      throw new BadRequestException("Invalid verification code.");
+    }
+
+    this.assertUserCanAuthenticate(user);
+
+    const verificationToken = await this.prisma.verificationToken.findFirst({
+      where: {
+        userId: user.id,
+        token: dto.code,
+      },
+    });
+
+    if (!verificationToken) {
+      throw new BadRequestException("Invalid verification code.");
+    }
+
+    if (verificationToken.expiresAt < new Date()) {
+      await this.prisma.verificationToken.deleteMany({
+        where: {
+          userId: user.id,
+        },
+      });
+      throw new BadRequestException("Verification code has expired.");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      this.prisma.verificationToken.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
+
+    await this.record(user.id, "auth.verified", "User", user.id, {
+      method: "otp",
+    });
+
+    return { message: "Email successfully verified." };
+  }
+
+  async resendVerification(dto: ResendVerificationDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const pendingRegistration =
+      await this.prisma.pendingRegistration.findUnique({
+        where: { email: normalizedEmail },
+        select: {
+          id: true,
+          email: true,
+          verificationCode: true,
+          expiresAt: true,
+        },
+      });
+
+    if (pendingRegistration) {
+      const verificationCode = this.generateNumericCode();
+      const expiresAt = this.buildVerificationExpiry();
+
+      await this.prisma.pendingRegistration.update({
+        where: { id: pendingRegistration.id },
+        data: {
+          verificationCode,
+          expiresAt,
+        },
+      });
+
+      try {
+        await this.mailService.sendVerificationEmail(
+          pendingRegistration.email,
+          verificationCode,
+        );
+      } catch (error) {
+        await this.prisma.pendingRegistration.update({
+          where: { id: pendingRegistration.id },
+          data: {
+            verificationCode: pendingRegistration.verificationCode,
+            expiresAt: pendingRegistration.expiresAt,
+          },
+        });
+        this.logger.error(
+          `Failed to resend pending verification email for ${pendingRegistration.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new ServiceUnavailableException(this.genericMailFailureMessage);
+      }
+
+      return { message: this.verificationResendMessage };
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!user || user.status !== "ACTIVE" || user.emailVerifiedAt) {
+      return { message: this.verificationResendMessage };
+    }
+
+    try {
+      await this.sendVerificationCode(user.id, user.email);
+    } catch (error) {
+      this.logger.error(
+        `Failed to resend verification email for ${user.email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(this.genericMailFailureMessage);
+    }
+    await this.record(user.id, "auth.verification_resent", "User", user.id);
+
+    return { message: this.verificationResendMessage };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status !== "ACTIVE") {
+      return { message: this.passwordResetMessage };
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt,
+      },
+    });
+
+    try {
+      await this.mailService.sendPasswordResetEmail(user.email, token);
+    } catch (error) {
+      await this.prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id },
+      });
+      this.logger.error(
+        `Failed to send password reset email for ${user.email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(this.genericMailFailureMessage);
+    }
+    await this.record(user.id, "auth.password_reset.requested", "User", user.id);
+
+    return { message: this.passwordResetMessage };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const passwordResetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { token: dto.token },
+      include: {
+        user: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!passwordResetToken) {
+      throw new BadRequestException("Invalid password reset token.");
+    }
+
+    if (passwordResetToken.expiresAt < new Date()) {
+      await this.prisma.passwordResetToken.delete({
+        where: { id: passwordResetToken.id },
+      });
+      throw new BadRequestException("Password reset token has expired.");
+    }
+
+    this.assertUserCanAuthenticate(passwordResetToken.user);
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const revokedAt = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: passwordResetToken.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.deleteMany({
+        where: { userId: passwordResetToken.userId },
+      }),
+      this.prisma.userSession.updateMany({
+        where: {
+          userId: passwordResetToken.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt,
+          revocationReason: "PASSWORD_CHANGED",
+        },
+      }),
+    ]);
+
+    await this.record(
+      passwordResetToken.userId,
+      "auth.password_reset.completed",
+      "User",
+      passwordResetToken.userId,
+    );
+
+    return { message: "Password successfully reset." };
   }
 
   async logout(sessionId: string) {
@@ -316,6 +776,67 @@ export class AuthService {
     });
 
     return this.buildAuthResponse(user.id);
+  }
+
+  private async sendVerificationCode(userId: string, email: string) {
+    await this.prisma.verificationToken.deleteMany({
+      where: { userId },
+    });
+
+    const token = await this.generateUniqueNumericToken(
+      async (candidate) =>
+        this.prisma.verificationToken.findUnique({
+          where: { token: candidate },
+          select: { id: true },
+        }),
+    );
+
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+    await this.prisma.verificationToken.create({
+      data: {
+        userId,
+        token,
+        expiresAt,
+      },
+    });
+
+    try {
+      await this.mailService.sendVerificationEmail(email, token);
+    } catch (error) {
+      await this.prisma.verificationToken.deleteMany({
+        where: {
+          userId,
+          token,
+        },
+      });
+      throw error;
+    }
+  }
+
+  private generateNumericCode() {
+    return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+  }
+
+  private buildVerificationExpiry() {
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    return expiresAt;
+  }
+
+  private async generateUniqueNumericToken(
+    exists: (candidate: string) => Promise<{ id: string } | null>,
+  ) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+      const existing = await exists(candidate);
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    throw new Error("Could not generate a unique verification code.");
   }
 
   private record(

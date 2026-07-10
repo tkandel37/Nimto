@@ -41,6 +41,26 @@ type TemplateField = {
   locked: boolean;
 };
 
+type TemplateFeatureSlot = {
+  key: string;
+  label: string;
+  sectionKey?: string;
+};
+
+type TemplateStyleSlot = TemplateFeatureSlot & {
+  type: "color" | "font";
+  defaultValue?: string;
+  cssVariable?: string;
+};
+
+type TemplateSharePreview = {
+  titleFieldKey?: string;
+  descriptionFieldKey?: string;
+  imageFieldKey?: string;
+};
+
+type TemplateFeatureConfig = Prisma.InputJsonObject;
+
 type TemplateScanResult = {
   version: 1;
   title?: string;
@@ -49,7 +69,16 @@ type TemplateScanResult = {
   fields: TemplateField[];
   countdownFieldKey?: string;
   countdownFieldStatus?: "valid" | "missing_type" | "unsupported_type";
+  countdownPosition?: "top" | "middle" | "bottom";
+  countdownSlots: TemplateFeatureSlot[];
   customNameFieldKeys: string[];
+  linkableFieldKeys: string[];
+  rsvpSlots: TemplateFeatureSlot[];
+  musicSlots: TemplateFeatureSlot[];
+  additionalInfoSlots: TemplateFeatureSlot[];
+  printPages: TemplateFeatureSlot[];
+  styleSlots: TemplateStyleSlot[];
+  sharePreview: TemplateSharePreview;
   hasOpeningSlot: boolean;
   openingSlots: string[];
   hasBackgroundEffectSlot: boolean;
@@ -65,6 +94,12 @@ type TemplateScanResult = {
     supportsGallery: boolean;
     supportsMusic: boolean;
     supportsMap: boolean;
+    supportsRsvp: boolean;
+    supportsAdditionalInfo: boolean;
+    supportsSharePreview: boolean;
+    supportsThemeStyles: boolean;
+    supportsPrintLayout: boolean;
+    supportsLinkedFields: boolean;
     supportsOpeningAnimation: boolean;
     supportsBackgroundEffects: boolean;
   };
@@ -86,6 +121,37 @@ type ScannedSection = { key: string; label: string; index: number };
 const TEMPLATE_ACCESS_CACHE_MS = 30_000;
 const TEMPLATE_DETAIL_CACHE_MS = 60_000;
 const PUBLIC_DESIGN_CACHE_MS = 60_000;
+const SAFE_TEMPLATE_SCRIPT_ID = "nimto-template-meta";
+
+const BLOCKED_TEMPLATE_TAGS = new Set([
+  "applet",
+  "base",
+  "embed",
+  "frame",
+  "frameset",
+  "iframe",
+  "img",
+  "link",
+  "math",
+  "object",
+  "picture",
+  "source",
+  "svg",
+  "track",
+  "video",
+]);
+
+const URL_LIKE_TEMPLATE_ATTRIBUTES = new Set([
+  "action",
+  "data",
+  "formaction",
+  "href",
+  "poster",
+  "src",
+  "srcdoc",
+  "srcset",
+  "xlink:href",
+]);
 
 type TemplateAccess = {
   updateAll: boolean;
@@ -205,7 +271,9 @@ export class TemplateDesignService {
     dto: CreateAnimationComponentDto,
     context: ActorContext,
   ) {
-    this.assertSafeUploadedHtml(dto.rawHtml, { requireCompleteDocument: false });
+    this.assertSafeUploadedHtml(dto.rawHtml, {
+      requireCompleteDocument: false,
+    });
     const scanResult = this.scanAnimationHtml(dto.rawHtml, dto.type);
 
     try {
@@ -339,8 +407,12 @@ export class TemplateDesignService {
             ...(search
               ? {
                   OR: [
-                    { name: { contains: search, mode: "insensitive" as const } },
-                    { slug: { contains: search, mode: "insensitive" as const } },
+                    {
+                      name: { contains: search, mode: "insensitive" as const },
+                    },
+                    {
+                      slug: { contains: search, mode: "insensitive" as const },
+                    },
                   ],
                 }
               : {}),
@@ -361,6 +433,7 @@ export class TemplateDesignService {
                 rawHtml: true,
                 htmlSize: true,
                 scanResult: true,
+                featureConfig: true,
                 createdAt: true,
               },
             },
@@ -390,6 +463,7 @@ export class TemplateDesignService {
             sourceFileName: true,
             htmlSize: true,
             scanResult: true,
+            featureConfig: true,
             scannedAt: true,
             designId: true,
             design: {
@@ -477,40 +551,46 @@ export class TemplateDesignService {
   }
 
   async listDesigns(userId: string) {
-    return cachedValue(designListCache, userId, TEMPLATE_DETAIL_CACHE_MS, async () => {
-      const access = await this.designAccess(userId);
-      if (!access.viewAll && !access.viewOwn) {
-        throw new ForbiddenException("You cannot view designs.");
-      }
+    return cachedValue(
+      designListCache,
+      userId,
+      TEMPLATE_DETAIL_CACHE_MS,
+      async () => {
+        const access = await this.designAccess(userId);
+        if (!access.viewAll && !access.viewOwn) {
+          throw new ForbiddenException("You cannot view designs.");
+        }
 
-      return this.prisma.invitationDesign.findMany({
-        where: access.viewAll ? undefined : { createdById: userId },
-        orderBy: { updatedAt: "desc" },
-        include: {
-          category: { select: { id: true, name: true, slug: true } },
-          subcategory: { select: { id: true, name: true, slug: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
-          templates: {
-            orderBy: { updatedAt: "desc" },
-            take: 1,
-            select: { id: true, updatedAt: true },
-          },
-          versions: {
-            orderBy: { versionNumber: "desc" },
-            select: {
-              id: true,
-              versionNumber: true,
-              status: true,
-              rawHtml: true,
-              htmlSize: true,
-              scanResult: true,
-              createdAt: true,
-              _count: { select: { publishedEvents: true } },
+        return this.prisma.invitationDesign.findMany({
+          where: access.viewAll ? undefined : { createdById: userId },
+          orderBy: { updatedAt: "desc" },
+          include: {
+            category: { select: { id: true, name: true, slug: true } },
+            subcategory: { select: { id: true, name: true, slug: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
+            templates: {
+              orderBy: { updatedAt: "desc" },
+              take: 1,
+              select: { id: true, updatedAt: true },
+            },
+            versions: {
+              orderBy: { versionNumber: "desc" },
+              select: {
+                id: true,
+                versionNumber: true,
+                status: true,
+                rawHtml: true,
+                htmlSize: true,
+                scanResult: true,
+                featureConfig: true,
+                createdAt: true,
+                _count: { select: { publishedEvents: true } },
+              },
             },
           },
-        },
-      });
-    });
+        });
+      },
+    );
   }
 
   async assignTemplateAnimation(
@@ -606,6 +686,7 @@ export class TemplateDesignService {
           rawHtml: source.rawHtml,
           htmlSize: source.htmlSize,
           scanResult: source.scanResult ?? undefined,
+          featureConfig: source.featureConfig ?? undefined,
           publishedById: context.actorId,
         },
       });
@@ -624,8 +705,13 @@ export class TemplateDesignService {
     dto: CreateInvitationTemplateDto,
     context: ActorContext,
   ) {
+    this.assertStrictTemplateUpload(dto.rawHtml);
     this.assertNimtoHtml(dto.rawHtml);
     const scanResult = this.scanTemplateHtml(dto.rawHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      dto.featureConfig,
+      scanResult,
+    );
     await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
 
     const template = await this.prisma.invitationTemplate.create({
@@ -635,6 +721,7 @@ export class TemplateDesignService {
         sourceFileName: dto.sourceFileName?.trim() || null,
         htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
         scanResult,
+        featureConfig,
         scannedAt: new Date(),
         categoryId: dto.categoryId || null,
         subcategoryId: dto.subcategoryId || null,
@@ -647,6 +734,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         designId: true,
         categoryId: true,
@@ -674,7 +762,10 @@ export class TemplateDesignService {
     }
 
     const access = await this.templateAccess(context.actorId);
-    if (!access.viewAll && !(access.viewOwn && template.createdById === context.actorId)) {
+    if (
+      !access.viewAll &&
+      !(access.viewOwn && template.createdById === context.actorId)
+    ) {
       throw new ForbiddenException("You cannot duplicate this template.");
     }
 
@@ -686,6 +777,8 @@ export class TemplateDesignService {
         sourceFileName: template.sourceFileName,
         htmlSize: template.htmlSize,
         scanResult,
+        featureConfig:
+          (template.featureConfig as Prisma.InputJsonValue | null) ?? undefined,
         scannedAt: new Date(),
         categoryId: template.categoryId,
         subcategoryId: template.subcategoryId,
@@ -698,6 +791,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         categoryId: true,
         subcategoryId: true,
@@ -727,15 +821,29 @@ export class TemplateDesignService {
 
     const access = await this.templateAccess(context.actorId);
     const canUpdate =
-      access.updateAll || (access.updateOwn && existing.createdById === context.actorId);
+      access.updateAll ||
+      (access.updateOwn && existing.createdById === context.actorId);
     if (!canUpdate) {
       throw new ForbiddenException("You cannot update this template.");
     }
 
-    const scanResult = dto.rawHtml ? this.scanTemplateHtml(dto.rawHtml) : undefined;
     if (dto.rawHtml) {
-      this.assertNimtoHtml(dto.rawHtml);
+      this.assertStrictTemplateUpload(dto.rawHtml);
     }
+    const scanResult = dto.rawHtml
+      ? this.scanTemplateHtml(dto.rawHtml)
+      : undefined;
+    const nextScanResult =
+      scanResult ?? (existing.scanResult as TemplateScanResult | undefined);
+    const featureConfig =
+      dto.featureConfig !== undefined
+        ? this.normalizeFeatureConfig(dto.featureConfig, nextScanResult)
+        : scanResult
+          ? this.normalizeFeatureConfig(
+              existing.featureConfig as Record<string, unknown> | null,
+              scanResult,
+            )
+          : undefined;
     await this.assertTemplateTaxonomy(dto.categoryId, dto.subcategoryId);
 
     const template = await this.prisma.invitationTemplate.update({
@@ -747,8 +855,11 @@ export class TemplateDesignService {
           dto.sourceFileName !== undefined
             ? dto.sourceFileName.trim() || null
             : undefined,
-        htmlSize: dto.rawHtml ? Buffer.byteLength(dto.rawHtml, "utf8") : undefined,
+        htmlSize: dto.rawHtml
+          ? Buffer.byteLength(dto.rawHtml, "utf8")
+          : undefined,
         scanResult,
+        featureConfig,
         scannedAt: dto.rawHtml ? new Date() : undefined,
         categoryId: dto.categoryId,
         subcategoryId: dto.subcategoryId,
@@ -761,6 +872,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         designId: true,
         categoryId: true,
@@ -806,9 +918,15 @@ export class TemplateDesignService {
         })),
     );
     const scanResult = this.scanTemplateHtml(publishedHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      template.featureConfig as Record<string, unknown> | null,
+      scanResult,
+    );
     const design = await this.prisma.$transaction(async (tx) => {
       const existingDesign = template.designId
-        ? await tx.invitationDesign.findUnique({ where: { id: template.designId } })
+        ? await tx.invitationDesign.findUnique({
+            where: { id: template.designId },
+          })
         : null;
       const nextDesign =
         existingDesign ??
@@ -855,6 +973,7 @@ export class TemplateDesignService {
           rawHtml: publishedHtml,
           htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
           scanResult,
+          featureConfig,
           publishedById: context.actorId,
         },
       });
@@ -864,6 +983,7 @@ export class TemplateDesignService {
           status: TemplateStatus.PUBLISHED,
           designId: nextDesign.id,
           scanResult,
+          featureConfig,
           scannedAt: new Date(),
         },
       });
@@ -940,15 +1060,20 @@ export class TemplateDesignService {
 
     const access = await this.templateAccess(context.actorId);
     const canUpdate =
-      access.updateAll || (access.updateOwn && existing.createdById === context.actorId);
+      access.updateAll ||
+      (access.updateOwn && existing.createdById === context.actorId);
     if (!canUpdate) {
       throw new ForbiddenException("You cannot rescan this template.");
     }
 
     const scanResult = this.scanTemplateHtml(existing.rawHtml);
+    const featureConfig = this.normalizeFeatureConfig(
+      existing.featureConfig as Record<string, unknown> | null,
+      scanResult,
+    );
     const template = await this.prisma.invitationTemplate.update({
       where: { id: templateId },
-      data: { scanResult, scannedAt: new Date() },
+      data: { scanResult, featureConfig, scannedAt: new Date() },
       select: {
         id: true,
         name: true,
@@ -956,6 +1081,7 @@ export class TemplateDesignService {
         sourceFileName: true,
         htmlSize: true,
         scanResult: true,
+        featureConfig: true,
         scannedAt: true,
         categoryId: true,
         subcategoryId: true,
@@ -1100,7 +1226,9 @@ export class TemplateDesignService {
       name: dto.name?.trim(),
       slug: dto.slug ? this.slugify(dto.slug) : undefined,
       description:
-        dto.description !== undefined ? dto.description.trim() || null : undefined,
+        dto.description !== undefined
+          ? dto.description.trim() || null
+          : undefined,
       sortOrder: dto.sortOrder,
       status: dto.status,
     };
@@ -1111,7 +1239,9 @@ export class TemplateDesignService {
       name: dto.name?.trim(),
       slug: dto.slug ? this.slugify(dto.slug) : undefined,
       description:
-        dto.description !== undefined ? dto.description.trim() || null : undefined,
+        dto.description !== undefined
+          ? dto.description.trim() || null
+          : undefined,
       sortOrder: dto.sortOrder,
       status: dto.status,
     };
@@ -1169,14 +1299,111 @@ export class TemplateDesignService {
     }
 
     if (!/<head[\s>]/i.test(rawHtml) || !/<body[\s>]/i.test(rawHtml)) {
-      throw new BadRequestException("Template must include head and body tags.");
+      throw new BadRequestException(
+        "Template must include head and body tags.",
+      );
     }
 
-    if (!/<script\b[^>]*\bid\s*=\s*(["']?)nimto-template-meta\1[^>]*>/i.test(rawHtml)) {
+    if (
+      !/<script\b[^>]*\bid\s*=\s*(["']?)nimto-template-meta\1[^>]*>/i.test(
+        rawHtml,
+      )
+    ) {
       throw new BadRequestException(
         "Template must include nimto-template-meta metadata.",
       );
     }
+  }
+
+  private assertStrictTemplateUpload(rawHtml: string) {
+    const errors = this.strictTemplateUploadErrors(rawHtml);
+    if (errors.length) {
+      throw new BadRequestException(
+        `Template upload blocked: ${errors.slice(0, 5).join(" ")}`,
+      );
+    }
+  }
+
+  private strictTemplateUploadErrors(rawHtml: string) {
+    const errors: string[] = [];
+
+    if (rawHtml.includes("\0")) {
+      errors.push("File contains invalid null bytes.");
+    }
+
+    if (/<\?(?:php|=)|<%|%>/i.test(rawHtml)) {
+      errors.push(
+        "Server-side code markers like PHP, ASP, or JSP are blocked.",
+      );
+    }
+
+    if (/\b(?:javascript|vbscript|data):/i.test(rawHtml)) {
+      errors.push("javascript:, vbscript:, and data: URLs are blocked.");
+    }
+
+    if (/@import\b/i.test(rawHtml) || /url\s*\(/i.test(rawHtml)) {
+      errors.push("CSS imports and url() assets are blocked in templates.");
+    }
+
+    if (/\bexpression\s*\(/i.test(rawHtml)) {
+      errors.push("CSS expression() is blocked.");
+    }
+
+    for (const match of rawHtml.matchAll(/<\s*\/?\s*([a-z0-9:-]+)([^>]*)>/gi)) {
+      if (/^<\s*\//.test(match[0])) {
+        continue;
+      }
+
+      const tagName = match[1].toLowerCase();
+      const fullTag = match[0];
+      if (BLOCKED_TEMPLATE_TAGS.has(tagName)) {
+        errors.push(`<${tagName}> is not allowed in uploaded templates.`);
+        continue;
+      }
+
+      const attrs = this.attributes(fullTag);
+      for (const [name, value] of Object.entries(attrs)) {
+        if (/^on/i.test(name)) {
+          errors.push(`Event handler attribute "${name}" is not allowed.`);
+        }
+
+        if (URL_LIKE_TEMPLATE_ATTRIBUTES.has(name)) {
+          errors.push(`URL attribute "${name}" is not allowed in templates.`);
+        }
+
+        if (/\b(?:javascript|vbscript|data):/i.test(value)) {
+          errors.push(`Unsafe URL value found in "${name}".`);
+        }
+      }
+
+      if (tagName === "script" && !this.isTemplateMetaScript(attrs)) {
+        errors.push("Only the nimto-template-meta JSON script is allowed.");
+      }
+
+      if (
+        tagName === "meta" &&
+        attrs["http-equiv"]?.toLowerCase() === "refresh"
+      ) {
+        errors.push("Meta refresh redirects are blocked.");
+      }
+
+      if (
+        tagName === "script" &&
+        this.isTemplateMetaScript(attrs) &&
+        attrs.type &&
+        attrs.type !== "application/json"
+      ) {
+        errors.push(
+          "nimto-template-meta script must use type application/json.",
+        );
+      }
+    }
+
+    return [...new Set(errors)];
+  }
+
+  private isTemplateMetaScript(attrs: Record<string, string>) {
+    return attrs.id === SAFE_TEMPLATE_SCRIPT_ID;
   }
 
   private assertSafeUploadedHtml(
@@ -1219,7 +1446,9 @@ export class TemplateDesignService {
     this.assertNimtoHtml(rawHtml);
     const meta = this.templateMeta(rawHtml);
     const scannedSections = this.scanSections(rawHtml);
-    const sections = scannedSections.map(({ index: _index, ...section }) => section);
+    const sections = scannedSections.map(
+      ({ index: _index, ...section }) => section,
+    );
     const fields = this.scanFields(rawHtml, scannedSections);
     if (!fields.length) {
       throw new BadRequestException(
@@ -1234,10 +1463,7 @@ export class TemplateDesignService {
       ? fields.find((field) => field.key === countdownFieldKey)
       : undefined;
 
-    if (
-      countdownFieldKey &&
-      !countdownField
-    ) {
+    if (countdownFieldKey && !countdownField) {
       throw new BadRequestException(
         "Countdown field must match a data-nimto-field key.",
       );
@@ -1247,24 +1473,85 @@ export class TemplateDesignService {
       rawHtml,
       "data-nimto-opening-slot",
     );
+    const countdownSlots = this.scanFeatureSlots(
+      rawHtml,
+      "data-nimto-countdown-slot",
+      scannedSections,
+      meta,
+      "countdownSlots",
+    );
+    const rsvpSlots = this.scanFeatureSlots(
+      rawHtml,
+      "data-nimto-rsvp-slot",
+      scannedSections,
+      meta,
+      "rsvpSlots",
+    );
+    const musicSlots = this.scanFeatureSlots(
+      rawHtml,
+      "data-nimto-music-slot",
+      scannedSections,
+      meta,
+      "musicSlots",
+    );
+    const additionalInfoSlots = this.scanFeatureSlots(
+      rawHtml,
+      "data-nimto-additional-info-slot",
+      scannedSections,
+      meta,
+      "additionalInfoSlots",
+    );
+    const printPages = this.scanFeatureSlots(
+      rawHtml,
+      "data-nimto-print-page",
+      scannedSections,
+      meta,
+      "printPages",
+    );
     const backgroundEffectSlots = this.attributesByName(
       rawHtml,
       "data-nimto-bg-effect-slot",
     );
-    const effectSlots = this.attributesByName(rawHtml, "data-nimto-effect-slot");
-    const effectAreas = this.attributesByName(rawHtml, "data-nimto-effect-area");
+    const effectSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-effect-slot",
+    );
+    const effectAreas = this.attributesByName(
+      rawHtml,
+      "data-nimto-effect-area",
+    );
+    const styleSlots = this.scanStyleSlots(rawHtml, scannedSections, meta);
+    const sharePreview = this.scanSharePreview(rawHtml, meta);
+    this.assertFieldReferences(fields, sharePreview, "share preview");
     const hasGallery = /data-nimto-gallery/i.test(rawHtml);
-    const hasMusic = /data-nimto-music/i.test(rawHtml);
+    const hasMusic = /data-nimto-music/i.test(rawHtml) || musicSlots.length > 0;
     const hasMap = /data-nimto-map/i.test(rawHtml);
-    const supportsCountdown = Boolean(countdownFieldKey);
+    const supportsCountdown = Boolean(
+      countdownFieldKey || countdownSlots.length,
+    );
     const supportsInviteeName = fields.some(
       (field) => field.key === "invitee_name",
     );
+    const linkableFieldKeys = fields
+      .filter((field) => this.isLinkableField(field))
+      .map((field) => field.key);
+    const supportsRsvp =
+      /data-nimto-rsvp/i.test(rawHtml) || rsvpSlots.length > 0;
+    const supportsAdditionalInfo =
+      /data-nimto-additional-info/i.test(rawHtml) ||
+      additionalInfoSlots.length > 0;
     const supportsOpeningAnimation = openingSlots.length > 0;
     const supportsBackgroundEffects =
       backgroundEffectSlots.length > 0 ||
       effectSlots.includes("background") ||
       effectAreas.length > 0;
+    const supportsSharePreview = Boolean(
+      sharePreview.titleFieldKey ||
+      sharePreview.descriptionFieldKey ||
+      sharePreview.imageFieldKey,
+    );
+    const supportsThemeStyles = styleSlots.length > 0;
+    const supportsPrintLayout = printPages.length > 0;
 
     return {
       version: 1,
@@ -1274,9 +1561,21 @@ export class TemplateDesignService {
       fields,
       countdownFieldKey,
       countdownFieldStatus: this.countdownFieldStatus(countdownField),
+      countdownPosition: this.countdownPosition(rawHtml, meta),
+      countdownSlots,
       customNameFieldKeys: fields
-        .filter((field) => field.key === "invitee_name" || field.type === "custom_name")
+        .filter(
+          (field) =>
+            field.key === "invitee_name" || field.type === "custom_name",
+        )
         .map((field) => field.key),
+      linkableFieldKeys,
+      rsvpSlots,
+      musicSlots,
+      additionalInfoSlots,
+      printPages,
+      styleSlots,
+      sharePreview,
       hasOpeningSlot: supportsOpeningAnimation,
       openingSlots,
       hasBackgroundEffectSlot: supportsBackgroundEffects,
@@ -1292,6 +1591,12 @@ export class TemplateDesignService {
         supportsGallery: hasGallery,
         supportsMusic: hasMusic,
         supportsMap: hasMap,
+        supportsRsvp,
+        supportsAdditionalInfo,
+        supportsSharePreview,
+        supportsThemeStyles,
+        supportsPrintLayout,
+        supportsLinkedFields: linkableFieldKeys.length > 0,
         supportsOpeningAnimation,
         supportsBackgroundEffects,
       },
@@ -1311,8 +1616,14 @@ export class TemplateDesignService {
       rawHtml,
       "data-nimto-bg-effect-slot",
     );
-    const effectSlots = this.attributesByName(rawHtml, "data-nimto-effect-slot");
-    const effectAreas = this.attributesByName(rawHtml, "data-nimto-effect-area");
+    const effectSlots = this.attributesByName(
+      rawHtml,
+      "data-nimto-effect-slot",
+    );
+    const effectAreas = this.attributesByName(
+      rawHtml,
+      "data-nimto-effect-area",
+    );
 
     return {
       version: 1,
@@ -1331,7 +1642,9 @@ export class TemplateDesignService {
 
   private scanSections(rawHtml: string) {
     const sections = new Map<string, ScannedSection>();
-    for (const tag of rawHtml.matchAll(/<[^>]*\bdata-nimto-section(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis)) {
+    for (const tag of rawHtml.matchAll(
+      /<[^>]*\bdata-nimto-section(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis,
+    )) {
       const attrs = this.attributes(tag[0]);
       const key = attrs["data-nimto-section"];
       if (!key) continue;
@@ -1350,7 +1663,9 @@ export class TemplateDesignService {
     const sectionKeys = new Set(sections.map((section) => section.key));
     const fields: TemplateField[] = [];
 
-    for (const tag of rawHtml.matchAll(/<[^>]*\bdata-nimto-field(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis)) {
+    for (const tag of rawHtml.matchAll(
+      /<[^>]*\bdata-nimto-field(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis,
+    )) {
       const attrs = this.attributes(tag[0]);
       const key = attrs["data-nimto-field"];
       if (!key) continue;
@@ -1381,9 +1696,306 @@ export class TemplateDesignService {
     return fields;
   }
 
+  private scanFeatureSlots(
+    rawHtml: string,
+    attribute: string,
+    sections: ScannedSection[],
+    meta: Record<string, unknown>,
+    metaKey: string,
+  ) {
+    const slots = new Map<string, TemplateFeatureSlot>();
+    const sectionKeys = new Set(sections.map((section) => section.key));
+    const pattern = new RegExp(
+      `<[^>]*\\b${attribute}(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))?[^>]*>`,
+      "gis",
+    );
+
+    for (const tag of rawHtml.matchAll(pattern)) {
+      const attrs = this.attributes(tag[0]);
+      const key = attrs[attribute] || attrs["data-nimto-slot"];
+      if (!key) continue;
+      this.assertFieldKey(key, "feature slot");
+
+      const sectionKey =
+        attrs["data-nimto-section-ref"] ??
+        this.nearestSectionKey(sections, tag.index ?? 0);
+      if (sectionKey && !sectionKeys.has(sectionKey)) {
+        throw new BadRequestException(`Unknown section for slot ${key}.`);
+      }
+
+      slots.set(key, {
+        key,
+        label: attrs["data-nimto-label"] ?? this.labelize(key),
+        sectionKey,
+      });
+    }
+
+    for (const slot of this.featureSlotsMeta(meta, metaKey)) {
+      if (slot.sectionKey && !sectionKeys.has(slot.sectionKey)) {
+        throw new BadRequestException(`Unknown section for slot ${slot.key}.`);
+      }
+      slots.set(slot.key, slot);
+    }
+
+    return [...slots.values()];
+  }
+
+  private scanStyleSlots(
+    rawHtml: string,
+    sections: ScannedSection[],
+    meta: Record<string, unknown>,
+  ) {
+    const slots = new Map<string, TemplateStyleSlot>();
+    const sectionKeys = new Set(sections.map((section) => section.key));
+
+    for (const tag of rawHtml.matchAll(
+      /<[^>]*\bdata-nimto-style-slot(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>/gis,
+    )) {
+      const attrs = this.attributes(tag[0]);
+      const key = attrs["data-nimto-style-slot"];
+      if (!key) continue;
+      this.assertFieldKey(key, "style slot");
+
+      const sectionKey =
+        attrs["data-nimto-section-ref"] ??
+        this.nearestSectionKey(sections, tag.index ?? 0);
+      if (sectionKey && !sectionKeys.has(sectionKey)) {
+        throw new BadRequestException(`Unknown section for style slot ${key}.`);
+      }
+
+      slots.set(key, {
+        key,
+        label: attrs["data-nimto-label"] ?? this.labelize(key),
+        type: attrs["data-nimto-style-type"] === "font" ? "font" : "color",
+        defaultValue: attrs["data-nimto-default"] || undefined,
+        cssVariable: attrs["data-nimto-css-variable"] || undefined,
+        sectionKey,
+      });
+    }
+
+    for (const slot of this.styleSlotsMeta(meta)) {
+      if (slot.sectionKey && !sectionKeys.has(slot.sectionKey)) {
+        throw new BadRequestException(
+          `Unknown section for style slot ${slot.key}.`,
+        );
+      }
+      slots.set(slot.key, slot);
+    }
+
+    return [...slots.values()];
+  }
+
+  private scanSharePreview(
+    rawHtml: string,
+    meta: Record<string, unknown>,
+  ): TemplateSharePreview {
+    const metaPreview =
+      typeof meta.sharePreview === "object" && meta.sharePreview
+        ? (meta.sharePreview as Record<string, unknown>)
+        : {};
+
+    return {
+      titleFieldKey:
+        this.firstAttribute(rawHtml, "data-nimto-share-title-field") ??
+        this.stringMeta(metaPreview, "titleFieldKey"),
+      descriptionFieldKey:
+        this.firstAttribute(rawHtml, "data-nimto-share-description-field") ??
+        this.stringMeta(metaPreview, "descriptionFieldKey"),
+      imageFieldKey:
+        this.firstAttribute(rawHtml, "data-nimto-share-image-field") ??
+        this.stringMeta(metaPreview, "imageFieldKey"),
+    };
+  }
+
+  private featureSlotsMeta(meta: Record<string, unknown>, key: string) {
+    const value = meta[key];
+    if (!Array.isArray(value)) return [];
+
+    return value.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const slot = item as Record<string, unknown>;
+      if (typeof slot.key !== "string") return [];
+      this.assertFieldKey(slot.key, "feature slot");
+      return [
+        {
+          key: slot.key,
+          label:
+            typeof slot.label === "string"
+              ? slot.label
+              : this.labelize(slot.key),
+          sectionKey:
+            typeof slot.sectionKey === "string" ? slot.sectionKey : undefined,
+        },
+      ];
+    });
+  }
+
+  private styleSlotsMeta(meta: Record<string, unknown>) {
+    const value = meta.styleSlots;
+    if (!Array.isArray(value)) return [];
+
+    return value.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const slot = item as Record<string, unknown>;
+      if (typeof slot.key !== "string") return [];
+      this.assertFieldKey(slot.key, "style slot");
+      return [
+        {
+          key: slot.key,
+          label:
+            typeof slot.label === "string"
+              ? slot.label
+              : this.labelize(slot.key),
+          type: slot.type === "font" ? "font" : "color",
+          defaultValue:
+            typeof slot.defaultValue === "string"
+              ? slot.defaultValue
+              : undefined,
+          cssVariable:
+            typeof slot.cssVariable === "string" ? slot.cssVariable : undefined,
+          sectionKey:
+            typeof slot.sectionKey === "string" ? slot.sectionKey : undefined,
+        } satisfies TemplateStyleSlot,
+      ];
+    });
+  }
+
+  private countdownPosition(
+    rawHtml: string,
+    meta: Record<string, unknown>,
+  ): TemplateScanResult["countdownPosition"] {
+    const value =
+      this.firstAttribute(rawHtml, "data-nimto-countdown-position") ??
+      this.stringMeta(meta, "countdownPosition");
+    return value === "top" || value === "middle" || value === "bottom"
+      ? value
+      : undefined;
+  }
+
+  private isLinkableField(field: TemplateField) {
+    if (field.locked) return false;
+    return ![
+      "audio",
+      "boolean",
+      "checkbox",
+      "file",
+      "hidden",
+      "image",
+      "json",
+      "url",
+    ].includes(field.type);
+  }
+
+  private assertFieldReferences(
+    fields: TemplateField[],
+    references: Record<string, string | undefined>,
+    label: string,
+  ) {
+    const fieldKeys = new Set(fields.map((field) => field.key));
+    for (const key of Object.values(references)) {
+      if (key && !fieldKeys.has(key)) {
+        throw new BadRequestException(
+          `Unknown ${label} field reference: ${key}.`,
+        );
+      }
+    }
+  }
+
+  private normalizeFeatureConfig(
+    value: Record<string, unknown> | null | undefined,
+    scanResult?: TemplateScanResult,
+  ): TemplateFeatureConfig {
+    const source = value && typeof value === "object" ? value : {};
+    const capabilities = scanResult?.capabilities;
+
+    return {
+      countdown: {
+        available: Boolean(capabilities?.supportsCountdown),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["countdown", "defaultEnabled"],
+          true,
+        ),
+        position:
+          this.positionConfig(source, ["countdown", "position"]) ??
+          scanResult?.countdownPosition ??
+          "bottom",
+      },
+      rsvp: {
+        available: Boolean(capabilities?.supportsRsvp),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["rsvp", "defaultEnabled"],
+          false,
+        ),
+      },
+      music: {
+        available: Boolean(capabilities?.supportsMusic),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["music", "defaultEnabled"],
+          false,
+        ),
+      },
+      additionalInfo: {
+        available: Boolean(capabilities?.supportsAdditionalInfo),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["additionalInfo", "defaultEnabled"],
+          false,
+        ),
+      },
+      openingAnimation: {
+        available: Boolean(capabilities?.supportsOpeningAnimation),
+        defaultEnabled: this.booleanConfig(
+          source,
+          ["openingAnimation", "defaultEnabled"],
+          false,
+        ),
+      },
+      theme: {
+        available: Boolean(capabilities?.supportsThemeStyles),
+      },
+      sharePreview: {
+        available: Boolean(capabilities?.supportsSharePreview),
+      },
+      print: {
+        available: Boolean(capabilities?.supportsPrintLayout),
+      },
+      links: {
+        available: Boolean(capabilities?.supportsLinkedFields),
+      },
+    };
+  }
+
+  private booleanConfig(
+    source: Record<string, unknown>,
+    path: [string, string],
+    defaultValue: boolean,
+  ) {
+    const group = source[path[0]];
+    if (!group || typeof group !== "object") return defaultValue;
+    const value = (group as Record<string, unknown>)[path[1]];
+    return typeof value === "boolean" ? value : defaultValue;
+  }
+
+  private positionConfig(
+    source: Record<string, unknown>,
+    path: [string, string],
+  ): "top" | "middle" | "bottom" | undefined {
+    const group = source[path[0]];
+    if (!group || typeof group !== "object") return undefined;
+    const value = (group as Record<string, unknown>)[path[1]];
+    return value === "top" || value === "middle" || value === "bottom"
+      ? value
+      : undefined;
+  }
+
   private templateMeta(rawHtml: string) {
     let content = "";
-    for (const match of rawHtml.matchAll(/<script\b([^>]*)>(.*?)<\/script>/gis)) {
+    for (const match of rawHtml.matchAll(
+      /<script\b([^>]*)>(.*?)<\/script>/gis,
+    )) {
       const attrs = this.attributes(match[1]);
       if (attrs.id === "nimto-template-meta") {
         content = match[2].trim();
@@ -1401,7 +2013,9 @@ export class TemplateDesignService {
 
   private attributes(tag: string) {
     const attrs: Record<string, string> = {};
-    for (const match of tag.matchAll(/([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gis)) {
+    for (const match of tag.matchAll(
+      /([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/gis,
+    )) {
       attrs[match[1].toLowerCase()] = (
         match[2] ??
         match[3] ??
@@ -1414,7 +2028,10 @@ export class TemplateDesignService {
 
   private firstAttribute(rawHtml: string, attribute: string) {
     const match = rawHtml.match(
-      new RegExp(`${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"),
+      new RegExp(
+        `${attribute}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+        "i",
+      ),
     );
     return match?.[1] ?? match?.[2] ?? match?.[3];
   }
@@ -1453,7 +2070,7 @@ export class TemplateDesignService {
   private assertFieldKey(key: string, label: string) {
     if (!/^[a-z][a-z0-9_]*$/.test(key)) {
       throw new BadRequestException(
-        `Nimto ${label} keys must use lowercase snake_case.`,
+        `myNimto ${label} keys must use lowercase snake_case.`,
       );
     }
   }
@@ -1652,10 +2269,7 @@ export class TemplateDesignService {
     return slug || `category-${Date.now()}`;
   }
 
-  private async uniqueDesignSlug(
-    tx: Prisma.TransactionClient,
-    name: string,
-  ) {
+  private async uniqueDesignSlug(tx: Prisma.TransactionClient, name: string) {
     const base = this.slugify(name);
     let slug = base;
     let suffix = 2;
@@ -1670,7 +2284,9 @@ export class TemplateDesignService {
     const base = this.slugify(name);
     let slug = base;
     let suffix = 2;
-    while (await this.prisma.animationComponent.findUnique({ where: { slug } })) {
+    while (
+      await this.prisma.animationComponent.findUnique({ where: { slug } })
+    ) {
       slug = `${base}-${suffix}`;
       suffix += 1;
     }

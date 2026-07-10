@@ -120,6 +120,15 @@ export class AdminController {
     );
   }
 
+  @Delete("users/:userId")
+  @RequirePermissions(PERMISSIONS.staffManage)
+  deleteUser(
+    @Param("userId") userId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.adminService.deleteUser(userId, this.context(request));
+  }
+
   @Get("sessions")
   @RequirePermissions(PERMISSIONS.sessionsView)
   listSessions() {

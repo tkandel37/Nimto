@@ -1,6 +1,7 @@
 import { TemplateStatus } from "@prisma/client";
 import {
   IsEnum,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -36,4 +37,8 @@ export class UpdateInvitationTemplateDto {
   @IsOptional()
   @IsEnum(TemplateStatus)
   status?: TemplateStatus;
+
+  @IsOptional()
+  @IsObject()
+  featureConfig?: Record<string, unknown>;
 }

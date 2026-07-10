@@ -1,3 +1,30 @@
+export type RsvpFieldType =
+  | "single_choice"
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "email"
+  | "phone";
+
+export type RsvpFieldConfig = {
+  id: string;
+  key: string;
+  label: string;
+  type: RsvpFieldType;
+  required: boolean;
+  enabled: boolean;
+  builtIn?: boolean;
+  options?: string[];
+  placeholder?: string | null;
+};
+
+export type RsvpConfig = {
+  note: string;
+  closedMessage: string;
+  fields: RsvpFieldConfig[];
+};
+
 export type UserEvent = {
   id: string;
   title: string;
@@ -15,6 +42,8 @@ export type UserEvent = {
   rsvpDeadline?: string | null;
   organizerNotes?: string | null;
   checklist?: Record<string, boolean> | null;
+  featureSettings?: Record<string, unknown> | null;
+  rsvpConfig?: Record<string, unknown> | null;
   designFieldValues?: Record<string, unknown> | null;
   draftDesignVersionId?: string | null;
   draftDesignFieldValues?: Record<string, unknown> | null;
@@ -26,6 +55,7 @@ export type UserEvent = {
     versionNumber: number;
     status?: string;
     rawHtml?: string;
+    featureConfig?: Record<string, unknown> | null;
     scanResult?: {
       fields?: {
         key: string;
@@ -35,6 +65,14 @@ export type UserEvent = {
         locked?: boolean;
         paid?: boolean;
       }[];
+      linkableFieldKeys?: string[];
+      styleSlots?: {
+        key: string;
+        label?: string;
+        type?: string;
+        defaultValue?: string;
+      }[];
+      capabilities?: Record<string, boolean>;
     } | null;
     design?: { id: string; name: string; slug: string; status: string } | null;
   } | null;
@@ -42,6 +80,7 @@ export type UserEvent = {
     id: string;
     versionNumber: number;
     rawHtml: string;
+    featureConfig?: Record<string, unknown> | null;
     scanResult?: UserEvent["designVersion"] extends infer T
       ? T extends { scanResult?: infer S }
         ? S
@@ -70,6 +109,7 @@ export type InvitationInvitee = {
   partySize?: number | null;
   mealPreference?: string | null;
   rsvpMessage?: string | null;
+  rsvpAnswers?: Record<string, unknown> | null;
   respondedAt?: string | null;
   linkDisabledAt?: string | null;
   linkExpiresAt?: string | null;
@@ -79,6 +119,7 @@ export type InvitationInvitee = {
 
 export type EventStatistics = {
   totalInvitees: number;
+  totalResponses?: number;
   invitationOpens: number;
   openedInvitees: number;
   pending: number;
@@ -87,7 +128,18 @@ export type EventStatistics = {
   expectedGuests: number;
   unopenedInvitees: number;
   responseRate: number;
+  publicResponses?: number;
+  lastResponseAt?: string | null;
   mealTotals: { meal: string; count: number }[];
+};
+
+export type EventRsvpResponse = {
+  id: string;
+  eventId: string;
+  status: "PENDING" | "ATTENDING" | "DECLINED";
+  answers: Record<string, unknown>;
+  guestCount?: number | null;
+  submittedAt: string;
 };
 
 export type EventActivity = {
@@ -121,10 +173,7 @@ export type InviteeDraft = {
     | "Too long";
 };
 
-export function formatEventDate(
-  value?: string | null,
-  prefix?: string,
-) {
+export function formatEventDate(value?: string | null, prefix?: string) {
   if (!value) return "Not set";
   const formatted = new Intl.DateTimeFormat("en", {
     month: "short",

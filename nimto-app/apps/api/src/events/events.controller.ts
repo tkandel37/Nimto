@@ -39,10 +39,7 @@ export class EventsController {
   }
 
   @Post("public/:slug/rsvp")
-  submitRsvp(
-    @Param("slug") slug: string,
-    @Body() dto: SubmitRsvpDto,
-  ) {
+  submitRsvp(@Param("slug") slug: string, @Body() dto: SubmitRsvpDto) {
     return this.eventsService.submitRsvp(slug, dto);
   }
 
@@ -125,6 +122,15 @@ export class EventsController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.eventsService.statistics(request.user!.sub, eventId);
+  }
+
+  @Get(":eventId/rsvp-responses")
+  @UseGuards(JwtAuthGuard)
+  rsvpResponses(
+    @Param("eventId") eventId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.eventsService.listRsvpResponses(request.user!.sub, eventId);
   }
 
   @Get(":eventId/activity")

@@ -2,6 +2,7 @@ import { RsvpStatus } from "@prisma/client";
 import {
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -28,4 +29,8 @@ export class SubmitRsvpDto {
   @MaxLength(800)
   @IsOptional()
   message?: string;
+
+  @IsObject()
+  @IsOptional()
+  answers?: Record<string, unknown>;
 }
