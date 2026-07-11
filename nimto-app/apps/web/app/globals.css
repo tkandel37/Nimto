@@ -1,14 +1,119 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8f5;
-  --foreground: #172033;
-  --ink: #172033;
-  --marigold: #c88918;
-  --rose: #b13f5f;
-  --leaf: #16745e;
-  --paper: #fffdf8;
-  --line: rgba(23, 32, 51, 0.14);
+  --background: #fbf7ff;
+  --foreground: #25172f;
+  --ink: #25172f;
+  --marigold: #b77708;
+  --rose: #d91f66;
+  --leaf: #7424b8;
+  --paper: #fffaff;
+  --line: rgba(74, 35, 92, 0.16);
+  --brand-purple: #7622d5;
+  --brand-pink: #f62270;
+  --brand-gold: #f2c44d;
+  --brand-gradient: linear-gradient(135deg, var(--brand-purple), var(--brand-pink));
+  --brand-gradient-hover: linear-gradient(135deg, #6518c3, #df145b);
+}
+
+/* Finalized myNimto brand system */
+.brand-logo {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 950;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.brand-logo-image {
+  width: 2.45rem;
+  height: 2.45rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 12px rgba(118, 34, 213, 0.18));
+}
+
+.brand-logo-word {
+  background: var(--brand-gradient);
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-logo-compact .brand-logo-image {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.site-brand-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sidebar-logo .brand-logo-word,
+.user-logo .brand-logo-word {
+  color: white;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+.sidebar-logo .brand-logo-image,
+.user-logo .brand-logo-image {
+  width: 2.2rem;
+  height: 2.2rem;
+  filter: drop-shadow(0 8px 14px rgba(246, 34, 112, 0.28));
+}
+
+.primary-button,
+.site-button-primary,
+.site-login-button,
+.user-primary-button,
+button[class*="bg-ink"],
+a[class*="bg-ink"] {
+  border-color: transparent !important;
+  background: var(--brand-gradient) !important;
+  color: white !important;
+  box-shadow: 0 10px 24px rgba(118, 34, 213, 0.22);
+}
+
+.primary-button:not(:disabled):hover,
+.site-button-primary:hover,
+.site-login-button:hover,
+.user-primary-button:not(:disabled):hover,
+button[class*="bg-ink"]:hover,
+a[class*="bg-ink"]:hover {
+  background: var(--brand-gradient-hover) !important;
+  box-shadow: 0 14px 30px rgba(118, 34, 213, 0.28);
+}
+
+.site-button-secondary,
+.user-secondary-button {
+  border-color: rgba(118, 34, 213, 0.25);
+  background: rgba(255, 255, 255, 0.88);
+  color: #6518a7;
+}
+
+.field input:focus,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--brand-purple);
+  box-shadow: 0 0 0 4px rgba(118, 34, 213, 0.13);
+}
+
+@media (max-width: 520px) {
+  .site-header .brand-logo-word {
+    display: none;
+  }
+
+  .site-header {
+    gap: 12px;
+  }
 }
 
 @theme inline {
@@ -36,11 +141,11 @@ body {
   background:
     radial-gradient(
       circle at 12% 18%,
-      rgba(200, 137, 24, 0.08),
+      rgba(242, 196, 77, 0.11),
       transparent 18rem
     ),
-    linear-gradient(120deg, rgba(22, 116, 94, 0.1), transparent 36%),
-    linear-gradient(310deg, rgba(177, 63, 95, 0.08), transparent 34%),
+    linear-gradient(120deg, rgba(118, 34, 213, 0.09), transparent 36%),
+    linear-gradient(310deg, rgba(246, 34, 112, 0.09), transparent 34%),
     var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
@@ -185,7 +290,7 @@ a {
   width: 100%;
   border: 0;
   border-radius: 12px;
-  background: var(--ink);
+  background: var(--brand-gradient);
   color: white;
   padding: 14px 18px;
   font-weight: 700;
@@ -336,7 +441,7 @@ a {
 }
 
 .site-button-primary {
-  background: var(--ink);
+  background: var(--brand-gradient);
   color: white;
   box-shadow: 0 14px 30px rgba(23, 32, 51, 0.18);
 }
@@ -359,7 +464,7 @@ a {
 
 .site-login-button {
   border: 1px solid rgba(23, 32, 51, 0.16);
-  background: var(--ink);
+  background: var(--brand-gradient);
   color: white;
   padding: 10px 14px;
 }
@@ -1529,7 +1634,9 @@ a {
   flex-direction: column;
   gap: 28px;
   border-right: 1px solid rgba(23, 32, 51, 0.1);
-  background: #172033;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(246, 34, 112, 0.24), transparent 17rem),
+    linear-gradient(165deg, #32104a 0%, #22102f 56%, #160c21 100%);
   padding: 22px 16px;
   color: white;
 }
@@ -1654,8 +1761,8 @@ a {
 }
 
 .user-primary-button {
-  border: 1px solid var(--ink);
-  background: var(--ink);
+  border: 1px solid transparent;
+  background: var(--brand-gradient);
   color: white;
 }
 

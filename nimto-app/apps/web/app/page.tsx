@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { serverApiUrl } from "@/lib/server-api";
 import { AuthAwareAccountLink } from "./auth-aware-account-link";
+import { BrandLogo } from "./brand-logo";
 
 type PageContent = {
   title: string;
@@ -179,8 +180,8 @@ function InvitationShowcase({ body }: { body?: string | null }) {
 function SiteHeader() {
   return (
     <header className="site-header">
-      <Link className="text-xl font-black text-ink" href="/">
-        myNimto
+      <Link className="site-brand-link" href="/" aria-label="myNimto home">
+        <BrandLogo priority />
       </Link>
       <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
         <Link href="/features">Features</Link>

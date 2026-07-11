@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandLogo } from "./brand-logo";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -317,8 +318,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
       <main className="user-shell">
         <aside className="user-sidebar">
           <Link className="user-logo" href={workspaceHomeHref}>
-            <span className="user-logo-mark">N</span>
-            <span className="user-logo-word">myNimto</span>
+            <BrandLogo />
           </Link>
           <nav className="user-nav">
             {pageLinks.map((link) => (
@@ -424,9 +424,8 @@ function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
   return (
     <main className="user-shell">
       <aside className="user-sidebar user-sidebar-pending" aria-hidden="true">
-        <Link className="user-logo" href="/events" tabIndex={-1}>
-          <span className="user-logo-mark">N</span>
-          <span className="user-logo-word">myNimto</span>
+          <Link className="user-logo" href="/events" tabIndex={-1}>
+          <BrandLogo />
         </Link>
         <nav className="user-nav">
           {pageLinks.map((link) => (

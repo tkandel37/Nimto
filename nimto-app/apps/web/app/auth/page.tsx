@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
 import { clearAuthSession, saveAuthSession } from "@/lib/auth-session";
+import { BrandLogo } from "../brand-logo";
 
 type Mode = "login" | "register";
 
@@ -129,8 +130,8 @@ function AuthForm() {
       <section className="preview-panel">
         <div className="invitation-preview">
           <div className="flex h-full flex-col justify-between border border-ink/15 p-8">
-            <Link href="/" className="text-sm font-black uppercase tracking-[0.35em] text-rose">
-              myNimto
+            <Link href="/" className="site-brand-link" aria-label="myNimto home">
+              <BrandLogo />
             </Link>
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">

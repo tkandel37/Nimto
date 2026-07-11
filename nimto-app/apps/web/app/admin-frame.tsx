@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { BrandLogo } from "./brand-logo";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthUser } from "@/lib/api";
 
@@ -189,10 +190,8 @@ export function AdminFrame({ children }: { children: ReactNode }) {
         <div>
           <div className="sidebar-brand-row">
             <Link href="/dashboard" className="sidebar-logo">
-              <span className="sidebar-logo-full">myNimto</span>
-              <span className="sidebar-logo-mark" aria-hidden="true">
-                N
-              </span>
+              <BrandLogo className="sidebar-logo-full" />
+              <BrandLogo className="sidebar-logo-mark" compact />
             </Link>
             <button
               aria-label={

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverApiUrl } from "@/lib/server-api";
+import { BrandLogo } from "../../brand-logo";
 
 type BlogPost = {
   title: string;
@@ -121,8 +122,8 @@ export default async function BlogPostPage({
           />
         ))}
       <header className="site-header">
-        <Link className="text-xl font-black text-ink" href="/">
-          myNimto
+        <Link className="site-brand-link" href="/" aria-label="myNimto home">
+          <BrandLogo />
         </Link>
         <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
           <Link href="/blog">Blog</Link>

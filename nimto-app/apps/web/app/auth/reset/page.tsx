@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { BrandLogo } from "../../brand-logo";
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -63,9 +64,10 @@ function ResetPasswordContent() {
           <div className="flex h-full flex-col justify-between border border-ink/15 p-8">
             <Link
               href="/"
-              className="text-sm font-black uppercase tracking-[0.35em] text-rose"
+              className="site-brand-link"
+              aria-label="myNimto home"
             >
-              myNimto
+              <BrandLogo />
             </Link>
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
