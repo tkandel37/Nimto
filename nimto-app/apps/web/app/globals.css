@@ -7288,3 +7288,71 @@ button.user-design-preview {
     grid-template-columns: 1fr;
   }
 }
+
+/* Phone invitation actions must win over legacy catalogue rules above. */
+@media (max-width: 640px) {
+  .design-catalogue .design-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .design-catalogue .design-card-actions .user-secondary-button,
+  .design-catalogue .design-card-actions .user-primary-button {
+    display: inline-flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    font-size: 0.76rem;
+  }
+
+  .design-catalogue .design-preview-overlay {
+    display: none;
+  }
+
+  .design-preview-modal {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .design-preview-modal > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    flex-direction: initial;
+    gap: 8px;
+  }
+
+  .design-preview-heading .user-kicker,
+  .design-preview-heading p:not(.user-kicker),
+  .design-preview-actions .event-device-switcher {
+    display: none;
+  }
+
+  .design-preview-modal h2 {
+    overflow: hidden;
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .design-preview-actions {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+  }
+
+  .design-preview-actions .user-secondary-button,
+  .design-preview-actions .user-primary-button {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+}
