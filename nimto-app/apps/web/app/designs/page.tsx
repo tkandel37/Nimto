@@ -433,6 +433,20 @@ function DesignsContent({
             </button>
           </div>
         </div>
+        {activeFilterCount ? (
+          <div className="design-active-filter-row">
+            {categoryId ? (
+              <button onClick={() => { setCategoryId(""); setSubcategoryId(""); }} type="button">
+                {categories.find((category) => category.id === categoryId)?.name} <span>×</span>
+              </button>
+            ) : null}
+            {subcategoryId ? (
+              <button onClick={() => setSubcategoryId("")} type="button">
+                {subcategories.find((subcategory) => subcategory.id === subcategoryId)?.name} <span>×</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div
           className={
             showMobileFilters
@@ -440,45 +454,64 @@ function DesignsContent({
               : "design-filter-panel"
           }
         >
-          <div className="user-filter-row">
-            <label className="design-select-control">
-              <span>Category</span>
-              <select
-                aria-label="Filter category"
-                onChange={(event) => {
-                  setCategoryId(event.target.value);
+          <div className="design-facet-header">
+            <div>
+              <strong>Filter invitations</strong>
+              <span>Choose one or more details</span>
+            </div>
+            {activeFilterCount ? (
+              <button
+                onClick={() => {
+                  setCategoryId("");
                   setSubcategoryId("");
+                  setCollectionKey("");
+                  setShowFavourites(false);
                 }}
-                value={categoryId}
+                type="button"
               >
-                <option value="">All categories</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <i aria-hidden="true">⌄</i>
-            </label>
-            <label className="design-select-control">
-              <span>Subcategory</span>
-              <select
-                aria-label="Filter subcategory"
-                disabled={!categoryId}
-                onChange={(event) => setSubcategoryId(event.target.value)}
-                value={subcategoryId}
-              >
-                <option value="">All subcategories</option>
-                {subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.id}>
-                    {subcategory.name}
-                  </option>
-                ))}
-              </select>
-              <i aria-hidden="true">⌄</i>
-            </label>
+                Clear all
+              </button>
+            ) : null}
           </div>
-          <div className="design-discovery-bar">
+          <div className="design-facet-group">
+            <span>Category</span>
+            <div>
+              {categories.map((category) => (
+                <button
+                  className={categoryId === category.id ? "active" : ""}
+                  key={category.id}
+                  onClick={() => {
+                    setCategoryId(category.id);
+                    setSubcategoryId("");
+                    setCollectionKey("");
+                    setShowFavourites(false);
+                  }}
+                  type="button"
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          {categoryId && subcategories.length ? (
+            <div className="design-facet-group">
+              <span>Subcategory</span>
+              <div>
+                {subcategories.map((subcategory) => (
+                  <button
+                    className={subcategoryId === subcategory.id ? "active" : ""}
+                    key={subcategory.id}
+                    onClick={() => setSubcategoryId(subcategory.id)}
+                    type="button"
+                  >
+                    {subcategory.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="design-discovery-bar">
             <button
               className={
                 !categoryId && !collectionKey && !showFavourites ? "active" : ""
@@ -536,7 +569,6 @@ function DesignsContent({
               ♥ Favourites{" "}
               {favouriteIds.length ? `(${favouriteIds.length})` : ""}
             </button>
-          </div>
         </div>
       </div>
 

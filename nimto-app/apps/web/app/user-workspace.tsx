@@ -119,6 +119,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
       : { isChecking: true, token: "", user: null };
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const isLoggingOutRef = useRef(false);
   const { isChecking, token, user } = authState;
 
@@ -354,17 +355,31 @@ export function UserFrame({ children }: { children: ReactNode }) {
                 {pageLinks.find((link) => link.key === activePage)?.label}
               </strong>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="hidden text-sm font-bold text-ink/55 sm:inline">
-                {user.name}
-              </span>
+            <div className="user-account-menu">
               <button
-                className="user-ghost-button"
-                onClick={logout}
+                aria-expanded={isAccountMenuOpen}
+                className="user-account-trigger"
+                onClick={() => setIsAccountMenuOpen((value) => !value)}
                 type="button"
               >
-                Log out
+                <span className="user-account-avatar" aria-hidden="true">
+                  {user.name.trim().charAt(0).toUpperCase() || "U"}
+                </span>
+                <span className="user-account-name">{user.name}</span>
+                <span className="user-account-chevron" aria-hidden="true">⌄</span>
               </button>
+              {isAccountMenuOpen ? (
+                <div className="user-account-popover">
+                  <div>
+                    <strong>{user.name}</strong>
+                    <span>{user.email}</span>
+                  </div>
+                  <Link href="/profile" onClick={() => setIsAccountMenuOpen(false)}>
+                    Profile
+                  </Link>
+                  <button onClick={logout} type="button">Log out</button>
+                </div>
+              ) : null}
             </div>
           </header>
           <div className="user-page">{children}</div>

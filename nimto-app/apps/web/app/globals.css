@@ -290,6 +290,70 @@ a {
   }
 }
 
+/* Modern faceted invitation filters and compact account menu. */
+.design-catalogue-hero { overflow: visible; }
+.design-filter-toolbar .design-mobile-filter-toggle { display: inline-flex; gap: 6px; border-radius: 14px; }
+.design-catalogue-hero .design-filter-panel {
+  position: absolute; top: 88px; right: 20px; z-index: 40; display: none;
+  width: min(520px, calc(100% - 40px)); max-height: min(560px, calc(100vh - 150px));
+  overflow-y: auto; gap: 16px; border: 1px solid rgba(129, 39, 216, 0.13);
+  border-radius: 18px; background: rgba(255, 255, 255, 0.9); padding: 18px;
+  box-shadow: 0 26px 70px rgba(83, 49, 73, 0.16); backdrop-filter: blur(24px) saturate(135%);
+}
+.design-catalogue-hero .design-filter-panel.open { display: grid; animation: user-surface-in 160ms ease-out; }
+.design-facet-header, .design-facet-header > div { display: flex; }
+.design-facet-header { align-items: center; justify-content: space-between; gap: 16px; }
+.design-facet-header > div { flex-direction: column; gap: 2px; }
+.design-facet-header strong { font-size: 0.95rem; }
+.design-facet-header span { color: var(--text-muted); font-size: 0.72rem; }
+.design-facet-header > button { border: 0; background: transparent; color: var(--brand-plum-deep); font-size: 0.72rem; font-weight: 900; }
+.design-facet-group { display: grid; gap: 9px; }
+.design-facet-group > span { color: var(--text-muted); font-size: 0.64rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.design-facet-group > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.design-facet-group button, .design-active-filter-row button {
+  border: 1px solid var(--border-soft); border-radius: 999px; background: rgba(255, 255, 255, 0.76);
+  padding: 8px 11px; color: var(--text-body); font-size: 0.74rem; font-weight: 850;
+}
+.design-facet-group button:hover, .design-facet-group button.active {
+  border-color: rgba(129, 39, 216, 0.2); background: rgba(129, 39, 216, 0.08); color: var(--brand-plum-deep);
+}
+.design-active-filter-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.design-active-filter-row button { padding: 6px 10px; background: rgba(129, 39, 216, 0.065); color: var(--brand-plum-deep); }
+.design-active-filter-row span { margin-left: 3px; font-size: 0.95rem; }
+
+.user-account-menu { position: relative; }
+.user-account-trigger {
+  display: flex; min-height: 44px; align-items: center; gap: 9px;
+  border: 1px solid rgba(129, 39, 216, 0.1); border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7); padding: 4px 11px 4px 5px; color: var(--text-strong);
+  box-shadow: 0 7px 22px rgba(83, 49, 73, 0.05);
+}
+.user-account-avatar {
+  display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%;
+  background: var(--brand-gradient); color: white; font-size: 0.8rem; font-weight: 950;
+}
+.user-account-name { max-width: 150px; overflow: hidden; font-size: 0.8rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.user-account-chevron { color: var(--text-muted); }
+.user-account-popover {
+  position: absolute; top: calc(100% + 9px); right: 0; z-index: 70; display: grid; width: 230px;
+  overflow: hidden; border: 1px solid rgba(129, 39, 216, 0.12); border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94); padding: 7px; box-shadow: 0 22px 60px rgba(83, 49, 73, 0.16);
+  backdrop-filter: blur(24px);
+}
+.user-account-popover > div { display: grid; gap: 2px; border-bottom: 1px solid var(--border-soft); margin-bottom: 5px; padding: 9px; }
+.user-account-popover > div span { overflow: hidden; color: var(--text-muted); font-size: 0.68rem; text-overflow: ellipsis; }
+.user-account-popover > a, .user-account-popover > button {
+  border: 0; border-radius: 10px; background: transparent; padding: 10px; color: var(--text-body);
+  font-size: 0.8rem; font-weight: 800; text-align: left;
+}
+.user-account-popover > a:hover, .user-account-popover > button:hover { background: rgba(129, 39, 216, 0.07); color: var(--brand-plum-deep); }
+
+@media (max-width: 640px) {
+  .design-catalogue-hero .design-filter-panel { position: fixed; top: auto; right: 12px; bottom: 84px; left: 12px; width: auto; max-height: 68vh; }
+  .user-account-trigger { padding-right: 5px; }
+  .user-account-name, .user-account-chevron { display: none; }
+}
+
 .auth-shell {
   min-height: 100vh;
   display: grid;
