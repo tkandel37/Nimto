@@ -20,6 +20,7 @@ import { SubmitRsvpDto } from "./dto/submit-rsvp.dto";
 import { CreateGuestRecordsDto } from "./dto/create-guest-records.dto";
 import { UpdateInviteeDto } from "./dto/update-invitee.dto";
 import { SaveEventDesignDraftDto } from "./dto/save-event-design-draft.dto";
+import { catalogThumbnailHtml } from "../template-design/catalog-thumbnail";
 
 type ActorContext = {
   actorId: string;
@@ -189,6 +190,7 @@ export class EventsService {
             versionNumber: true,
             name: true,
             rawHtml: true,
+            thumbnailHtml: true,
           },
         },
       },
@@ -196,6 +198,12 @@ export class EventsService {
 
     return history.map((item) => ({
       ...item,
+      lastUsedVersion: {
+        ...item.lastUsedVersion,
+        thumbnailHtml:
+          item.lastUsedVersion.thumbnailHtml ??
+          catalogThumbnailHtml(item.design.slug),
+      },
       design: {
         ...item.design,
         activeEventCount: item.design.versions.reduce(

@@ -25,6 +25,7 @@ type DesignHistoryItem = {
     versionNumber: number;
     name: string;
     rawHtml: string;
+    thumbnailHtml?: string | null;
   };
 };
 
@@ -192,8 +193,11 @@ function MyDesignsContent({
                 <div className="design-card-stage">
                   <iframe
                     loading="lazy"
-                    sandbox="allow-scripts"
-                    srcDoc={item.lastUsedVersion.rawHtml}
+                    sandbox=""
+                    srcDoc={designCardPreviewHtml(
+                      item.lastUsedVersion.thumbnailHtml ??
+                        item.lastUsedVersion.rawHtml,
+                    )}
                     title={`${item.design.name} history preview`}
                   />
                 </div>
@@ -331,4 +335,14 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
   }).format(new Date(value));
+}
+
+function designCardPreviewHtml(rawHtml: string) {
+  if (!rawHtml) return "";
+  const previewCss =
+    '<meta name="viewport" content="width=device-width, initial-scale=1"><style id="nimto-card-preview-style">html,body{width:100%!important;max-width:100%!important;overflow:hidden!important;scroll-behavior:auto!important}*,*::before,*::after{transition:none!important;animation-duration:.001s!important;animation-iteration-count:1!important}</style>';
+  if (/<\/head>/i.test(rawHtml)) {
+    return rawHtml.replace(/<\/head>/i, `${previewCss}</head>`);
+  }
+  return `${previewCss}${rawHtml}`;
 }
