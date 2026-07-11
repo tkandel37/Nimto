@@ -110,6 +110,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const activePage = workspacePage(pathname);
   const isUserArea = activePage !== null;
+  const workspaceHomeHref = activePage === "designs" ? "/designs" : "/events";
   const [authState, setAuthState] = useState<AuthState>(() => {
     const session = workspaceHasMounted ? readAuthSession() : null;
     return session
@@ -315,7 +316,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
     >
       <main className="user-shell">
         <aside className="user-sidebar">
-          <Link className="user-logo" href="/events">
+          <Link className="user-logo" href={workspaceHomeHref}>
             <span className="user-logo-mark">N</span>
             <span className="user-logo-word">myNimto</span>
           </Link>
@@ -344,7 +345,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
 
         <section className="user-main">
           <header className="user-topbar">
-            <Link className="user-mobile-logo" href="/events">
+            <Link className="user-mobile-logo" href={workspaceHomeHref}>
               myNimto
             </Link>
             <div className="user-workspace-context">
@@ -477,7 +478,9 @@ function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
             key={link.key}
           >
             <Icon>{link.icon}</Icon>
-            <span>{link.label === "My Invitations" ? "Saved" : link.label}</span>
+            <span>
+              {link.label === "My Invitations" ? "Saved" : link.label}
+            </span>
           </span>
         ))}
       </nav>

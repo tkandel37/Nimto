@@ -2553,6 +2553,30 @@ a {
   padding: 10px;
 }
 
+.creation-help-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  padding: 3px 1px;
+  color: var(--leaf);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.creation-help-toggle span:last-child {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.user-fields-drag-handle {
+  display: none;
+}
+
 .creation-confidence-strip span {
   border-radius: 10px;
   background: #f7f1e4;
@@ -3182,6 +3206,184 @@ a {
   }
 }
 
+/* Compact invitation workflow on phones. */
+@media (max-width: 768px) {
+  .design-preview-modal {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .design-preview-modal > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 2px 0;
+  }
+
+  .design-preview-heading .user-kicker,
+  .design-preview-heading p:not(.user-kicker),
+  .design-preview-actions .event-device-switcher {
+    display: none;
+  }
+
+  .design-preview-modal h2 {
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .design-preview-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .design-preview-actions .user-secondary-button,
+  .design-preview-actions .user-primary-button {
+    min-height: 38px;
+    padding: 8px 11px;
+    font-size: 0.75rem;
+  }
+
+  .design-preview-actions .user-primary-button {
+    white-space: nowrap;
+  }
+
+  .design-preview-canvas {
+    padding: 4px;
+  }
+
+  .design-preview-stage.mobile {
+    width: 100%;
+    height: 100%;
+  }
+
+  .user-editor {
+    gap: 8px;
+  }
+
+  .user-editor .creation-progress {
+    display: none;
+  }
+
+  .user-editor-toolbar {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .user-editor-toolbar > .user-secondary-button {
+    min-width: 42px;
+    width: 42px;
+    overflow: hidden;
+    padding: 9px 0;
+    color: transparent;
+    font-size: 0;
+  }
+
+  .user-editor-toolbar > .user-secondary-button::before {
+    content: "←";
+    color: var(--ink);
+    font-size: 1.2rem;
+  }
+
+  .user-editor-toolbar .user-kicker,
+  .user-editor-toolbar .design-draft-status,
+  .user-editor-toolbar .event-device-switcher {
+    display: none;
+  }
+
+  .user-editor-toolbar h1 {
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .creation-help {
+    position: relative;
+  }
+
+  .creation-help-toggle {
+    width: 100%;
+    border: 1px solid rgb(23 37 29 / 0.1);
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 9px 11px;
+    text-align: left;
+  }
+
+  .creation-confidence-strip {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: 0;
+    z-index: 35;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+    box-shadow: 0 18px 45px rgb(23 32 51 / 0.18);
+  }
+
+  .creation-confidence-strip span {
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+
+  .user-live-preview {
+    height: calc(100dvh - 188px);
+    min-height: 480px;
+  }
+
+  .user-fields-panel {
+    transform: translateY(calc(100% + 24px));
+  }
+
+  .user-fields-panel.is-open {
+    transform: translateY(var(--sheet-drag-y, 0));
+    transition: transform 180ms ease-out;
+  }
+
+  .user-fields-panel.is-open:has(.user-fields-drag-handle:active) {
+    transition: none;
+  }
+
+  .user-fields-drag-handle {
+    position: sticky;
+    top: -16px;
+    z-index: 4;
+    display: grid;
+    width: calc(100% + 28px);
+    min-height: 26px;
+    place-items: center;
+    margin: -16px -14px 0;
+    border: 0;
+    background: #fffdf8;
+    padding: 7px 0 6px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .user-fields-drag-handle span {
+    width: 42px;
+    height: 5px;
+    border-radius: 99px;
+    background: rgb(23 32 51 / 0.24);
+  }
+
+  .user-mobile-fields-header {
+    top: 10px;
+    margin-top: 0;
+    padding-top: 8px;
+  }
+}
+
 /* Refined invitation template catalogue */
 .design-catalogue {
   display: grid;
@@ -3548,6 +3750,175 @@ button.user-design-preview {
 
   button.user-design-preview {
     --design-card-preview-scale: 0.74;
+  }
+}
+
+/* Final mobile invitation overrides: keep this after legacy responsive rules. */
+@media (max-width: 768px) {
+  .design-preview-modal {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .design-preview-modal > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    flex-direction: initial;
+    gap: 8px;
+    padding: 2px 2px 0;
+  }
+
+  .design-preview-heading .user-kicker,
+  .design-preview-heading p:not(.user-kicker),
+  .design-preview-actions .event-device-switcher {
+    display: none;
+  }
+
+  .design-preview-modal h2 {
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .design-preview-actions {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+  }
+
+  .design-preview-actions .user-secondary-button,
+  .design-preview-actions .user-primary-button {
+    min-height: 38px;
+    padding: 8px 11px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .design-preview-canvas {
+    padding: 4px;
+  }
+
+  .design-preview-stage.mobile {
+    width: 100%;
+    height: 100%;
+  }
+
+  .user-editor {
+    gap: 8px;
+  }
+
+  .user-editor .creation-progress {
+    display: none;
+  }
+
+  .user-editor-toolbar {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    flex-wrap: initial;
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .user-editor-toolbar > .user-secondary-button {
+    width: 42px;
+    min-width: 42px;
+    overflow: hidden;
+    padding: 9px 0;
+    color: transparent;
+    font-size: 0;
+  }
+
+  .user-editor-toolbar > .user-secondary-button::before {
+    content: "←";
+    color: var(--ink);
+    font-size: 1.2rem;
+  }
+
+  .user-editor-toolbar .user-kicker,
+  .user-editor-toolbar .design-draft-status,
+  .user-editor-toolbar .event-device-switcher {
+    display: none;
+  }
+
+  .user-editor-toolbar h1 {
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .creation-help {
+    position: relative;
+  }
+
+  .creation-help-toggle {
+    width: 100%;
+    border: 1px solid rgb(23 37 29 / 0.1);
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 9px 11px;
+  }
+
+  .creation-confidence-strip {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: 0;
+    z-index: 35;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+    box-shadow: 0 18px 45px rgb(23 32 51 / 0.18);
+  }
+
+  .creation-confidence-strip span {
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+
+  .user-live-preview {
+    height: calc(100dvh - 188px);
+    min-height: 480px;
+  }
+
+  .user-fields-panel.is-open {
+    transform: translateY(var(--sheet-drag-y, 0));
+  }
+
+  .user-fields-panel.is-open:has(.user-fields-drag-handle:active) {
+    transition: none;
+  }
+
+  .user-fields-drag-handle {
+    position: sticky;
+    top: -16px;
+    z-index: 4;
+    display: grid;
+    width: calc(100% + 28px);
+    min-height: 26px;
+    place-items: center;
+    margin: -16px -14px 0;
+    border: 0;
+    background: #fffdf8;
+    padding: 7px 0 6px;
+    touch-action: none;
+  }
+
+  .user-fields-drag-handle span {
+    width: 42px;
+    height: 5px;
+    border-radius: 99px;
+    background: rgb(23 32 51 / 0.24);
+  }
+
+  .user-mobile-fields-header {
+    top: 10px;
+    margin-top: 0;
+    padding-top: 8px;
   }
 }
 .event-edit-form {
@@ -5027,12 +5398,12 @@ button.user-design-preview {
     position: sticky;
     top: 0;
     z-index: 40;
-    min-height: 60px;
+    min-height: 48px;
     align-items: center;
     flex-direction: row;
     border-bottom: 1px solid rgb(23 32 51 / 0.08);
     background: rgb(245 247 243 / 0.96);
-    padding: 10px 14px;
+    padding: 7px 12px;
   }
 
   .user-workspace-context {
@@ -5047,16 +5418,16 @@ button.user-design-preview {
 
   .user-bottom-nav {
     position: fixed;
-    right: 10px;
-    bottom: max(10px, env(safe-area-inset-bottom));
-    left: 10px;
+    right: 8px;
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: 8px;
     z-index: 80;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     border: 1px solid rgb(23 32 51 / 0.1);
-    border-radius: 18px;
+    border-radius: 16px;
     background: rgb(255 253 248 / 0.96);
-    padding: 7px;
+    padding: 5px;
     box-shadow: 0 18px 50px rgb(23 32 51 / 0.2);
     backdrop-filter: blur(18px);
   }
@@ -5202,7 +5573,7 @@ button.user-design-preview {
   }
 
   .design-card-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .event-desktop-list {

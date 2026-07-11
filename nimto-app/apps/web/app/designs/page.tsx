@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CSSProperties,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
@@ -173,7 +181,7 @@ function DesignsContent({
     document.body.style.overflow = "hidden";
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setPreviewDesign(null);
+      if (event.key === "Escape") closePreview();
     }
 
     window.addEventListener("keydown", closeOnEscape);
@@ -182,6 +190,16 @@ function DesignsContent({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [previewDesign]);
+
+  useEffect(() => {
+    function closePreviewOnHistoryChange() {
+      setPreviewDesign(null);
+    }
+
+    window.addEventListener("popstate", closePreviewOnHistoryChange);
+    return () =>
+      window.removeEventListener("popstate", closePreviewOnHistoryChange);
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -313,12 +331,32 @@ function DesignsContent({
 
   function openDesignEditor(design: PublicDesign) {
     rememberViewedDesign(design.id);
+    clearPreviewUrl();
+    setPreviewDesign(null);
     router.push(`/designs?template=${encodeURIComponent(design.slug)}`);
   }
 
   function previewInvitation(design: PublicDesign) {
     rememberViewedDesign(design.id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("preview", design.slug);
+    window.history.pushState({ nimtoPreview: true }, "", url);
     setPreviewDesign(design);
+  }
+
+  function clearPreviewUrl() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("preview")) return;
+    url.searchParams.delete("preview");
+    window.history.replaceState(window.history.state, "", url);
+  }
+
+  function closePreview() {
+    if (new URL(window.location.href).searchParams.has("preview")) {
+      window.history.back();
+      return;
+    }
+    setPreviewDesign(null);
   }
 
   function rememberViewedDesign(designId: string) {
@@ -662,7 +700,7 @@ function DesignsContent({
             <div
               aria-modal="true"
               className="design-preview-modal-backdrop"
-              onMouseDown={() => setPreviewDesign(null)}
+              onMouseDown={closePreview}
               role="dialog"
             >
               <section
@@ -693,7 +731,7 @@ function DesignsContent({
                     </div>
                     <button
                       className="user-secondary-button"
-                      onClick={() => setPreviewDesign(null)}
+                      onClick={closePreview}
                       type="button"
                     >
                       Close
@@ -757,6 +795,10 @@ function DesignEditor({
   const [values, setValues] = useState<Record<string, string>>({});
   const [draftStatus, setDraftStatus] = useState("Changes save automatically");
   const [isFieldsPanelOpen, setIsFieldsPanelOpen] = useState(false);
+  const [isEditorHelpOpen, setIsEditorHelpOpen] = useState(false);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const sheetDragStartRef = useRef<number | null>(null);
+  const sheetDragYRef = useRef(0);
   const [isMobileLayout, setIsMobileLayout] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [device, setDevice] = useState<"mobile" | "desktop">("desktop");
@@ -924,6 +966,25 @@ function DesignEditor({
     selectField(fields[nextIndex].key);
   }
 
+  function startSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    sheetDragStartRef.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (sheetDragStartRef.current === null) return;
+    const nextDragY = Math.max(0, event.clientY - sheetDragStartRef.current);
+    sheetDragYRef.current = nextDragY;
+    setSheetDragY(nextDragY);
+  }
+
+  function finishSheetDrag() {
+    if (sheetDragYRef.current > 80) setIsFieldsPanelOpen(false);
+    sheetDragStartRef.current = null;
+    sheetDragYRef.current = 0;
+    setSheetDragY(0);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const missingField = inputFields.find(
@@ -1025,10 +1086,23 @@ function DesignEditor({
           ))}
         </div>
       </div>
-      <div className="creation-confidence-strip">
-        <span>Click editable text in the preview or use the fields.</span>
-        <span>Your draft is saved in this browser while you work.</span>
-        <span>You will review the event page before guests see anything.</span>
+      <div className="creation-help">
+        <button
+          aria-expanded={isEditorHelpOpen}
+          className="creation-help-toggle"
+          onClick={() => setIsEditorHelpOpen((open) => !open)}
+          type="button"
+        >
+          <span>How editing works</span>
+          <span aria-hidden="true">{isEditorHelpOpen ? "−" : "+"}</span>
+        </button>
+        {isEditorHelpOpen ? (
+          <div className="creation-confidence-strip">
+            <span>Tap text in the preview or open Edit fields.</span>
+            <span>Your changes save automatically on this device.</span>
+            <span>Nothing is published until you review it.</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="user-editor-grid">
@@ -1083,7 +1157,19 @@ function DesignEditor({
           className={`user-fields-panel${isFieldsPanelOpen ? " is-open" : ""}`}
           hidden={isMobileLayout && !isFieldsPanelOpen}
           onSubmit={submit}
+          style={{ "--sheet-drag-y": `${sheetDragY}px` } as CSSProperties}
         >
+          <button
+            aria-label="Drag down to close edit fields"
+            className="user-fields-drag-handle"
+            onPointerCancel={finishSheetDrag}
+            onPointerDown={startSheetDrag}
+            onPointerMove={moveSheetDrag}
+            onPointerUp={finishSheetDrag}
+            type="button"
+          >
+            <span />
+          </button>
           <div className="user-mobile-fields-header">
             <div>
               <p className="user-kicker">Invitation details</p>
