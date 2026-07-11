@@ -192,7 +192,7 @@ function MyDesignsContent({
                   title={`${item.design.name} history preview`}
                 />
               </div>
-              <div className="p-5">
+              <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-black text-ink">
@@ -240,7 +240,7 @@ function MyDesignsContent({
                   </div>
                 </dl>
 
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="design-card-actions flex flex-wrap gap-2">
                   {reusable ? (
                     <Link
                       className="user-primary-button flex-1"
