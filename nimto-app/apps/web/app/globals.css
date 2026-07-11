@@ -6,10 +6,10 @@
    * Brand: plum + berry, supported by restrained champagne.
    * Surfaces: cool ivory/lilac so the colorful logo remains the focal point.
    */
-  --brand-plum: #704363;
-  --brand-plum-deep: #533149;
-  --brand-berry: #a85675;
-  --brand-berry-deep: #88435e;
+  --brand-plum: #8127d8;
+  --brand-plum-deep: #6419b1;
+  --brand-berry: #ef2f76;
+  --brand-berry-deep: #c91e5e;
   --brand-champagne: #b99758;
   --brand-champagne-soft: #eee2cd;
 
@@ -34,12 +34,12 @@
   --danger: #9d465b;
   --info: #665f8f;
 
-  --brand-gradient: linear-gradient(135deg, #68415f 0%, #94506b 56%, #ad637e 100%);
-  --brand-gradient-hover: linear-gradient(135deg, #593650 0%, #82435d 56%, #9b536f 100%);
-  --brand-wash: linear-gradient(145deg, rgba(112, 67, 99, 0.1), rgba(168, 86, 117, 0.055));
+  --brand-gradient: linear-gradient(135deg, #7924ce 0%, #a426bd 44%, #e52b72 100%);
+  --brand-gradient-hover: linear-gradient(135deg, #681bb8 0%, #901ca8 44%, #ce1f62 100%);
+  --brand-wash: linear-gradient(145deg, rgba(129, 39, 216, 0.1), rgba(239, 47, 118, 0.06));
   --shadow-soft: 0 12px 34px rgba(59, 39, 58, 0.075);
   --shadow-raised: 0 22px 54px rgba(59, 39, 58, 0.11);
-  --shadow-brand: 0 12px 28px rgba(112, 67, 99, 0.2);
+  --shadow-brand: 0 12px 28px rgba(129, 39, 216, 0.22);
 
   /* Compatibility aliases used by existing Tailwind utilities and modules. */
   --background: var(--canvas);
@@ -73,7 +73,7 @@
   height: 2.45rem;
   flex: 0 0 auto;
   object-fit: contain;
-  filter: drop-shadow(0 7px 12px rgba(112, 67, 99, 0.16));
+  filter: drop-shadow(0 7px 12px rgba(129, 39, 216, 0.16));
 }
 
 .brand-logo-word {
@@ -142,7 +142,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   border-color: var(--brand-plum);
-  box-shadow: 0 0 0 4px rgba(112, 67, 99, 0.13);
+  box-shadow: 0 0 0 4px rgba(129, 39, 216, 0.13);
 }
 
 @media (max-width: 520px) {
@@ -7511,8 +7511,8 @@ button.user-design-preview {
 
 body {
   background:
-    radial-gradient(circle at 8% 7%, rgba(112, 67, 99, 0.08), transparent 26rem),
-    radial-gradient(circle at 94% 16%, rgba(168, 86, 117, 0.065), transparent 24rem),
+    radial-gradient(circle at 8% 7%, rgba(129, 39, 216, 0.08), transparent 26rem),
+    radial-gradient(circle at 94% 16%, rgba(239, 47, 118, 0.065), transparent 24rem),
     var(--canvas);
   color: var(--text-strong);
 }
@@ -7530,8 +7530,8 @@ body::before {
 .dashboard-shell,
 .design-catalogue {
   background:
-    radial-gradient(circle at 8% 5%, rgba(112, 67, 99, 0.085), transparent 25rem),
-    radial-gradient(circle at 92% 4%, rgba(168, 86, 117, 0.06), transparent 23rem),
+    radial-gradient(circle at 8% 5%, rgba(129, 39, 216, 0.085), transparent 25rem),
+    radial-gradient(circle at 92% 4%, rgba(239, 47, 118, 0.06), transparent 23rem),
     linear-gradient(180deg, var(--surface) 0%, var(--canvas) 72%);
 }
 
@@ -7547,7 +7547,7 @@ body::before {
 .user-sidebar {
   border-color: rgba(255, 255, 255, 0.08);
   background:
-    radial-gradient(circle at 12% 4%, rgba(168, 86, 117, 0.2), transparent 17rem),
+    radial-gradient(circle at 12% 4%, rgba(239, 47, 118, 0.2), transparent 17rem),
     linear-gradient(165deg, var(--surface-dark-raised), var(--surface-dark) 62%);
 }
 
@@ -7592,16 +7592,16 @@ body::before {
 /* User workspace — clear glass with a restrained logo-colour tint. */
 .user-shell {
   background:
-    radial-gradient(circle at 4% 2%, rgba(112, 67, 99, 0.12), transparent 28rem),
-    radial-gradient(circle at 94% 8%, rgba(168, 86, 117, 0.09), transparent 30rem),
+    radial-gradient(circle at 4% 2%, rgba(129, 39, 216, 0.12), transparent 28rem),
+    radial-gradient(circle at 94% 8%, rgba(239, 47, 118, 0.09), transparent 30rem),
     linear-gradient(155deg, var(--surface) 0%, var(--canvas) 62%, var(--canvas-tint) 100%);
 }
 
 .user-sidebar {
-  border-color: rgba(112, 67, 99, 0.13);
+  border-color: rgba(129, 39, 216, 0.13);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(252, 250, 252, 0.54)),
-    radial-gradient(circle at 20% 5%, rgba(168, 86, 117, 0.13), transparent 15rem);
+    radial-gradient(circle at 20% 5%, rgba(239, 47, 118, 0.13), transparent 15rem);
   color: var(--text-strong);
   box-shadow:
     0 24px 64px rgba(83, 49, 73, 0.12),
@@ -7620,7 +7620,7 @@ body::before {
 .user-logo .brand-logo-image {
   width: 2.65rem;
   height: 2.65rem;
-  filter: drop-shadow(0 9px 16px rgba(112, 67, 99, 0.2));
+  filter: drop-shadow(0 9px 16px rgba(129, 39, 216, 0.2));
 }
 
 .user-nav-link {
@@ -7629,8 +7629,8 @@ body::before {
 
 .user-nav-link:hover,
 .user-nav-link.active {
-  border-color: rgba(112, 67, 99, 0.14);
-  background: linear-gradient(145deg, rgba(112, 67, 99, 0.1), rgba(168, 86, 117, 0.075));
+  border-color: rgba(129, 39, 216, 0.14);
+  background: linear-gradient(145deg, rgba(129, 39, 216, 0.1), rgba(239, 47, 118, 0.075));
   color: var(--brand-plum-deep);
   box-shadow:
     0 10px 24px rgba(83, 49, 73, 0.08),
@@ -7638,8 +7638,8 @@ body::before {
 }
 
 .user-sidebar-note {
-  border: 1px solid rgba(112, 67, 99, 0.1);
-  background: linear-gradient(145deg, rgba(112, 67, 99, 0.08), rgba(168, 86, 117, 0.055));
+  border: 1px solid rgba(129, 39, 216, 0.1);
+  background: linear-gradient(145deg, rgba(129, 39, 216, 0.08), rgba(239, 47, 118, 0.055));
   color: var(--brand-plum-deep);
 }
 
@@ -7657,7 +7657,7 @@ body::before {
 .design-catalogue-hero,
 .design-card,
 .design-filter-panel {
-  border-color: rgba(112, 67, 99, 0.11);
+  border-color: rgba(129, 39, 216, 0.11);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(252, 250, 252, 0.58));
   box-shadow:
     0 18px 48px rgba(83, 49, 73, 0.075),
@@ -7676,7 +7676,7 @@ body::before {
 }
 
 .user-bottom-nav {
-  border-color: rgba(112, 67, 99, 0.13);
+  border-color: rgba(129, 39, 216, 0.13);
   background: rgba(255, 255, 255, 0.76);
   box-shadow: 0 -14px 38px rgba(83, 49, 73, 0.09);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
@@ -7698,11 +7698,11 @@ body::before {
 }
 
 .landing-orb-one {
-  background: rgba(168, 86, 117, 0.12);
+  background: rgba(239, 47, 118, 0.12);
 }
 
 .landing-orb-two {
-  background: rgba(112, 67, 99, 0.1);
+  background: rgba(129, 39, 216, 0.1);
 }
 
 .hero-kicker,
@@ -7710,8 +7710,8 @@ body::before {
 .admin-command-kicker,
 .feature-eyebrow,
 .landing-preview-label {
-  border-color: rgba(112, 67, 99, 0.17);
-  background: rgba(112, 67, 99, 0.075);
+  border-color: rgba(129, 39, 216, 0.17);
+  background: rgba(129, 39, 216, 0.075);
   color: var(--brand-plum-deep);
 }
 
@@ -7782,7 +7782,7 @@ select:focus,
 textarea:focus,
 .field input:focus {
   border-color: var(--brand-plum);
-  box-shadow: 0 0 0 4px rgba(112, 67, 99, 0.11);
+  box-shadow: 0 0 0 4px rgba(129, 39, 216, 0.11);
 }
 
 .text-leaf,
@@ -7814,7 +7814,7 @@ table thead,
 table tbody tr:hover,
 .event-card:hover,
 .design-card:hover {
-  background-color: rgba(112, 67, 99, 0.035);
+  background-color: rgba(129, 39, 216, 0.035);
 }
 
 .admin-health-grid article.good,
