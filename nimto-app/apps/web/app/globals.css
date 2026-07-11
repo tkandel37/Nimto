@@ -7740,23 +7740,6 @@ body::before {
   background: rgba(129, 39, 216, 0.08);
 }
 
-.user-history-card .user-design-preview {
-  --design-card-preview-scale: 0.74;
-  position: relative;
-  display: grid;
-  width: 100%;
-  min-height: 0;
-  aspect-ratio: 0.72;
-  padding: 12px;
-  place-items: center;
-  border-bottom: 1px solid var(--border-soft);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(129, 39, 216, 0.045));
-}
-
-.user-history-card .design-card-stage {
-  height: 100%;
-}
-
 .user-history-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -7767,12 +7750,12 @@ body::before {
   font-weight: 700;
 }
 
-.user-history-card .design-card-actions {
+.user-design-card .design-card-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
 
-.user-history-card .design-card-actions > * {
+.user-design-card .design-card-actions > * {
   width: 100%;
   min-height: 40px;
   justify-content: center;

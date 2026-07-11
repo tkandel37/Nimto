@@ -180,11 +180,15 @@ function MyDesignsContent({
           const reusable = isReusable(item);
           const currentVersion = item.design.versions[0];
           return (
-            <article
-              className="user-design-card user-history-card"
-              key={item.id}
-            >
-              <div className="user-design-preview">
+            <article className="user-design-card" key={item.id}>
+              <button
+                className="user-design-preview"
+                disabled={!reusable}
+                onClick={() => {
+                  window.location.href = `/designs?template=${encodeURIComponent(item.design.slug)}`;
+                }}
+                type="button"
+              >
                 <div className="design-card-stage">
                   <iframe
                     loading="lazy"
@@ -193,7 +197,10 @@ function MyDesignsContent({
                     title={`${item.design.name} history preview`}
                   />
                 </div>
-              </div>
+                <span className="design-preview-overlay">
+                  {reusable ? "Reuse invitation" : "History preview"}
+                </span>
+              </button>
               <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">
                   <div>
