@@ -29,6 +29,12 @@ type DesignHistoryItem = {
   };
 };
 
+type CatalogueDesignThumbnail = {
+  id: string;
+  slug: string;
+  versions: { thumbnailHtml?: string | null }[];
+};
+
 let designHistoryCache: {
   expiresAt: number;
   changeToken: string;
@@ -83,17 +89,38 @@ function MyDesignsContent({
     }
 
     if (!designHistoryCache) setIsLoading(true);
-    apiRequest<DesignHistoryItem[]>("/events/design-history", {
-      headers: authHeaders,
-    })
-      .then((history) => {
+    Promise.all([
+      apiRequest<DesignHistoryItem[]>("/events/design-history", {
+        headers: authHeaders,
+      }),
+      apiRequest<CatalogueDesignThumbnail[]>(
+        "/template-design/public/designs",
+      ),
+    ])
+      .then(([history, catalogue]) => {
         if (!isActive) return;
+        const thumbnails = new Map(
+          catalogue.map((design) => [
+            design.id,
+            design.versions[0]?.thumbnailHtml ?? null,
+          ]),
+        );
+        const historyWithThumbnails = history.map((item) => ({
+          ...item,
+          lastUsedVersion: {
+            ...item.lastUsedVersion,
+            thumbnailHtml:
+              thumbnails.get(item.design.id) ??
+              item.lastUsedVersion.thumbnailHtml ??
+              null,
+          },
+        }));
         designHistoryCache = {
           changeToken,
           expiresAt: Date.now() + 5 * 60_000,
-          items: history,
+          items: historyWithThumbnails,
         };
-        setItems(history);
+        setItems(historyWithThumbnails);
       })
       .catch((error) => {
         if (!isActive) return;
