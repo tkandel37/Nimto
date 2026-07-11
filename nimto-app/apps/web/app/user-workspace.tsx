@@ -318,7 +318,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
       <main className="user-shell">
         <aside className="user-sidebar">
           <Link className="user-logo" href={workspaceHomeHref}>
-            <BrandLogo />
+            <BrandLogo compact />
           </Link>
           <nav className="user-nav">
             {pageLinks.map((link) => (
@@ -346,7 +346,7 @@ export function UserFrame({ children }: { children: ReactNode }) {
         <section className="user-main">
           <header className="user-topbar">
             <Link className="user-mobile-logo" href={workspaceHomeHref}>
-              myNimto
+              <BrandLogo compact />
             </Link>
             <div className="user-workspace-context">
               <span>Your invitation desk</span>
@@ -424,8 +424,8 @@ function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
   return (
     <main className="user-shell">
       <aside className="user-sidebar user-sidebar-pending" aria-hidden="true">
-          <Link className="user-logo" href="/events" tabIndex={-1}>
-          <BrandLogo />
+        <Link className="user-logo" href="/events" tabIndex={-1}>
+          <BrandLogo compact />
         </Link>
         <nav className="user-nav">
           {pageLinks.map((link) => (
@@ -451,7 +451,7 @@ function PendingUserShell({ activePage }: { activePage: WorkspacePage }) {
       <section className="user-main">
         <header className="user-topbar">
           <Link className="user-mobile-logo" href="/events" tabIndex={-1}>
-            myNimto
+            <BrandLogo compact />
           </Link>
           <div className="user-workspace-context">
             <span>Your invitation desk</span>

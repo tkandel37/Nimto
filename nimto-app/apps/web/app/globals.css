@@ -7589,6 +7589,104 @@ body::before {
   box-shadow: var(--shadow-soft);
 }
 
+/* User workspace — clear glass with a restrained logo-colour tint. */
+.user-shell {
+  background:
+    radial-gradient(circle at 4% 2%, rgba(112, 67, 99, 0.12), transparent 28rem),
+    radial-gradient(circle at 94% 8%, rgba(168, 86, 117, 0.09), transparent 30rem),
+    linear-gradient(155deg, var(--surface) 0%, var(--canvas) 62%, var(--canvas-tint) 100%);
+}
+
+.user-sidebar {
+  border-color: rgba(112, 67, 99, 0.13);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(252, 250, 252, 0.54)),
+    radial-gradient(circle at 20% 5%, rgba(168, 86, 117, 0.13), transparent 15rem);
+  color: var(--text-strong);
+  box-shadow:
+    0 24px 64px rgba(83, 49, 73, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+
+.user-logo {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 54px;
+}
+
+.user-logo .brand-logo-image {
+  width: 2.65rem;
+  height: 2.65rem;
+  filter: drop-shadow(0 9px 16px rgba(112, 67, 99, 0.2));
+}
+
+.user-nav-link {
+  color: var(--text-muted);
+}
+
+.user-nav-link:hover,
+.user-nav-link.active {
+  border-color: rgba(112, 67, 99, 0.14);
+  background: linear-gradient(145deg, rgba(112, 67, 99, 0.1), rgba(168, 86, 117, 0.075));
+  color: var(--brand-plum-deep);
+  box-shadow:
+    0 10px 24px rgba(83, 49, 73, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.user-sidebar-note {
+  border: 1px solid rgba(112, 67, 99, 0.1);
+  background: linear-gradient(145deg, rgba(112, 67, 99, 0.08), rgba(168, 86, 117, 0.055));
+  color: var(--brand-plum-deep);
+}
+
+.user-topbar {
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.user-panel,
+.user-auth-card,
+.event-card,
+.event-summary-grid article,
+.event-meta-grid article,
+.design-catalogue-hero,
+.design-card,
+.design-filter-panel {
+  border-color: rgba(112, 67, 99, 0.11);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(252, 250, 252, 0.58));
+  box-shadow:
+    0 18px 48px rgba(83, 49, 73, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+.user-mobile-logo {
+  align-items: center;
+}
+
+.user-mobile-logo .brand-logo-image {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+.user-bottom-nav {
+  border-color: rgba(112, 67, 99, 0.13);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 -14px 38px rgba(83, 49, 73, 0.09);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.user-bottom-nav a.active {
+  color: var(--brand-plum-deep);
+}
+
 .landing-preview,
 .design-catalogue-hero,
 .event-overview-hero,
