@@ -1400,7 +1400,7 @@ function readPreviewElementValue(element: Element) {
 function designCardPreviewHtml(rawHtml: string) {
   if (!rawHtml) return "";
   const previewCss =
-    '<style id="nimto-card-preview-style">html,body{overflow:hidden!important;scroll-behavior:auto!important}*,*::before,*::after{transition:none!important;animation-duration:.001s!important;animation-iteration-count:1!important}</style>';
+    '<meta name="viewport" content="width=device-width, initial-scale=1"><style id="nimto-card-preview-style">html,body{width:100%!important;max-width:100%!important;overflow:hidden!important;scroll-behavior:auto!important}*,*::before,*::after{transition:none!important;animation-duration:.001s!important;animation-iteration-count:1!important}</style>';
   if (/<\/head>/i.test(rawHtml)) {
     return rawHtml.replace(/<\/head>/i, `${previewCss}</head>`);
   }
