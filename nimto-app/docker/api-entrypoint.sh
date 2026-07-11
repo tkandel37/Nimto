@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-echo "Applying database migrations and local seed data..."
-npm run prisma:migrate:deploy --workspace @nimto/api
+echo "Applying database migrations..."
+npm exec --workspace @nimto/api prisma migrate deploy
 
 echo "Starting Nimto API..."
 exec "$@"
