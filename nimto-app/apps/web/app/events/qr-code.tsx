@@ -17,7 +17,7 @@ export function InvitationQrCode({
     QRCode.toDataURL(url, {
       width: 320,
       margin: 2,
-      color: { dark: "#17251d", light: "#ffffff" },
+      color: { dark: "#2b222e", light: "#ffffff" },
     }).then((value) => {
       if (active) setSource(value);
     });

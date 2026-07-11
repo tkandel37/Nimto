@@ -177,7 +177,7 @@ export default async function InvitationPage({
         style={
           event.coverImage
             ? {
-                backgroundImage: `linear-gradient(rgba(255,250,241,.82), rgba(255,250,241,.82)), url(${event.coverImage})`,
+                backgroundImage: `linear-gradient(rgba(252,250,252,.84), rgba(252,250,252,.84)), url(${event.coverImage})`,
               }
             : undefined
         }

@@ -604,7 +604,7 @@ export function EventDesignEditor({
                       value={
                         featureSettings.theme?.[slot.key] ??
                         slot.defaultValue ??
-                        (slot.type === "color" ? "#17251d" : "")
+                        (slot.type === "color" ? "#2b222e" : "")
                       }
                     />
                   </label>

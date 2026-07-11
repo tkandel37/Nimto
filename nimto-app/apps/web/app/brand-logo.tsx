@@ -20,6 +20,7 @@ export function BrandLogo({
         aria-hidden="true"
         width={4096}
         height={4096}
+        loading={priority ? undefined : "eager"}
         priority={priority}
         sizes="64px"
       />

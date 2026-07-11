@@ -1,19 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbf7ff;
-  --foreground: #25172f;
-  --ink: #25172f;
-  --marigold: #b77708;
-  --rose: #d91f66;
-  --leaf: #7424b8;
-  --paper: #fffaff;
-  --line: rgba(74, 35, 92, 0.16);
-  --brand-purple: #7622d5;
-  --brand-pink: #f62270;
-  --brand-gold: #f2c44d;
-  --brand-gradient: linear-gradient(135deg, var(--brand-purple), var(--brand-pink));
-  --brand-gradient-hover: linear-gradient(135deg, #6518c3, #df145b);
+  /*
+   * myNimto premium palette — edit this block to retheme the product.
+   * Brand: plum + berry, supported by restrained champagne.
+   * Surfaces: cool ivory/lilac so the colorful logo remains the focal point.
+   */
+  --brand-plum: #704363;
+  --brand-plum-deep: #533149;
+  --brand-berry: #a85675;
+  --brand-berry-deep: #88435e;
+  --brand-champagne: #b99758;
+  --brand-champagne-soft: #eee2cd;
+
+  --canvas: #f6f2f6;
+  --canvas-tint: #f0e9f1;
+  --surface: #fcfafc;
+  --surface-raised: #ffffff;
+  --surface-muted: #f2edf2;
+  --surface-brand: #eee6ee;
+  --surface-dark: #2b202c;
+  --surface-dark-raised: #39283a;
+
+  --text-strong: #2b222e;
+  --text-body: #554958;
+  --text-muted: #786b7b;
+  --text-on-brand: #ffffff;
+  --border-soft: rgba(83, 49, 73, 0.11);
+  --border-medium: rgba(83, 49, 73, 0.2);
+
+  --success: #4f7665;
+  --warning: #9a7136;
+  --danger: #9d465b;
+  --info: #665f8f;
+
+  --brand-gradient: linear-gradient(135deg, #68415f 0%, #94506b 56%, #ad637e 100%);
+  --brand-gradient-hover: linear-gradient(135deg, #593650 0%, #82435d 56%, #9b536f 100%);
+  --brand-wash: linear-gradient(145deg, rgba(112, 67, 99, 0.1), rgba(168, 86, 117, 0.055));
+  --shadow-soft: 0 12px 34px rgba(59, 39, 58, 0.075);
+  --shadow-raised: 0 22px 54px rgba(59, 39, 58, 0.11);
+  --shadow-brand: 0 12px 28px rgba(112, 67, 99, 0.2);
+
+  /* Compatibility aliases used by existing Tailwind utilities and modules. */
+  --background: var(--canvas);
+  --foreground: var(--text-strong);
+  --ink: var(--text-strong);
+  --marigold: var(--brand-champagne);
+  --rose: var(--danger);
+  --leaf: var(--brand-plum);
+  --paper: var(--surface);
+  --line: var(--border-soft);
+  --brand-purple: var(--brand-plum);
+  --brand-pink: var(--brand-berry);
+  --brand-gold: var(--brand-champagne);
 }
 
 /* Finalized myNimto brand system */
@@ -34,7 +73,7 @@
   height: 2.45rem;
   flex: 0 0 auto;
   object-fit: contain;
-  filter: drop-shadow(0 7px 12px rgba(118, 34, 213, 0.18));
+  filter: drop-shadow(0 7px 12px rgba(112, 67, 99, 0.16));
 }
 
 .brand-logo-word {
@@ -78,7 +117,7 @@ a[class*="bg-ink"] {
   border-color: transparent !important;
   background: var(--brand-gradient) !important;
   color: white !important;
-  box-shadow: 0 10px 24px rgba(118, 34, 213, 0.22);
+  box-shadow: var(--shadow-brand);
 }
 
 .primary-button:not(:disabled):hover,
@@ -88,22 +127,22 @@ a[class*="bg-ink"] {
 button[class*="bg-ink"]:hover,
 a[class*="bg-ink"]:hover {
   background: var(--brand-gradient-hover) !important;
-  box-shadow: 0 14px 30px rgba(118, 34, 213, 0.28);
+  box-shadow: 0 15px 32px rgba(83, 49, 73, 0.24);
 }
 
 .site-button-secondary,
 .user-secondary-button {
-  border-color: rgba(118, 34, 213, 0.25);
+  border-color: var(--border-medium);
   background: rgba(255, 255, 255, 0.88);
-  color: #6518a7;
+  color: var(--brand-plum-deep);
 }
 
 .field input:focus,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  border-color: var(--brand-purple);
-  box-shadow: 0 0 0 4px rgba(118, 34, 213, 0.13);
+  border-color: var(--brand-plum);
+  box-shadow: 0 0 0 4px rgba(112, 67, 99, 0.13);
 }
 
 @media (max-width: 520px) {
@@ -7461,5 +7500,249 @@ button.user-design-preview {
     padding: 8px 10px;
     font-size: 0.72rem;
     white-space: nowrap;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Premium theme application
+   Keep these rules at the end: they normalize legacy page-specific colors.
+   All values must reference the palette tokens in :root above.
+   -------------------------------------------------------------------------- */
+
+body {
+  background:
+    radial-gradient(circle at 8% 7%, rgba(112, 67, 99, 0.08), transparent 26rem),
+    radial-gradient(circle at 94% 16%, rgba(168, 86, 117, 0.065), transparent 24rem),
+    var(--canvas);
+  color: var(--text-strong);
+}
+
+body::before {
+  background-image:
+    linear-gradient(var(--border-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+  opacity: 0.22;
+}
+
+.site-shell,
+.auth-shell,
+.user-shell,
+.dashboard-shell,
+.design-catalogue {
+  background:
+    radial-gradient(circle at 8% 5%, rgba(112, 67, 99, 0.085), transparent 25rem),
+    radial-gradient(circle at 92% 4%, rgba(168, 86, 117, 0.06), transparent 23rem),
+    linear-gradient(180deg, var(--surface) 0%, var(--canvas) 72%);
+}
+
+.site-header,
+.user-topbar,
+.dashboard-topbar {
+  border-color: var(--border-soft);
+  background: rgba(252, 250, 252, 0.88);
+  box-shadow: 0 8px 30px rgba(59, 39, 58, 0.045);
+}
+
+.sidebar,
+.user-sidebar {
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 12% 4%, rgba(168, 86, 117, 0.2), transparent 17rem),
+    linear-gradient(165deg, var(--surface-dark-raised), var(--surface-dark) 62%);
+}
+
+.dashboard-tab-active,
+.user-nav-link.active,
+.user-nav-link:hover {
+  background: rgba(255, 255, 255, 0.105);
+  box-shadow: inset 3px 0 0 rgba(238, 226, 205, 0.72);
+}
+
+.auth-panel {
+  border-color: var(--border-soft);
+  background: rgba(246, 242, 246, 0.8);
+}
+
+.invitation-preview,
+.form-card,
+.feature-card,
+.landing-preview,
+.landing-flow-card,
+.landing-cta,
+.user-panel,
+.user-auth-card,
+.event-card,
+.event-summary-grid article,
+.event-meta-grid article,
+.design-catalogue-hero,
+.design-card,
+.design-filter-panel,
+.dashboard-shell form,
+.dashboard-shell article,
+.dashboard-shell table,
+.admin-command-center > section,
+.admin-health-grid article,
+.admin-task-inbox,
+.admin-quality-strip {
+  border-color: var(--border-soft);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+.landing-preview,
+.design-catalogue-hero,
+.event-overview-hero,
+.event-detail-header {
+  background:
+    radial-gradient(circle at 88% 8%, rgba(185, 151, 88, 0.11), transparent 13rem),
+    var(--brand-wash),
+    var(--surface-raised);
+}
+
+.landing-orb-one {
+  background: rgba(168, 86, 117, 0.12);
+}
+
+.landing-orb-two {
+  background: rgba(112, 67, 99, 0.1);
+}
+
+.hero-kicker,
+.user-kicker,
+.admin-command-kicker,
+.feature-eyebrow,
+.landing-preview-label {
+  border-color: rgba(112, 67, 99, 0.17);
+  background: rgba(112, 67, 99, 0.075);
+  color: var(--brand-plum-deep);
+}
+
+.landing-trust-row span,
+.landing-template-strip span,
+.preview-chip,
+.design-category-chip,
+.user-status {
+  border-color: var(--border-soft);
+  background: var(--surface-muted);
+  color: var(--text-body);
+}
+
+.primary-button,
+.site-button-primary,
+.site-login-button,
+.user-primary-button,
+.admin-action-stack button,
+button[class*="bg-ink"],
+a[class*="bg-ink"] {
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background: var(--brand-gradient) !important;
+  color: var(--text-on-brand) !important;
+  box-shadow: var(--shadow-brand);
+}
+
+.primary-button:not(:disabled):hover,
+.site-button-primary:hover,
+.site-login-button:hover,
+.user-primary-button:not(:disabled):hover,
+.admin-action-stack button:hover,
+button[class*="bg-ink"]:hover,
+a[class*="bg-ink"]:hover {
+  background: var(--brand-gradient-hover) !important;
+  box-shadow: 0 15px 34px rgba(83, 49, 73, 0.24);
+}
+
+.site-button-secondary,
+.user-secondary-button,
+button[class*="border-ink"],
+a[class*="border-ink"] {
+  border-color: var(--border-medium) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: var(--brand-plum-deep) !important;
+  box-shadow: 0 7px 20px rgba(59, 39, 58, 0.045);
+}
+
+.site-button-ghost,
+.user-ghost-button,
+.user-text-button {
+  color: var(--brand-plum-deep);
+}
+
+input,
+select,
+textarea,
+.field input,
+.event-feature-block input,
+.event-feature-block textarea,
+.event-feature-block select {
+  border-color: var(--border-medium);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.field input:focus {
+  border-color: var(--brand-plum);
+  box-shadow: 0 0 0 4px rgba(112, 67, 99, 0.11);
+}
+
+.text-leaf,
+.text-marigold {
+  color: var(--brand-plum-deep);
+}
+
+.bg-leaf,
+.bg-marigold {
+  background-color: var(--brand-plum);
+}
+
+.text-rose {
+  color: var(--danger);
+}
+
+.bg-paper,
+[class*="bg-paper"] {
+  background-color: var(--surface) !important;
+}
+
+table thead,
+.user-table thead,
+.event-overview-table thead {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
+table tbody tr:hover,
+.event-card:hover,
+.design-card:hover {
+  background-color: rgba(112, 67, 99, 0.035);
+}
+
+.admin-health-grid article.good,
+.admin-quality-strip span.good,
+.event-readiness-card p.ready {
+  border-color: rgba(79, 118, 101, 0.24);
+  background: rgba(79, 118, 101, 0.09);
+  color: var(--success);
+}
+
+.admin-health-grid article.watch,
+.admin-quality-strip span.watch {
+  border-color: rgba(154, 113, 54, 0.24);
+  background: rgba(154, 113, 54, 0.085);
+  color: var(--warning);
+}
+
+.brand-logo-image {
+  filter: drop-shadow(0 8px 13px rgba(83, 49, 73, 0.14));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

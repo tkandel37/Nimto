@@ -1455,11 +1455,11 @@ function removePreviewHighlight(element: Element) {
 }
 
 function stylePreviewHighlightElement(element: HTMLElement) {
-  element.style.setProperty("outline", "2px solid #3f8f5f", "important");
+  element.style.setProperty("outline", "2px solid #704363", "important");
   element.style.setProperty("outline-offset", "3px", "important");
   element.style.setProperty(
     "background-color",
-    "rgba(63,143,95,.10)",
+    "rgba(112,67,99,.10)",
     "important",
   );
 }
@@ -1637,13 +1637,13 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     input.style.top = Math.max(8, rect.top) + "px";
     input.style.width = Math.max(160, rect.width || 0) + "px";
     input.style.minHeight = Math.max(36, rect.height || 0) + "px";
-    input.style.border = "2px solid #3f8f5f";
+    input.style.border = "2px solid #704363";
     input.style.borderRadius = "6px";
     input.style.background = "rgba(255,255,255,.96)";
-    input.style.color = computed.color || "#172033";
+    input.style.color = computed.color || "#2b222e";
     input.style.font = computed.font || "16px sans-serif";
     input.style.padding = "4px 8px";
-    input.style.boxShadow = "0 10px 24px rgba(23,32,51,.18)";
+    input.style.boxShadow = "0 10px 24px rgba(59,39,58,.16)";
     input.style.outline = "none";
     input.addEventListener("input", () => {
       writeElementValue(element, input.value);
@@ -1671,9 +1671,9 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
   };
   const stylePreviewHighlightElement = (element) => {
     if (!(element instanceof HTMLElement)) return;
-    element.style.setProperty("outline", "2px solid #3f8f5f", "important");
+    element.style.setProperty("outline", "2px solid #704363", "important");
     element.style.setProperty("outline-offset", "3px", "important");
-    element.style.setProperty("background-color", "rgba(63,143,95,.10)", "important");
+    element.style.setProperty("background-color", "rgba(112,67,99,.10)", "important");
   };
   const applyPreviewHighlight = (element) => {
     if (!(element instanceof HTMLElement)) return;
@@ -1759,7 +1759,7 @@ function installPreviewFieldSync(rawHtml: string, fields: NormalizedField[]) {
     }
   });
   const style = document.createElement("style");
-  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-preview-selected="true"]{outline:2px solid #3f8f5f!important;outline-offset:3px!important;background:rgba(63,143,95,.10)!important}';
+  style.textContent = '[data-nimto-user-editable="true"]{cursor:text;outline-offset:3px}[data-nimto-preview-selected="true"]{outline:2px solid #704363!important;outline-offset:3px!important;background:rgba(112,67,99,.10)!important}';
   document.head.appendChild(style);
   prepareEditableFields();
   window.parent.postMessage({ source: "nimto-user-preview", type: "ready" }, "*");

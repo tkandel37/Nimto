@@ -5232,8 +5232,8 @@ function templateEditorPreviewHtml(
     <style>
       [data-nimto-field] { cursor: text; outline-offset: 3px; }
       [data-nimto-field][data-nimto-preview-selected="true"] {
-        outline: 2px solid #3f8f5f !important;
-        background: rgba(63, 143, 95, 0.10) !important;
+        outline: 2px solid #704363 !important;
+        background: rgba(112, 67, 99, 0.10) !important;
       }
     </style>
     <script>

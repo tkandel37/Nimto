@@ -2135,7 +2135,7 @@ function CelebrationConfetti() {
   const pieces = Array.from({ length: 34 }, (_, index) => ({
     left: `${(index * 37) % 100}%`,
     delay: `${(index % 7) * 0.08}s`,
-    color: ["#e85d75", "#f0b94b", "#3f8f5f", "#6b5dd3", "#ef8b54"][index % 5],
+    color: ["#a85675", "#b99758", "#4f7665", "#665f8f", "#9d6850"][index % 5],
     rotate: `${(index * 47) % 180}deg`,
   }));
   return (
