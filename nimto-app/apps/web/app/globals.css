@@ -271,6 +271,19 @@ a {
   align-items: start;
 }
 
+.user-design-grid.user-history-grid button.user-design-preview {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+  padding: 10px;
+}
+
+.user-design-grid.user-history-grid .user-design-preview iframe {
+  width: 100%;
+  height: 100%;
+  transform: none;
+  transform-origin: center;
+}
+
 @media (max-width: 640px) {
   .user-design-grid.user-history-grid {
     grid-template-columns: minmax(0, 1fr);
