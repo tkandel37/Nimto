@@ -51,7 +51,7 @@ type CreatedEvent = {
   slug: string;
 };
 
-const CATALOG_CACHE_VERSION = 3;
+const CATALOG_CACHE_VERSION = 4;
 const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
 const FAVOURITE_DESIGNS_KEY = "nimto_favourite_designs";
 const RECENTLY_VIEWED_DESIGNS_KEY = "nimto_recently_viewed_designs";
@@ -552,7 +552,7 @@ function DesignsContent({
                     />
                   ) : (
                     <div
-                      className="design-thumbnail-fallback"
+                      className={`design-thumbnail-fallback variant-${index % 4}`}
                       aria-hidden="true"
                     >
                       <span>{design.category?.name ?? "Invitation"}</span>

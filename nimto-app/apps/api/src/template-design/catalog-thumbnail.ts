@@ -176,6 +176,61 @@ const profiles: Record<string, ThumbnailProfile> = {
     motif: "◉",
     font: "serif",
   },
+  "corporate-executive-forum": {
+    eyebrow: "NORTHSTAR GROUP",
+    title: "Ideas into\nImpact.",
+    detail: "Executive Forum · Kathmandu · 2026",
+    accent: "#60d6df",
+    secondary: "#2c7df0",
+    background: "#071b2c",
+    ink: "#f5f8fb",
+    motif: "↗",
+    font: "sans",
+  },
+  "weeding-v2-template": {
+    eyebrow: "WEDDING RECEPTION",
+    title: "Sangeeta\n& Roshan",
+    detail: "बैशाख २४, २०८३ · शुभ विवाह",
+    accent: "#e8751a",
+    secondary: "#f5c842",
+    background: "#fdf6ec",
+    ink: "#6b1a1a",
+    motif: "ॐ",
+    font: "serif",
+  },
+  "nepali-wedding-invitation": {
+    eyebrow: "AUSPICIOUS BLESSINGS",
+    title: "Sangeeta\n& Roshan",
+    detail: "Wedding reception · 7th May 2026",
+    accent: "#c0392b",
+    secondary: "#d4a017",
+    background: "#fffdf7",
+    ink: "#4a0e0e",
+    motif: "ॐ",
+    font: "serif",
+  },
+  "copy-of-scanner-verification-template": {
+    eyebrow: "SAVE THE DATE",
+    title: "Sangeeta\n& Roshan",
+    detail: "10 December 2026 · Dear Guest",
+    accent: "#d7a969",
+    secondary: "#dce7df",
+    background: "#f6f1e8",
+    ink: "#233a32",
+    motif: "S&R",
+    font: "serif",
+  },
+  "scanner-verification-template": {
+    eyebrow: "YOU ARE INVITED",
+    title: "Sangeeta &\nRoshan",
+    detail: "10 · 12 · 2026",
+    accent: "#172033",
+    secondary: "#e8b4a6",
+    background: "#f9f6f0",
+    ink: "#172033",
+    motif: "+",
+    font: "sans",
+  },
 };
 
 export function catalogThumbnailHtml(slug: string) {
@@ -200,5 +255,10 @@ export function catalogThumbnailHtml(slug: string) {
 .school-reunion{padding-top:23%;background:linear-gradient(180deg,${profile.ink} 0 24%,${profile.background} 24%)}.school-reunion .frame{inset:7%;border-color:${profile.secondary};border-radius:20px}.school-reunion .mark{background:${profile.accent};color:${profile.ink}}.school-reunion .eyebrow{color:${profile.secondary}}.school-reunion h1{color:${profile.ink}}
 .soft-baby-shower{background:radial-gradient(ellipse at 78% 24%,${profile.secondary} 0 13%,transparent 13.5%),radial-gradient(ellipse at 65% 19%,${profile.secondary} 0 10%,transparent 10.5%),linear-gradient(135deg,#ffd6e755,transparent 55%)}.soft-baby-shower .frame{border-radius:34px}.soft-baby-shower .mark{background:${profile.secondary};color:${profile.accent}}
 .community-puja .frame{inset:6% 10%;border-color:${profile.secondary};border-radius:50% 50% 12px 12px}.community-puja:before{content:"";position:absolute;left:36%;top:6%;width:28%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,${profile.accent} 0 22%,${profile.secondary} 23% 42%,transparent 43%);opacity:.45;z-index:-1}.community-puja .mark{background:${profile.secondary};color:${profile.accent}}
+.corporate-executive-forum{padding:12% 11%;background:linear-gradient(125deg,#071b2c 0 58%,#0b2e4f 58%)}.corporate-executive-forum .frame{inset:auto 7% 7% auto;width:39%;height:39%;border:0;border-right:3px solid ${profile.accent};border-bottom:3px solid ${profile.secondary};border-radius:0}.corporate-executive-forum .mark{right:9%;top:9%;width:13%;border-radius:4px;background:${profile.secondary};color:#fff}.corporate-executive-forum h1{margin-top:10%;font-size:clamp(30px,8vw,76px)}
+.weeding-v2-template{padding-left:35%;text-align:left;background:linear-gradient(90deg,${profile.accent} 0 27%,${profile.background} 27%)}.weeding-v2-template .frame{inset:7%;border:0;border-top:2px solid ${profile.secondary};border-bottom:2px solid ${profile.secondary};border-radius:0}.weeding-v2-template .mark{left:8%;right:auto;top:38%;width:15%;background:transparent;color:#fff}.weeding-v2-template .eyebrow{color:${profile.accent}}
+.nepali-wedding-invitation{text-align:center;justify-items:center;padding:12%}.nepali-wedding-invitation .frame{inset:5% 14%;border:3px double ${profile.secondary};border-radius:50% 50% 6px 6px}.nepali-wedding-invitation .mark{position:relative;right:auto;top:auto;width:14%;margin-bottom:3%;background:transparent;color:${profile.accent}}.nepali-wedding-invitation .eyebrow,.nepali-wedding-invitation p{max-width:82%}.nepali-wedding-invitation h1{margin:4% 0}.nepali-wedding-invitation .rule{display:none}
+.copy-of-scanner-verification-template{padding:10% 12%;background:linear-gradient(135deg,${profile.secondary} 0 25%,transparent 25%)}.copy-of-scanner-verification-template .frame{inset:8%;border:0;border-left:1px solid ${profile.accent};border-radius:0}.copy-of-scanner-verification-template .mark{width:20%;background:transparent;border:1px solid ${profile.accent};color:${profile.ink};font-size:clamp(9px,2.4vw,20px);letter-spacing:-.08em}.copy-of-scanner-verification-template h1{font-style:italic}
+.scanner-verification-template{align-content:end;padding:11%;background:linear-gradient(180deg,${profile.secondary} 0 38%,${profile.background} 38%)}.scanner-verification-template .frame{inset:6%;border:0;border-bottom:7px solid ${profile.ink};border-radius:0}.scanner-verification-template .mark{top:9%;right:10%;width:12%;border-radius:0;background:${profile.ink};color:#fff}.scanner-verification-template .eyebrow{color:${profile.ink}}.scanner-verification-template h1{font-size:clamp(26px,7vw,66px)}
 </style></head><body><main class="card ${slug}"><div class="frame"></div><div class="ornament"></div><div class="mark">${profile.motif}</div><div class="eyebrow">${profile.eyebrow}</div><h1>${title}</h1><p>${profile.detail}</p><div class="rule"></div></main></body></html>`;
 }
