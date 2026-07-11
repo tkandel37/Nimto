@@ -195,6 +195,7 @@ model InvitationTemplate {
   name                 String
   status               TemplateStatus                @default(DRAFT)
   rawHtml              String
+  thumbnailHtml        String?
   sourceFileName       String?
   htmlSize             Int
   scanResult           Json?
@@ -252,6 +253,7 @@ model DesignVersion {
   status           DesignVersionStatus   @default(CURRENT)
   name             String
   rawHtml          String
+  thumbnailHtml    String?
   htmlSize         Int
   scanResult       Json?
   featureConfig    Json?

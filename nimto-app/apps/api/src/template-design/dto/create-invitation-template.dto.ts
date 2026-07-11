@@ -19,6 +19,12 @@ export class CreateInvitationTemplateDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(80)
+  @MaxLength(200000)
+  thumbnailHtml?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(180)
   sourceFileName?: string;
 

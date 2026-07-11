@@ -8,6 +8,7 @@ import {
   TemplateStatus,
   UserStatus,
 } from "@prisma/client";
+import { catalogThumbnailHtml } from "../src/template-design/catalog-thumbnail";
 import bcrypt from "bcryptjs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -374,6 +375,7 @@ async function seedSimpleDesigns(
     const scanResult = scanner.scanTemplateHtml(rawHtml, fixture.name);
     const featureConfig = scanner.normalizeFeatureConfig(null, scanResult);
     const htmlSize = Buffer.byteLength(rawHtml, "utf8");
+    const thumbnailHtml = catalogThumbnailHtml(fixture.slug);
     const category = await prisma.designCategory.upsert({
       where: { slug: fixture.categorySlug },
       update: {
@@ -396,6 +398,7 @@ async function seedSimpleDesigns(
           data: {
             name: fixture.name,
             rawHtml,
+            thumbnailHtml,
             htmlSize,
             scanResult: scanResult as Prisma.InputJsonValue,
             featureConfig: featureConfig as Prisma.InputJsonValue,
@@ -408,6 +411,7 @@ async function seedSimpleDesigns(
           data: {
             name: fixture.name,
             rawHtml,
+            thumbnailHtml,
             sourceFileName: fixture.file,
             htmlSize,
             scanResult: scanResult as Prisma.InputJsonValue,
@@ -444,6 +448,7 @@ async function seedSimpleDesigns(
         data: {
           name: fixture.name,
           rawHtml,
+          thumbnailHtml,
           htmlSize,
           scanResult: scanResult as Prisma.InputJsonValue,
           featureConfig: featureConfig as Prisma.InputJsonValue,
@@ -459,6 +464,7 @@ async function seedSimpleDesigns(
           status: DesignVersionStatus.CURRENT,
           name: fixture.name,
           rawHtml,
+          thumbnailHtml,
           htmlSize,
           scanResult: scanResult as Prisma.InputJsonValue,
           featureConfig: featureConfig as Prisma.InputJsonValue,

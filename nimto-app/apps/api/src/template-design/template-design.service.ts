@@ -24,6 +24,7 @@ import { UpdateDesignSubcategoryDto } from "./dto/update-design-subcategory.dto"
 import { UpdateInvitationTemplateDto } from "./dto/update-invitation-template.dto";
 import { UpdateAnimationComponentDto } from "./dto/update-animation-component.dto";
 import { AssignTemplateAnimationDto } from "./dto/assign-template-animation.dto";
+import { catalogThumbnailHtml } from "./catalog-thumbnail";
 
 type ActorContext = {
   actorId: string;
@@ -380,65 +381,83 @@ export class TemplateDesignService {
       cacheKey,
       PUBLIC_DESIGN_CACHE_MS,
       () =>
-        this.prisma.invitationDesign.findMany({
-          where: {
-            status: DesignStatus.ACTIVE,
-            categoryId: filters.categoryId || undefined,
-            subcategoryId: filters.subcategoryId || undefined,
-            AND: [
-              filters.categoryId
-                ? {}
-                : {
-                    OR: [
-                      { categoryId: null },
-                      { category: { status: DesignCatalogStatus.ACTIVE } },
-                    ],
-                  },
-              filters.subcategoryId
-                ? {}
-                : {
-                    OR: [
-                      { subcategoryId: null },
-                      { subcategory: { status: DesignCatalogStatus.ACTIVE } },
-                    ],
-                  },
-            ],
-            versions: { some: { status: DesignVersionStatus.CURRENT } },
-            ...(search
-              ? {
-                  OR: [
-                    {
-                      name: { contains: search, mode: "insensitive" as const },
+        this.prisma.invitationDesign
+          .findMany({
+            where: {
+              status: DesignStatus.ACTIVE,
+              categoryId: filters.categoryId || undefined,
+              subcategoryId: filters.subcategoryId || undefined,
+              AND: [
+                filters.categoryId
+                  ? {}
+                  : {
+                      OR: [
+                        { categoryId: null },
+                        { category: { status: DesignCatalogStatus.ACTIVE } },
+                      ],
                     },
-                    {
-                      slug: { contains: search, mode: "insensitive" as const },
+                filters.subcategoryId
+                  ? {}
+                  : {
+                      OR: [
+                        { subcategoryId: null },
+                        { subcategory: { status: DesignCatalogStatus.ACTIVE } },
+                      ],
                     },
-                  ],
-                }
-              : {}),
-          },
-          orderBy: { updatedAt: "desc" },
-          include: {
-            category: { select: { id: true, name: true, slug: true } },
-            subcategory: { select: { id: true, name: true, slug: true } },
-            versions: {
-              where: { status: DesignVersionStatus.CURRENT },
-              orderBy: { versionNumber: "desc" },
-              take: 1,
-              select: {
-                id: true,
-                versionNumber: true,
-                status: true,
-                name: true,
-                rawHtml: true,
-                htmlSize: true,
-                scanResult: true,
-                featureConfig: true,
-                createdAt: true,
+              ],
+              versions: { some: { status: DesignVersionStatus.CURRENT } },
+              ...(search
+                ? {
+                    OR: [
+                      {
+                        name: {
+                          contains: search,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      {
+                        slug: {
+                          contains: search,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                    ],
+                  }
+                : {}),
+            },
+            orderBy: { updatedAt: "desc" },
+            include: {
+              category: { select: { id: true, name: true, slug: true } },
+              subcategory: { select: { id: true, name: true, slug: true } },
+              versions: {
+                where: { status: DesignVersionStatus.CURRENT },
+                orderBy: { versionNumber: "desc" },
+                take: 1,
+                select: {
+                  id: true,
+                  versionNumber: true,
+                  status: true,
+                  name: true,
+                  rawHtml: true,
+                  thumbnailHtml: true,
+                  htmlSize: true,
+                  scanResult: true,
+                  featureConfig: true,
+                  createdAt: true,
+                },
               },
             },
-          },
-        }),
+          })
+          .then((designs) =>
+            designs.map((design) => ({
+              ...design,
+              versions: design.versions.map((version) => ({
+                ...version,
+                thumbnailHtml:
+                  version.thumbnailHtml ?? catalogThumbnailHtml(design.slug),
+              })),
+            })),
+          ),
     );
   }
 
@@ -580,6 +599,7 @@ export class TemplateDesignService {
                 versionNumber: true,
                 status: true,
                 rawHtml: true,
+                thumbnailHtml: true,
                 htmlSize: true,
                 scanResult: true,
                 featureConfig: true,
@@ -684,6 +704,7 @@ export class TemplateDesignService {
           status: DesignVersionStatus.CURRENT,
           name: source.name,
           rawHtml: source.rawHtml,
+          thumbnailHtml: source.thumbnailHtml,
           htmlSize: source.htmlSize,
           scanResult: source.scanResult ?? undefined,
           featureConfig: source.featureConfig ?? undefined,
@@ -707,6 +728,7 @@ export class TemplateDesignService {
   ) {
     this.assertStrictTemplateUpload(dto.rawHtml);
     this.assertNimtoHtml(dto.rawHtml);
+    if (dto.thumbnailHtml) this.assertThumbnailHtml(dto.thumbnailHtml);
     const scanResult = this.scanTemplateHtml(dto.rawHtml);
     const featureConfig = this.normalizeFeatureConfig(
       dto.featureConfig,
@@ -718,6 +740,7 @@ export class TemplateDesignService {
       data: {
         name: dto.name.trim(),
         rawHtml: dto.rawHtml,
+        thumbnailHtml: dto.thumbnailHtml,
         sourceFileName: dto.sourceFileName?.trim() || null,
         htmlSize: Buffer.byteLength(dto.rawHtml, "utf8"),
         scanResult,
@@ -774,6 +797,7 @@ export class TemplateDesignService {
       data: {
         name: `Copy of ${template.name}`,
         rawHtml: template.rawHtml,
+        thumbnailHtml: template.thumbnailHtml,
         sourceFileName: template.sourceFileName,
         htmlSize: template.htmlSize,
         scanResult,
@@ -830,6 +854,7 @@ export class TemplateDesignService {
     if (dto.rawHtml) {
       this.assertStrictTemplateUpload(dto.rawHtml);
     }
+    if (dto.thumbnailHtml) this.assertThumbnailHtml(dto.thumbnailHtml);
     const scanResult = dto.rawHtml
       ? this.scanTemplateHtml(dto.rawHtml)
       : undefined;
@@ -851,6 +876,7 @@ export class TemplateDesignService {
       data: {
         name: dto.name?.trim(),
         rawHtml: dto.rawHtml,
+        thumbnailHtml: dto.thumbnailHtml,
         sourceFileName:
           dto.sourceFileName !== undefined
             ? dto.sourceFileName.trim() || null
@@ -971,6 +997,8 @@ export class TemplateDesignService {
           status: DesignVersionStatus.CURRENT,
           name: template.name,
           rawHtml: publishedHtml,
+          thumbnailHtml:
+            template.thumbnailHtml ?? catalogThumbnailHtml(nextDesign.slug),
           htmlSize: Buffer.byteLength(publishedHtml, "utf8"),
           scanResult,
           featureConfig,
@@ -1312,6 +1340,30 @@ export class TemplateDesignService {
       throw new BadRequestException(
         "Template must include nimto-template-meta metadata.",
       );
+    }
+  }
+
+  private assertThumbnailHtml(thumbnailHtml: string) {
+    if (
+      !/<!doctype\s+html/i.test(thumbnailHtml) ||
+      !/<body[\s>]/i.test(thumbnailHtml)
+    ) {
+      throw new BadRequestException(
+        "Thumbnail must be a complete HTML document with doctype and body tags.",
+      );
+    }
+    if (
+      /<(?:script|iframe|form|video|audio|object|embed)\b/i.test(thumbnailHtml)
+    ) {
+      throw new BadRequestException(
+        "Thumbnail HTML cannot contain scripts, frames, forms, or embedded media.",
+      );
+    }
+    if (
+      /\b(?:javascript|vbscript):/i.test(thumbnailHtml) ||
+      /\bon\w+\s*=/i.test(thumbnailHtml)
+    ) {
+      throw new BadRequestException("Thumbnail HTML contains unsafe behavior.");
     }
   }
 

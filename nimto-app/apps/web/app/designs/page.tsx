@@ -39,6 +39,7 @@ type PublicDesign = {
     id: string;
     versionNumber: number;
     rawHtml: string;
+    thumbnailHtml?: string | null;
     htmlSize: number;
     scanResult?: { fields?: TemplateField[] } | null;
   }[];
@@ -50,7 +51,7 @@ type CreatedEvent = {
   slug: string;
 };
 
-const CATALOG_CACHE_VERSION = 2;
+const CATALOG_CACHE_VERSION = 3;
 const DESIGN_CATALOG_CHANGED_KEY = "nimto_design_catalog_changed";
 const FAVOURITE_DESIGNS_KEY = "nimto_favourite_designs";
 const RECENTLY_VIEWED_DESIGNS_KEY = "nimto_recently_viewed_designs";
@@ -500,7 +501,8 @@ function DesignsContent({
           <h2>{showFavourites ? "Saved favourites" : "Explore invitations"}</h2>
         </div>
         <span>
-          {filteredDesigns.length} {filteredDesigns.length === 1 ? "template" : "templates"}
+          {filteredDesigns.length}{" "}
+          {filteredDesigns.length === 1 ? "template" : "templates"}
         </span>
       </div>
 
@@ -541,12 +543,23 @@ function DesignsContent({
                 type="button"
               >
                 <div className="design-card-stage">
-                  <iframe
-                    loading="lazy"
-                    sandbox="allow-scripts"
-                    srcDoc={designCardPreviewHtml(current?.rawHtml ?? "")}
-                    title={`${design.name} preview`}
-                  />
+                  {current?.thumbnailHtml ? (
+                    <iframe
+                      loading="lazy"
+                      sandbox=""
+                      srcDoc={designCardPreviewHtml(current.thumbnailHtml)}
+                      title={`${design.name} thumbnail`}
+                    />
+                  ) : (
+                    <div
+                      className="design-thumbnail-fallback"
+                      aria-hidden="true"
+                    >
+                      <span>{design.category?.name ?? "Invitation"}</span>
+                      <strong>{design.name}</strong>
+                      <i>Preview coming soon</i>
+                    </div>
+                  )}
                 </div>
                 <span className="design-preview-overlay">
                   Preview invitation

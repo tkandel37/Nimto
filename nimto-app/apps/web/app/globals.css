@@ -3196,7 +3196,11 @@ a {
   border: 1px solid rgb(255 255 255 / 0.7);
   border-radius: 24px;
   background:
-    radial-gradient(circle at 86% 0%, rgb(244 198 93 / 0.25), transparent 25rem),
+    radial-gradient(
+      circle at 86% 0%,
+      rgb(244 198 93 / 0.25),
+      transparent 25rem
+    ),
     linear-gradient(135deg, #fffdf8 15%, #edf5ee 100%);
   padding: clamp(22px, 3vw, 38px);
   box-shadow: 0 24px 70px rgb(23 32 51 / 0.08);
@@ -6717,6 +6721,56 @@ button.user-design-preview {
   height: 100%;
   max-width: 100%;
   transform: none;
+}
+
+.design-thumbnail-fallback {
+  position: relative;
+  display: grid;
+  align-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 12%;
+  overflow: hidden;
+  background: linear-gradient(145deg, #f7efe1, #e8f0e8);
+  color: #18352c;
+  text-align: left;
+}
+
+.design-thumbnail-fallback::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border: 1px solid rgb(24 53 44 / 18%);
+  border-radius: 48% 48% 18px 18px;
+}
+
+.design-thumbnail-fallback span,
+.design-thumbnail-fallback strong,
+.design-thumbnail-fallback i {
+  position: relative;
+  z-index: 1;
+}
+
+.design-thumbnail-fallback span {
+  font-size: clamp(0.55rem, 1vw, 0.75rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.design-thumbnail-fallback strong {
+  max-width: 85%;
+  margin-top: 7%;
+  font-family: Georgia, serif;
+  font-size: clamp(1.7rem, 4vw, 3.4rem);
+  line-height: 0.95;
+}
+
+.design-thumbnail-fallback i {
+  margin-top: 6%;
+  font-family: Georgia, serif;
+  font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+  opacity: 0.65;
 }
 
 @media (min-width: 1400px) {

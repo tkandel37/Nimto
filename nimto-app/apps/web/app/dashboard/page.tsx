@@ -119,6 +119,7 @@ type InvitationTemplate = {
   name: string;
   status: "DRAFT" | "PUBLISHED" | "UNPUBLISHED";
   rawHtml?: string;
+  thumbnailHtml?: string | null;
   sourceFileName?: string | null;
   htmlSize: number;
   scanResult?: {
@@ -222,6 +223,7 @@ type InvitationDesign = {
     versionNumber: number;
     status: "CURRENT" | "SUPERSEDED";
     rawHtml?: string;
+    thumbnailHtml?: string | null;
     htmlSize: number;
     scanResult?: InvitationTemplate["scanResult"];
     featureConfig?: InvitationFeatureConfig | null;
@@ -3789,6 +3791,26 @@ function TemplateCreatePanel({
                     value={createPreviewHtml}
                   />
                 </label>
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">
+                    Thumbnail HTML file
+                  </span>
+                  <input
+                    accept=".html,text/html"
+                    name="thumbnailFile"
+                    type="file"
+                  />
+                </label>
+                <label className="field">
+                  <span className="text-sm font-bold text-ink">
+                    Thumbnail HTML
+                  </span>
+                  <textarea
+                    className="min-h-40 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
+                    name="thumbnailHtml"
+                    placeholder="Optional. Add a compact, self-contained HTML preview."
+                  />
+                </label>
                 {uploadValidationErrors.length ? (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
                     <p className="font-black">Template blocked</p>
@@ -5038,10 +5060,16 @@ async function templatePayload(form: FormData) {
       : String(form.get("rawHtml") ?? "");
   const categoryId = String(form.get("categoryId") ?? "");
   const subcategoryId = String(form.get("subcategoryId") ?? "");
+  const thumbnailFile = form.get("thumbnailFile");
+  const thumbnailHtml =
+    thumbnailFile instanceof File && thumbnailFile.size > 0
+      ? await thumbnailFile.text()
+      : String(form.get("thumbnailHtml") ?? "").trim();
 
   return {
     name: form.get("name"),
     rawHtml,
+    thumbnailHtml: thumbnailHtml || undefined,
     sourceFileName:
       file instanceof File && file.size > 0 ? file.name : undefined,
     categoryId: categoryId || undefined,
