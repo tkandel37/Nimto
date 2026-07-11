@@ -261,6 +261,22 @@ a {
   outline: 0;
 }
 
+/* Saved invitations keep catalogue-card dimensions even when only one exists. */
+.user-design-grid.user-history-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(280px, 100%), 360px)
+  );
+  justify-content: start;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .user-design-grid.user-history-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .auth-shell {
   min-height: 100vh;
   display: grid;

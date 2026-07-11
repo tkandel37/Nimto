@@ -175,7 +175,7 @@ function MyDesignsContent({
         </div>
       ) : null}
 
-      <div className="user-design-grid">
+      <div className="user-design-grid user-history-grid">
         {filteredItems.map((item) => {
           const reusable = isReusable(item);
           const currentVersion = item.design.versions[0];
