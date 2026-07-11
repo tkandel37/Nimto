@@ -365,26 +365,27 @@ function DesignsContent({
   }
 
   return (
-    <section className="grid gap-5">
-      <div className="user-panel">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <section className="design-catalogue">
+      <div className="user-panel design-catalogue-hero">
+        <div className="design-catalogue-heading">
           <div>
-            <p className="user-kicker">Invitations</p>
-            <h1 className="mt-2 text-3xl font-black text-ink">
-              Pick an invitation design
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Browse published invitations, preview the complete experience, and
-              create a private event draft from the one you select.
+            <p className="user-kicker">Template gallery</p>
+            <h1>Find a design that feels like your event.</h1>
+            <p>
+              Explore polished invitations for weddings, celebrations, family
+              moments, and business events. Preview any design before you begin.
             </p>
           </div>
           <div className="design-filter-toolbar">
-            <input
-              aria-label="Search invitations"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search invitations"
-              value={search}
-            />
+            <label className="design-search-field">
+              <span aria-hidden="true">⌕</span>
+              <input
+                aria-label="Search invitations"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search templates"
+                value={search}
+              />
+            </label>
             <button
               className="user-secondary-button design-mobile-filter-toggle"
               onClick={() => setShowMobileFilters((value) => !value)}
@@ -493,6 +494,16 @@ function DesignsContent({
         </div>
       </div>
 
+      <div className="design-results-heading">
+        <div>
+          <p className="user-kicker">Curated designs</p>
+          <h2>{showFavourites ? "Saved favourites" : "Explore invitations"}</h2>
+        </div>
+        <span>
+          {filteredDesigns.length} {filteredDesigns.length === 1 ? "template" : "templates"}
+        </span>
+      </div>
+
       {recentlyViewedIds.length && !search && !categoryId && !showFavourites ? (
         <section className="recently-viewed-strip">
           <div>
@@ -555,7 +566,7 @@ function DesignsContent({
               >
                 {favourite ? "♥" : "♡"}
               </button>
-              <div className="p-5">
+              <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-black text-ink">
