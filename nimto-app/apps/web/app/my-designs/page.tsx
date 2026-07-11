@@ -185,12 +185,14 @@ function MyDesignsContent({
               key={item.id}
             >
               <div className="user-design-preview">
-                <iframe
-                  loading="lazy"
-                  sandbox="allow-scripts"
-                  srcDoc={item.lastUsedVersion.rawHtml}
-                  title={`${item.design.name} history preview`}
-                />
+                <div className="design-card-stage">
+                  <iframe
+                    loading="lazy"
+                    sandbox="allow-scripts"
+                    srcDoc={item.lastUsedVersion.rawHtml}
+                    title={`${item.design.name} history preview`}
+                  />
+                </div>
               </div>
               <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">
@@ -198,7 +200,7 @@ function MyDesignsContent({
                     <h2 className="text-lg font-black text-ink">
                       {item.design.name}
                     </h2>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-ink/45">
+                    <p className="design-category-chip">
                       {[
                         item.design.category?.name,
                         item.design.subcategory?.name,
@@ -207,80 +209,55 @@ function MyDesignsContent({
                         .join(" / ") || "Uncategorized"}
                     </p>
                   </div>
-                  <span
-                    className={
-                      reusable
-                        ? "user-history-availability available"
-                        : "user-history-availability"
-                    }
-                  >
-                    {reusable ? "Available" : "History only"}
+                  <span className="user-version-pill">
+                    v{item.lastUsedVersion.versionNumber}
                   </span>
                 </div>
 
-                <dl className="user-history-details">
-                  <div>
-                    <dt>Used</dt>
-                    <dd>
-                      {item.usageCount}{" "}
-                      {item.usageCount === 1 ? "time" : "times"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Active events</dt>
-                    <dd>{item.design.activeEventCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Last used</dt>
-                    <dd>{formatDate(item.lastUsedAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Version used</dt>
-                    <dd>v{item.lastUsedVersion.versionNumber}</dd>
-                  </div>
-                </dl>
+                <p className="user-history-card-meta">
+                  Used {item.usageCount} {item.usageCount === 1 ? "time" : "times"}
+                  <span aria-hidden="true">·</span>
+                  Last used {formatDate(item.lastUsedAt)}
+                </p>
 
-                <div className="design-card-actions flex flex-wrap gap-2">
-                  {reusable ? (
-                    <Link
-                      className="user-primary-button flex-1"
-                      href={`/designs?template=${encodeURIComponent(item.design.slug)}`}
-                    >
-                      Reuse invitation
-                      {currentVersion?.versionNumber !==
-                      item.lastUsedVersion.versionNumber
-                        ? ` · v${currentVersion?.versionNumber}`
-                        : ""}
-                    </Link>
-                  ) : (
-                    <button
-                      className="user-primary-button flex-1"
-                      disabled
-                      title="This design is no longer active in the catalogue."
-                      type="button"
-                    >
-                      Not available to reuse
-                    </button>
-                  )}
+                <div className="design-card-actions">
                   {item.design.activeEventCount ? (
                     <Link className="user-secondary-button" href="/events">
                       View events
                     </Link>
-                  ) : null}
-                  <button
-                    className="user-ghost-button"
-                    onClick={() => {
-                      const next = [...hiddenIds, item.id];
-                      setHiddenIds(next);
-                      localStorage.setItem(
-                        "nimto_hidden_history",
-                        JSON.stringify(next),
-                      );
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
+                  ) : (
+                    <button
+                      className="user-secondary-button"
+                      onClick={() => {
+                        const next = [...hiddenIds, item.id];
+                        setHiddenIds(next);
+                        localStorage.setItem(
+                          "nimto_hidden_history",
+                          JSON.stringify(next),
+                        );
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  )}
+                  {reusable ? (
+                    <Link
+                      className="user-primary-button"
+                      href={`/designs?template=${encodeURIComponent(item.design.slug)}`}
+                    >
+                      Reuse
+                    </Link>
+                  ) : (
+                    <button
+                      className="user-primary-button"
+                      disabled
+                      title="This design is no longer active in the catalogue."
+                      type="button"
+                    >
+                      Unavailable
+                    </button>
+                  )}
                 </div>
 
                 {!reusable ? (

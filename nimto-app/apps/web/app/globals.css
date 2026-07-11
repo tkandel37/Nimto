@@ -7737,10 +7737,74 @@ body::before {
   width: 100%;
   min-height: 0;
   aspect-ratio: 0.72;
-  overflow: hidden;
-  place-items: start center;
+  padding: 12px;
+  place-items: center;
   border-bottom: 1px solid var(--border-soft);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(129, 39, 216, 0.045));
+}
+
+.user-history-card .design-card-stage {
+  height: 100%;
+}
+
+.user-history-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.user-history-card .design-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.user-history-card .design-card-actions > * {
+  width: 100%;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.recently-viewed-strip {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(129, 39, 216, 0.1);
+  background:
+    radial-gradient(circle at 0 0, rgba(129, 39, 216, 0.075), transparent 20rem),
+    radial-gradient(circle at 100% 100%, rgba(239, 47, 118, 0.055), transparent 22rem),
+    rgba(255, 255, 255, 0.68);
+  color: var(--text-strong);
+  box-shadow:
+    0 16px 42px rgba(83, 49, 73, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+.recently-viewed-strip .user-kicker {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--brand-plum-deep);
+}
+
+.recently-viewed-strip button {
+  border: 1px solid rgba(129, 39, 216, 0.09);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-strong);
+  box-shadow: 0 8px 22px rgba(83, 49, 73, 0.05);
+}
+
+.recently-viewed-strip button:hover {
+  border-color: rgba(129, 39, 216, 0.2);
+  background: rgba(129, 39, 216, 0.055);
+  color: var(--brand-plum-deep);
+}
+
+.recently-viewed-strip button span {
+  color: var(--text-muted);
 }
 
 .landing-preview,
