@@ -408,11 +408,10 @@ function DesignsContent({
       <div className="user-panel design-catalogue-hero">
         <div className="design-catalogue-heading">
           <div>
-            <p className="user-kicker">Template gallery</p>
-            <h1>Find a design that feels like your event.</h1>
+            <p className="user-kicker">Invitation gallery</p>
+            <h1>Choose your invitation</h1>
             <p>
-              Explore polished invitations for weddings, celebrations, family
-              moments, and business events. Preview any design before you begin.
+              Search, filter, preview, and customize a design for your event.
             </p>
           </div>
           <div className="design-filter-toolbar">
@@ -442,34 +441,42 @@ function DesignsContent({
           }
         >
           <div className="user-filter-row">
-            <select
-              aria-label="Filter category"
-              onChange={(event) => {
-                setCategoryId(event.target.value);
-                setSubcategoryId("");
-              }}
-              value={categoryId}
-            >
-              <option value="">All categories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Filter subcategory"
-              disabled={!categoryId}
-              onChange={(event) => setSubcategoryId(event.target.value)}
-              value={subcategoryId}
-            >
-              <option value="">All subcategories</option>
-              {subcategories.map((subcategory) => (
-                <option key={subcategory.id} value={subcategory.id}>
-                  {subcategory.name}
-                </option>
-              ))}
-            </select>
+            <label className="design-select-control">
+              <span>Category</span>
+              <select
+                aria-label="Filter category"
+                onChange={(event) => {
+                  setCategoryId(event.target.value);
+                  setSubcategoryId("");
+                }}
+                value={categoryId}
+              >
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <i aria-hidden="true">⌄</i>
+            </label>
+            <label className="design-select-control">
+              <span>Subcategory</span>
+              <select
+                aria-label="Filter subcategory"
+                disabled={!categoryId}
+                onChange={(event) => setSubcategoryId(event.target.value)}
+                value={subcategoryId}
+              >
+                <option value="">All subcategories</option>
+                {subcategories.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.id}>
+                    {subcategory.name}
+                  </option>
+                ))}
+              </select>
+              <i aria-hidden="true">⌄</i>
+            </label>
           </div>
           <div className="design-discovery-bar">
             <button
