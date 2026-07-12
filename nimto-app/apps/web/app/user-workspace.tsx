@@ -371,7 +371,9 @@ export function UserFrame({ children }: { children: ReactNode }) {
                   aria-hidden="true"
                   viewBox="0 0 20 20"
                 >
-                  <path d="m5.5 7.5 4.5 4.5 4.5-4.5" />
+                  <circle cx="5" cy="10" r="1.25" />
+                  <circle cx="10" cy="10" r="1.25" />
+                  <circle cx="15" cy="10" r="1.25" />
                 </svg>
               </button>
                 <div
