@@ -153,7 +153,6 @@ function DesignsContent({
   );
   const [search, setSearch] = useState("");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [subcategoryIds, setSubcategoryIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(!catalogCache);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
   const [previewDesign, setPreviewDesign] = useState<PublicDesign | null>(null);
@@ -164,9 +163,8 @@ function DesignsContent({
   const [favouriteIds, setFavouriteIds] = useState<string[]>([]);
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>([]);
   const [showFavourites, setShowFavourites] = useState(false);
-  const [collectionKey, setCollectionKey] = useState("");
+  const [collectionKeys, setCollectionKeys] = useState<string[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
@@ -266,24 +264,10 @@ function DesignsContent({
     return () => window.removeEventListener("storage", refreshCatalog);
   }, []);
 
-  const subcategories = useMemo(
-    () =>
-      categories
-        .filter((category) => categoryIds.includes(category.id))
-        .flatMap((category) => category.subcategories ?? []),
-    [categories, categoryIds],
-  );
-
   const filteredDesigns = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const collection = designCollections.find(
-      (item) => item.key === collectionKey,
-    );
     return designs.filter((design) => {
       if (showFavourites && !favouriteIds.includes(design.id)) return false;
-      if (categoryIds.length && !categoryIds.includes(design.category?.id ?? "")) return false;
-      if (subcategoryIds.length && !subcategoryIds.includes(design.subcategory?.id ?? ""))
-        return false;
       const haystack = [
         design.name,
         design.slug,
@@ -295,22 +279,23 @@ function DesignsContent({
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-      if (
-        collection &&
-        !collection.terms.some((term) => haystack.includes(term))
-      )
-        return false;
+      const matchesCategory = categoryIds.includes(design.category?.id ?? "");
+      const matchesCollection = designCollections.some(
+        (collection) =>
+          collectionKeys.includes(collection.key) &&
+          collection.terms.some((term) => haystack.includes(term)),
+      );
+      if ((categoryIds.length || collectionKeys.length) && !matchesCategory && !matchesCollection) return false;
       if (!query) return true;
       return haystack.includes(query);
     });
   }, [
     categoryIds,
-    collectionKey,
+    collectionKeys,
     designs,
     favouriteIds,
     search,
     showFavourites,
-    subcategoryIds,
   ]);
 
   const selectedDesign = useMemo(
@@ -324,12 +309,6 @@ function DesignsContent({
         : null,
     [designs, selectedTemplateSlug],
   );
-  const activeFilterCount =
-    categoryIds.length +
-    subcategoryIds.length +
-    Number(Boolean(collectionKey)) +
-    Number(showFavourites);
-
   function openDesignEditor(design: PublicDesign) {
     rememberViewedDesign(design.id);
     clearPreviewUrl();
@@ -388,8 +367,7 @@ function DesignsContent({
   function clearDesignFilters() {
     setSearch("");
     setCategoryIds([]);
-    setSubcategoryIds([]);
-    setCollectionKey("");
+    setCollectionKeys([]);
     setShowFavourites(false);
   }
 
@@ -425,120 +403,17 @@ function DesignsContent({
                 value={search}
               />
             </label>
-            <button
-              aria-expanded={showMobileFilters}
-              className="user-secondary-button design-mobile-filter-toggle"
-              onClick={() => setShowMobileFilters((value) => !value)}
-              type="button"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24">
-                <path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4M4 12h4M12 12h8M10 10v4" />
-              </svg>
-              <span>Filter</span>
-              {activeFilterCount ? <b>{activeFilterCount}</b> : null}
-            </button>
           </div>
-        </div>
-        {activeFilterCount ? (
-          <div className="design-active-filter-row">
-            {categoryIds.map((id) => (
-              <button key={id} onClick={() => {
-                setCategoryIds((current) => current.filter((item) => item !== id));
-                const removedSubcategoryIds = categories.find((category) => category.id === id)?.subcategories?.map((item) => item.id) ?? [];
-                setSubcategoryIds((current) => current.filter((item) => !removedSubcategoryIds.includes(item)));
-              }} type="button">
-                {categories.find((category) => category.id === id)?.name} <span>×</span>
-              </button>
-            ))}
-            {subcategoryIds.map((id) => (
-              <button key={id} onClick={() => setSubcategoryIds((current) => current.filter((item) => item !== id))} type="button">
-                {subcategories.find((subcategory) => subcategory.id === id)?.name} <span>×</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div
-          className={
-            showMobileFilters
-              ? "design-filter-panel open"
-              : "design-filter-panel"
-          }
-        >
-          <div className="design-facet-header">
-            <div>
-              <strong>Filter by category</strong>
-              <span>Choose a category. Results update instantly.</span>
-            </div>
-            <button onClick={() => setShowMobileFilters(false)} type="button">
-              Done
-            </button>
-          </div>
-          <div className="design-facet-group">
-            <span>Category</span>
-            <div>
-              {categories.map((category) => (
-                <button
-                  className={categoryIds.includes(category.id) ? "active" : ""}
-                  key={category.id}
-                  onClick={() => {
-                    setCategoryIds((current) => current.includes(category.id)
-                      ? current.filter((id) => id !== category.id)
-                      : [...current, category.id]);
-                    setSubcategoryIds([]);
-                    setCollectionKey("");
-                    setShowFavourites(false);
-                  }}
-                  type="button"
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          {categoryIds.length && subcategories.length ? (
-            <div className="design-facet-group">
-              <span>Subcategory</span>
-              <div>
-                {subcategories.map((subcategory) => (
-                  <button
-                    className={subcategoryIds.includes(subcategory.id) ? "active" : ""}
-                    key={subcategory.id}
-                    onClick={() => setSubcategoryIds((current) => current.includes(subcategory.id)
-                      ? current.filter((id) => id !== subcategory.id)
-                      : [...current, subcategory.id])}
-                    type="button"
-                  >
-                    {subcategory.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {activeFilterCount ? (
-            <button
-              className="design-filter-clear"
-              onClick={() => {
-                setCategoryIds([]);
-                setSubcategoryIds([]);
-                setCollectionKey("");
-                setShowFavourites(false);
-              }}
-              type="button"
-            >
-              Clear selected filters
-            </button>
-          ) : null}
         </div>
         <div className="design-discovery-bar">
             <button
               className={
-                !categoryIds.length && !collectionKey && !showFavourites ? "active" : ""
+                !categoryIds.length && !collectionKeys.length && !showFavourites ? "active" : ""
               }
               onClick={() => {
                 setCategoryIds([]);
-                setSubcategoryIds([]);
                 setShowFavourites(false);
-                setCollectionKey("");
+                setCollectionKeys([]);
               }}
               type="button"
             >
@@ -546,17 +421,18 @@ function DesignsContent({
             </button>
             {designCollections.map((collection) => (
               <button
-                className={collectionKey === collection.key ? "active" : ""}
+                className={collectionKeys.includes(collection.key) ? "active" : ""}
                 key={collection.key}
                 onClick={() => {
-                  setCollectionKey(collection.key);
-                  setCategoryIds([]);
-                  setSubcategoryIds([]);
+                  setCollectionKeys((current) => current.includes(collection.key)
+                    ? current.filter((key) => key !== collection.key)
+                    : [...current, collection.key]);
                   setShowFavourites(false);
                 }}
                 type="button"
               >
                 {collection.label}
+                {collectionKeys.includes(collection.key) ? <span>×</span> : null}
               </button>
             ))}
             {categories.slice(0, 7).map((category) => (
@@ -567,21 +443,19 @@ function DesignsContent({
                   setCategoryIds((current) => current.includes(category.id)
                     ? current.filter((id) => id !== category.id)
                     : [...current, category.id]);
-                  setSubcategoryIds([]);
                   setShowFavourites(false);
-                  setCollectionKey("");
                 }}
                 type="button"
               >
                 {category.name}
+                {categoryIds.includes(category.id) ? <span>×</span> : null}
               </button>
             ))}
             <button
               className={showFavourites ? "active favourite" : "favourite"}
               onClick={() => {
-                setCollectionKey("");
+                setCollectionKeys([]);
                 setCategoryIds([]);
-                setSubcategoryIds([]);
                 setShowFavourites((value) => !value);
               }}
               type="button"
@@ -603,7 +477,7 @@ function DesignsContent({
         </span>
       </div>
 
-      {recentlyViewedIds.length && !search && !categoryIds.length && !showFavourites ? (
+      {recentlyViewedIds.length && !search && !categoryIds.length && !collectionKeys.length && !showFavourites ? (
         <section className="recently-viewed-strip">
           <div>
             <p className="user-kicker">Recently viewed</p>
