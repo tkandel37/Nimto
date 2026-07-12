@@ -416,18 +416,6 @@ a {
   background: var(--brand-gradient); color: white; font-size: 0.8rem; font-weight: 950;
 }
 .user-account-name { max-width: 150px; overflow: hidden; font-size: 0.8rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
-.user-account-chevron {
-  width: 17px;
-  height: 17px;
-  fill: var(--text-muted);
-  stroke: none;
-  transition: fill 160ms ease, transform 180ms ease;
-}
-.user-account-trigger:hover .user-account-chevron,
-.user-account-trigger[aria-expanded="true"] .user-account-chevron {
-  fill: var(--brand-plum-deep);
-  transform: scale(1.12);
-}
 .user-account-popover {
   position: absolute; top: calc(100% + 9px); right: 0; z-index: 70; display: grid; width: 230px;
   overflow: hidden; border: 1px solid rgba(129, 39, 216, 0.12); border-radius: 16px;
@@ -464,7 +452,7 @@ a {
 @media (max-width: 640px) {
   .design-catalogue-hero .design-filter-panel { position: fixed; top: auto; right: 12px; bottom: 84px; left: 12px; width: auto; max-height: 68vh; }
   .user-account-trigger { padding-right: 5px; }
-  .user-account-name, .user-account-chevron { display: none; }
+  .user-account-name { display: none; }
 }
 
 .auth-shell {

@@ -366,15 +366,6 @@ export function UserFrame({ children }: { children: ReactNode }) {
                   {user.name.trim().charAt(0).toUpperCase() || "U"}
                 </span>
                 <span className="user-account-name">{user.name}</span>
-                <svg
-                  className="user-account-chevron"
-                  aria-hidden="true"
-                  viewBox="0 0 20 20"
-                >
-                  <circle cx="5" cy="10" r="1.25" />
-                  <circle cx="10" cy="10" r="1.25" />
-                  <circle cx="15" cy="10" r="1.25" />
-                </svg>
               </button>
                 <div
                   aria-hidden={!isAccountMenuOpen}
