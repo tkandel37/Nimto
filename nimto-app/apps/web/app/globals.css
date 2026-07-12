@@ -392,6 +392,60 @@ a {
 .nimto-loader.compact .nimto-loader-mark::before { border-color: rgba(255,255,255,.3); border-top-color: white; }
 @keyframes nimto-loader-spin { to { transform: rotate(360deg); } }
 
+/* Modern user profile. */
+.profile-page { display: grid; gap: 18px; width: min(100%, 1180px); margin: 0 auto; }
+.profile-identity-card {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px;
+  border: 1px solid rgba(129, 39, 216, 0.12); border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(239, 47, 118, 0.09), transparent 19rem),
+    linear-gradient(145deg, rgba(255,255,255,.84), rgba(129,39,216,.045));
+  padding: 22px 24px; box-shadow: 0 18px 50px rgba(83,49,73,.08);
+}
+.profile-avatar {
+  display: grid; width: 68px; height: 68px; place-items: center; border-radius: 22px;
+  background: var(--brand-gradient); color: white; font-size: 1.6rem; font-weight: 950;
+  box-shadow: 0 14px 30px rgba(129,39,216,.2);
+}
+.profile-identity-card h1 { margin-top: 4px; font-size: clamp(1.65rem, 3vw, 2.25rem); font-weight: 950; letter-spacing: -.035em; }
+.profile-identity-card > div > p:last-child { margin-top: 3px; color: var(--text-muted); font-size: .84rem; }
+.profile-verified {
+  border: 1px solid rgba(129,39,216,.14); border-radius: 999px; background: rgba(129,39,216,.075);
+  padding: 8px 11px; color: var(--brand-plum-deep); font-size: .7rem; font-weight: 900;
+}
+.profile-verified.pending { background: rgba(239,47,118,.07); color: var(--brand-berry-deep); }
+.profile-content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.profile-form, .profile-account-card { border-radius: 20px; }
+.profile-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.profile-section-heading h2, .profile-account-card h2 { margin-top: 5px; font-size: 1.3rem; font-weight: 950; }
+.profile-section-heading > span { color: var(--text-muted); font-size: .74rem; }
+.profile-fields-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; margin-top: 24px; }
+.profile-email-field { grid-column: 1 / -1; }
+.profile-form-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-top: 1px solid var(--border-soft); margin-top: 24px; padding-top: 18px;
+}
+.profile-form-actions > span { color: var(--text-muted); font-size: .74rem; }
+.profile-account-card dl { display: grid; gap: 0; margin-top: 18px; }
+.profile-account-card dl div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-soft); padding: 12px 0; }
+.profile-account-card dt { color: var(--text-muted); font-size: .72rem; }
+.profile-account-card dd { color: var(--text-strong); font-size: .75rem; font-weight: 900; text-transform: capitalize; }
+.profile-account-card > p:last-child { margin-top: 18px; color: var(--text-muted); font-size: .74rem; line-height: 1.55; }
+@media (max-width: 800px) {
+  .profile-content-grid { grid-template-columns: 1fr; }
+  .profile-identity-card { grid-template-columns: auto 1fr; }
+  .profile-verified { grid-column: 1 / -1; width: max-content; }
+}
+@media (max-width: 560px) {
+  .profile-identity-card { padding: 18px; }
+  .profile-avatar { width: 56px; height: 56px; border-radius: 18px; }
+  .profile-fields-grid { grid-template-columns: 1fr; }
+  .profile-email-field { grid-column: auto; }
+  .profile-section-heading > span, .profile-form-actions > span { display: none; }
+  .profile-form-actions { justify-content: stretch; }
+  .profile-form-actions button { width: 100%; }
+}
+
 .user-account-menu { position: relative; }
 .user-account-trigger {
   display: flex; min-height: 44px; align-items: center; gap: 9px;

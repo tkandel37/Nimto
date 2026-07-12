@@ -575,49 +575,64 @@ export function ProfileForm({
   }
 
   return (
-    <form className="user-panel max-w-2xl" onSubmit={submit}>
-      <div>
-        <p className="user-kicker">Profile</p>
-        <h1 className="mt-2 text-3xl font-black text-ink">Your details</h1>
-        <p className="mt-2 text-sm leading-6 text-ink/60">
-          These details are optional except your account email.
-        </p>
+    <section className="profile-page">
+      <header className="profile-identity-card">
+        <span className="profile-avatar" aria-hidden="true">
+          {user.name.trim().charAt(0).toUpperCase() || "U"}
+        </span>
+        <div>
+          <p className="user-kicker">My profile</p>
+          <h1>{user.name}</h1>
+          <p>{user.email}</p>
+        </div>
+        <span className={user.emailVerifiedAt ? "profile-verified" : "profile-verified pending"}>
+          {user.emailVerifiedAt ? "Verified account" : "Verification pending"}
+        </span>
+      </header>
+
+      <div className="profile-content-grid">
+        <form className="user-panel profile-form" onSubmit={submit}>
+          <div className="profile-section-heading">
+            <div>
+              <p className="user-kicker">Personal information</p>
+              <h2>Account details</h2>
+            </div>
+            <span>Keep your contact details current</span>
+          </div>
+          <div className="profile-fields-grid">
+            <label className="user-field">
+              <span>Full name</span>
+              <input minLength={2} onChange={(event) => setName(event.target.value)} value={name} />
+            </label>
+            <label className="user-field">
+              <span>Phone number</span>
+              <input onChange={(event) => setPhone(event.target.value)} placeholder="Add phone number" value={phone} />
+            </label>
+            <label className="user-field profile-email-field">
+              <span>Email address</span>
+              <input onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+            </label>
+          </div>
+          <div className="profile-form-actions">
+            <span>Changes apply across your myNimto account.</span>
+            <button className="user-primary-button" disabled={isSaving} type="submit">
+              {isSaving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </form>
+
+        <aside className="user-panel profile-account-card">
+          <p className="user-kicker">Account</p>
+          <h2>Profile status</h2>
+          <dl>
+            <div><dt>Email</dt><dd>{user.emailVerifiedAt ? "Verified" : "Pending"}</dd></div>
+            <div><dt>Member since</dt><dd>{new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(new Date(user.createdAt))}</dd></div>
+            <div><dt>Account status</dt><dd>{user.status?.toLowerCase() || "active"}</dd></div>
+          </dl>
+          <p>Your account details are used only for managing invitations and communication.</p>
+        </aside>
       </div>
-      <div className="mt-8 grid gap-5">
-        <label className="user-field">
-          <span>Name</span>
-          <input
-            minLength={2}
-            onChange={(event) => setName(event.target.value)}
-            value={name}
-          />
-        </label>
-        <label className="user-field">
-          <span>Email</span>
-          <input
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            type="email"
-            value={email}
-          />
-        </label>
-        <label className="user-field">
-          <span>Phone</span>
-          <input
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="Optional"
-            value={phone}
-          />
-        </label>
-      </div>
-      <button
-        className="user-primary-button mt-7"
-        disabled={isSaving}
-        type="submit"
-      >
-        {isSaving ? "Saving..." : "Save profile"}
-      </button>
-    </form>
+    </section>
   );
 }
 

@@ -124,10 +124,6 @@ function EventsContent({
           <h1 className="mt-2 text-3xl font-black text-ink">
             Your invitations
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-            Open an event to manage guest names, personalized links, and its
-            invitation preview in one focused workspace.
-          </p>
         </div>
         <Link className="user-primary-button" href="/designs">
           Create invitation
