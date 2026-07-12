@@ -425,11 +425,16 @@ function DesignsContent({
               />
             </label>
             <button
+              aria-expanded={showMobileFilters}
               className="user-secondary-button design-mobile-filter-toggle"
               onClick={() => setShowMobileFilters((value) => !value)}
               type="button"
             >
-              Filters {activeFilterCount ? `(${activeFilterCount})` : ""}
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4M4 12h4M12 12h8M10 10v4" />
+              </svg>
+              <span>Filter designs</span>
+              {activeFilterCount ? <b>{activeFilterCount}</b> : null}
             </button>
           </div>
         </div>
@@ -456,22 +461,12 @@ function DesignsContent({
         >
           <div className="design-facet-header">
             <div>
-              <strong>Filter invitations</strong>
-              <span>Choose one or more details</span>
+              <strong>Filter by category</strong>
+              <span>Choose a category. Results update instantly.</span>
             </div>
-            {activeFilterCount ? (
-              <button
-                onClick={() => {
-                  setCategoryId("");
-                  setSubcategoryId("");
-                  setCollectionKey("");
-                  setShowFavourites(false);
-                }}
-                type="button"
-              >
-                Clear all
-              </button>
-            ) : null}
+            <button onClick={() => setShowMobileFilters(false)} type="button">
+              Done
+            </button>
           </div>
           <div className="design-facet-group">
             <span>Category</span>
@@ -509,6 +504,20 @@ function DesignsContent({
                 ))}
               </div>
             </div>
+          ) : null}
+          {activeFilterCount ? (
+            <button
+              className="design-filter-clear"
+              onClick={() => {
+                setCategoryId("");
+                setSubcategoryId("");
+                setCollectionKey("");
+                setShowFavourites(false);
+              }}
+              type="button"
+            >
+              Clear selected filters
+            </button>
           ) : null}
         </div>
         <div className="design-discovery-bar">

@@ -292,9 +292,17 @@ a {
 
 /* Modern faceted invitation filters and compact account menu. */
 .design-catalogue-hero { overflow: visible; }
-.design-filter-toolbar .design-mobile-filter-toggle { display: inline-flex; gap: 6px; border-radius: 14px; }
+.design-filter-toolbar .design-mobile-filter-toggle {
+  display: inline-flex; gap: 8px; min-height: 46px; border-radius: 14px; padding: 0 13px;
+  white-space: nowrap;
+}
+.design-mobile-filter-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.design-mobile-filter-toggle b {
+  display: grid; min-width: 21px; height: 21px; place-items: center; border-radius: 999px;
+  background: rgba(129, 39, 216, 0.1); color: var(--brand-plum-deep); font-size: 0.66rem;
+}
 .design-catalogue-hero .design-filter-panel {
-  position: absolute; top: 88px; right: 20px; z-index: 40; display: none;
+  position: absolute; top: calc(100% - 4px); right: 20px; z-index: 40; display: none;
   width: min(520px, calc(100% - 40px)); max-height: min(560px, calc(100vh - 150px));
   overflow-y: auto; gap: 16px; border: 1px solid rgba(129, 39, 216, 0.13);
   border-radius: 18px; background: rgba(255, 255, 255, 0.9); padding: 18px;
@@ -317,9 +325,16 @@ a {
 .design-facet-group button:hover, .design-facet-group button.active {
   border-color: rgba(129, 39, 216, 0.2); background: rgba(129, 39, 216, 0.08); color: var(--brand-plum-deep);
 }
+.design-filter-clear {
+  width: 100%; border: 1px solid var(--border-soft); border-radius: 11px;
+  background: rgba(129, 39, 216, 0.045); padding: 10px; color: var(--brand-plum-deep);
+  font-size: 0.75rem; font-weight: 850;
+}
 .design-active-filter-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .design-active-filter-row button { padding: 6px 10px; background: rgba(129, 39, 216, 0.065); color: var(--brand-plum-deep); }
 .design-active-filter-row span { margin-left: 3px; font-size: 0.95rem; }
+.design-catalogue-hero .design-catalogue-heading { margin-bottom: 16px; }
+.design-catalogue-hero .design-discovery-bar { margin-top: 14px; padding-top: 2px; }
 
 .user-account-menu { position: relative; }
 .user-account-trigger {
