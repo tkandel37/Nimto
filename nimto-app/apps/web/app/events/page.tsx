@@ -120,13 +120,13 @@ function EventsContent({
     <div className="grid gap-5">
       <section className="user-panel event-overview-hero">
         <div>
-          <p className="user-kicker">Events</p>
+          <p className="user-kicker">Event management</p>
           <h1 className="mt-2 text-3xl font-black text-ink">
-            Your invitations
+            Events
           </h1>
         </div>
         <Link className="user-primary-button" href="/designs">
-          Create invitation
+          Create event
         </Link>
       </section>
 
