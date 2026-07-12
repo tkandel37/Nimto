@@ -550,9 +550,6 @@ function DesignsContent({
                 onClick={() => toggleFavourite(design.id)}
                 type="button"
               >
-                <span className="design-favourite-heart" aria-hidden="true">
-                  {favourite ? "♥" : "♡"}
-                </span>
                 <img aria-hidden="true" src="/brand/mynimto-logo.webp" />
               </button>
               <div className="design-card-details">
