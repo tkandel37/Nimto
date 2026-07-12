@@ -362,7 +362,7 @@ a {
 }
 .design-favourite::after {
   content: attr(data-tooltip); position: absolute; top: calc(100% + 9px); right: 0; z-index: 12;
-  width: max-content; max-width: 170px; border-radius: 8px; background: var(--text-strong);
+  width: max-content; max-width: 170px; border-radius: 8px; background: var(--brand-gradient);
   padding: 7px 9px; color: white; font-size: 0.67rem; font-weight: 800; line-height: 1.2;
   opacity: 0; transform: translateY(4px); pointer-events: none; transition: 150ms ease;
 }
@@ -373,7 +373,7 @@ a {
   padding: 7px 11px; color: var(--text-muted); font-size: 0.72rem; font-weight: 900;
 }
 .design-results-meta > button { display: inline-flex; align-items: center; gap: 6px; }
-.design-results-meta > button > span { color: var(--brand-berry); font-size: 0.95rem; }
+.design-results-meta > button > img { width: 18px; height: 18px; object-fit: contain; }
 .design-results-meta > button b { min-width: 17px; color: var(--brand-plum-deep); }
 .design-results-meta > button:hover, .design-results-meta > button.active {
   border-color: rgba(129, 39, 216, 0.18); background: rgba(129, 39, 216, 0.07); color: var(--brand-plum-deep);

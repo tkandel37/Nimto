@@ -470,7 +470,7 @@ function DesignsContent({
             }}
             type="button"
           >
-            <span aria-hidden="true">♥</span>
+            <img aria-hidden="true" src="/brand/mynimto-logo.webp" />
             Favourites
             {favouriteIds.length ? <b>{favouriteIds.length}</b> : null}
           </button>
