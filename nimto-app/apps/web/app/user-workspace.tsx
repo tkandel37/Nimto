@@ -366,7 +366,13 @@ export function UserFrame({ children }: { children: ReactNode }) {
                   {user.name.trim().charAt(0).toUpperCase() || "U"}
                 </span>
                 <span className="user-account-name">{user.name}</span>
-                <span className="user-account-chevron" aria-hidden="true">⌄</span>
+                <svg
+                  className="user-account-chevron"
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="m5.5 7.5 4.5 4.5 4.5-4.5" />
+                </svg>
               </button>
               {isAccountMenuOpen ? (
                 <div className="user-account-popover">

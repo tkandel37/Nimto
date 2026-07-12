@@ -404,7 +404,17 @@ a {
   background: var(--brand-gradient); color: white; font-size: 0.8rem; font-weight: 950;
 }
 .user-account-name { max-width: 150px; overflow: hidden; font-size: 0.8rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
-.user-account-chevron { color: var(--text-muted); }
+.user-account-chevron {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms ease;
+}
+.user-account-trigger[aria-expanded="true"] .user-account-chevron { transform: rotate(180deg); }
 .user-account-popover {
   position: absolute; top: calc(100% + 9px); right: 0; z-index: 70; display: grid; width: 230px;
   overflow: hidden; border: 1px solid rgba(129, 39, 216, 0.12); border-radius: 16px;
