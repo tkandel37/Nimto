@@ -14,7 +14,7 @@ export default function AuthPage() {
     <Suspense
       fallback={
         <main className="grid min-h-screen place-items-center">
-          <p className="font-bold text-ink">Loading account form...</p>
+          <NimtoLoader label="Loading account" />
         </main>
       }
     >
@@ -217,7 +217,7 @@ function AuthForm() {
               </p>
             ) : null}
             <button className="primary-button" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Please wait..." : copy.button}
+              {isSubmitting ? <NimtoLoader compact label={mode === "login" ? "Signing in" : "Creating account"} /> : copy.button}
             </button>
           </form>
           
@@ -285,6 +285,23 @@ function AuthForm() {
         </div>
       </section>
     </main>
+  );
+}
+
+function NimtoLoader({
+  compact = false,
+  label,
+}: {
+  compact?: boolean;
+  label: string;
+}) {
+  return (
+    <span className={compact ? "nimto-loader compact" : "nimto-loader"}>
+      <span className="nimto-loader-mark">
+        <BrandLogo compact />
+      </span>
+      <span>{label}</span>
+    </span>
   );
 }
 

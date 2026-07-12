@@ -451,18 +451,6 @@ function DesignsContent({
                 {categoryIds.includes(category.id) ? <span>×</span> : null}
               </button>
             ))}
-            <button
-              className={showFavourites ? "active favourite" : "favourite"}
-              onClick={() => {
-                setCollectionKeys([]);
-                setCategoryIds([]);
-                setShowFavourites((value) => !value);
-              }}
-              type="button"
-            >
-              ♥ Favourites{" "}
-              {favouriteIds.length ? `(${favouriteIds.length})` : ""}
-            </button>
         </div>
       </div>
 
@@ -471,10 +459,26 @@ function DesignsContent({
           <p className="user-kicker">Curated designs</p>
           <h2>{showFavourites ? "Saved favourites" : "Explore invitations"}</h2>
         </div>
-        <span>
-          {filteredDesigns.length}{" "}
-          {filteredDesigns.length === 1 ? "template" : "templates"}
-        </span>
+        <div className="design-results-meta">
+          <button
+            aria-label="Show favourite invitations"
+            className={showFavourites ? "active" : ""}
+            onClick={() => {
+              setCollectionKeys([]);
+              setCategoryIds([]);
+              setShowFavourites((value) => !value);
+            }}
+            type="button"
+          >
+            <span aria-hidden="true">♥</span>
+            Favourites
+            {favouriteIds.length ? <b>{favouriteIds.length}</b> : null}
+          </button>
+          <span>
+            {filteredDesigns.length}{" "}
+            {filteredDesigns.length === 1 ? "template" : "templates"}
+          </span>
+        </div>
       </div>
 
       {recentlyViewedIds.length && !search && !categoryIds.length && !collectionKeys.length && !showFavourites ? (
@@ -532,9 +536,6 @@ function DesignsContent({
                     </div>
                   )}
                 </div>
-                <span className="design-preview-overlay">
-                  Preview invitation
-                </span>
               </button>
               <button
                 aria-label={
@@ -545,9 +546,13 @@ function DesignsContent({
                 className={
                   favourite ? "design-favourite active" : "design-favourite"
                 }
+                data-tooltip={favourite ? "Remove from favourites" : "Add to favourites"}
                 onClick={() => toggleFavourite(design.id)}
                 type="button"
               >
+                <span className="design-favourite-heart" aria-hidden="true">
+                  {favourite ? "♥" : "♡"}
+                </span>
                 <img aria-hidden="true" src="/brand/mynimto-logo.webp" />
               </button>
               <div className="design-card-details">
