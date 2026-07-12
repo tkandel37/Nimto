@@ -152,8 +152,8 @@ function DesignsContent({
     catalogCache?.designs ?? [],
   );
   const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [subcategoryId, setSubcategoryId] = useState("");
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [subcategoryIds, setSubcategoryIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(!catalogCache);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
   const [previewDesign, setPreviewDesign] = useState<PublicDesign | null>(null);
@@ -268,9 +268,10 @@ function DesignsContent({
 
   const subcategories = useMemo(
     () =>
-      categories.find((category) => category.id === categoryId)
-        ?.subcategories ?? [],
-    [categories, categoryId],
+      categories
+        .filter((category) => categoryIds.includes(category.id))
+        .flatMap((category) => category.subcategories ?? []),
+    [categories, categoryIds],
   );
 
   const filteredDesigns = useMemo(() => {
@@ -280,8 +281,8 @@ function DesignsContent({
     );
     return designs.filter((design) => {
       if (showFavourites && !favouriteIds.includes(design.id)) return false;
-      if (categoryId && design.category?.id !== categoryId) return false;
-      if (subcategoryId && design.subcategory?.id !== subcategoryId)
+      if (categoryIds.length && !categoryIds.includes(design.category?.id ?? "")) return false;
+      if (subcategoryIds.length && !subcategoryIds.includes(design.subcategory?.id ?? ""))
         return false;
       const haystack = [
         design.name,
@@ -303,13 +304,13 @@ function DesignsContent({
       return haystack.includes(query);
     });
   }, [
-    categoryId,
+    categoryIds,
     collectionKey,
     designs,
     favouriteIds,
     search,
     showFavourites,
-    subcategoryId,
+    subcategoryIds,
   ]);
 
   const selectedDesign = useMemo(
@@ -324,8 +325,8 @@ function DesignsContent({
     [designs, selectedTemplateSlug],
   );
   const activeFilterCount =
-    Number(Boolean(categoryId)) +
-    Number(Boolean(subcategoryId)) +
+    categoryIds.length +
+    subcategoryIds.length +
     Number(Boolean(collectionKey)) +
     Number(showFavourites);
 
@@ -386,8 +387,8 @@ function DesignsContent({
 
   function clearDesignFilters() {
     setSearch("");
-    setCategoryId("");
-    setSubcategoryId("");
+    setCategoryIds([]);
+    setSubcategoryIds([]);
     setCollectionKey("");
     setShowFavourites(false);
   }
@@ -433,23 +434,27 @@ function DesignsContent({
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M4 7h10M18 7h2M14 5v4M4 17h2M10 17h10M8 15v4M4 12h4M12 12h8M10 10v4" />
               </svg>
-              <span>Filter designs</span>
+              <span>Filter</span>
               {activeFilterCount ? <b>{activeFilterCount}</b> : null}
             </button>
           </div>
         </div>
         {activeFilterCount ? (
           <div className="design-active-filter-row">
-            {categoryId ? (
-              <button onClick={() => { setCategoryId(""); setSubcategoryId(""); }} type="button">
-                {categories.find((category) => category.id === categoryId)?.name} <span>×</span>
+            {categoryIds.map((id) => (
+              <button key={id} onClick={() => {
+                setCategoryIds((current) => current.filter((item) => item !== id));
+                const removedSubcategoryIds = categories.find((category) => category.id === id)?.subcategories?.map((item) => item.id) ?? [];
+                setSubcategoryIds((current) => current.filter((item) => !removedSubcategoryIds.includes(item)));
+              }} type="button">
+                {categories.find((category) => category.id === id)?.name} <span>×</span>
               </button>
-            ) : null}
-            {subcategoryId ? (
-              <button onClick={() => setSubcategoryId("")} type="button">
-                {subcategories.find((subcategory) => subcategory.id === subcategoryId)?.name} <span>×</span>
+            ))}
+            {subcategoryIds.map((id) => (
+              <button key={id} onClick={() => setSubcategoryIds((current) => current.filter((item) => item !== id))} type="button">
+                {subcategories.find((subcategory) => subcategory.id === id)?.name} <span>×</span>
               </button>
-            ) : null}
+            ))}
           </div>
         ) : null}
         <div
@@ -473,11 +478,13 @@ function DesignsContent({
             <div>
               {categories.map((category) => (
                 <button
-                  className={categoryId === category.id ? "active" : ""}
+                  className={categoryIds.includes(category.id) ? "active" : ""}
                   key={category.id}
                   onClick={() => {
-                    setCategoryId(category.id);
-                    setSubcategoryId("");
+                    setCategoryIds((current) => current.includes(category.id)
+                      ? current.filter((id) => id !== category.id)
+                      : [...current, category.id]);
+                    setSubcategoryIds([]);
                     setCollectionKey("");
                     setShowFavourites(false);
                   }}
@@ -488,15 +495,17 @@ function DesignsContent({
               ))}
             </div>
           </div>
-          {categoryId && subcategories.length ? (
+          {categoryIds.length && subcategories.length ? (
             <div className="design-facet-group">
               <span>Subcategory</span>
               <div>
                 {subcategories.map((subcategory) => (
                   <button
-                    className={subcategoryId === subcategory.id ? "active" : ""}
+                    className={subcategoryIds.includes(subcategory.id) ? "active" : ""}
                     key={subcategory.id}
-                    onClick={() => setSubcategoryId(subcategory.id)}
+                    onClick={() => setSubcategoryIds((current) => current.includes(subcategory.id)
+                      ? current.filter((id) => id !== subcategory.id)
+                      : [...current, subcategory.id])}
                     type="button"
                   >
                     {subcategory.name}
@@ -509,8 +518,8 @@ function DesignsContent({
             <button
               className="design-filter-clear"
               onClick={() => {
-                setCategoryId("");
-                setSubcategoryId("");
+                setCategoryIds([]);
+                setSubcategoryIds([]);
                 setCollectionKey("");
                 setShowFavourites(false);
               }}
@@ -523,11 +532,11 @@ function DesignsContent({
         <div className="design-discovery-bar">
             <button
               className={
-                !categoryId && !collectionKey && !showFavourites ? "active" : ""
+                !categoryIds.length && !collectionKey && !showFavourites ? "active" : ""
               }
               onClick={() => {
-                setCategoryId("");
-                setSubcategoryId("");
+                setCategoryIds([]);
+                setSubcategoryIds([]);
                 setShowFavourites(false);
                 setCollectionKey("");
               }}
@@ -541,8 +550,8 @@ function DesignsContent({
                 key={collection.key}
                 onClick={() => {
                   setCollectionKey(collection.key);
-                  setCategoryId("");
-                  setSubcategoryId("");
+                  setCategoryIds([]);
+                  setSubcategoryIds([]);
                   setShowFavourites(false);
                 }}
                 type="button"
@@ -552,11 +561,13 @@ function DesignsContent({
             ))}
             {categories.slice(0, 7).map((category) => (
               <button
-                className={categoryId === category.id ? "active" : ""}
+                className={categoryIds.includes(category.id) ? "active" : ""}
                 key={category.id}
                 onClick={() => {
-                  setCategoryId(category.id);
-                  setSubcategoryId("");
+                  setCategoryIds((current) => current.includes(category.id)
+                    ? current.filter((id) => id !== category.id)
+                    : [...current, category.id]);
+                  setSubcategoryIds([]);
                   setShowFavourites(false);
                   setCollectionKey("");
                 }}
@@ -569,8 +580,8 @@ function DesignsContent({
               className={showFavourites ? "active favourite" : "favourite"}
               onClick={() => {
                 setCollectionKey("");
-                setCategoryId("");
-                setSubcategoryId("");
+                setCategoryIds([]);
+                setSubcategoryIds([]);
                 setShowFavourites((value) => !value);
               }}
               type="button"
@@ -592,7 +603,7 @@ function DesignsContent({
         </span>
       </div>
 
-      {recentlyViewedIds.length && !search && !categoryId && !showFavourites ? (
+      {recentlyViewedIds.length && !search && !categoryIds.length && !showFavourites ? (
         <section className="recently-viewed-strip">
           <div>
             <p className="user-kicker">Recently viewed</p>
@@ -663,7 +674,7 @@ function DesignsContent({
                 onClick={() => toggleFavourite(design.id)}
                 type="button"
               >
-                {favourite ? "♥" : "♡"}
+                <img aria-hidden="true" src="/brand/mynimto-logo.webp" />
               </button>
               <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">
