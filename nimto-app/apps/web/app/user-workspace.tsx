@@ -374,8 +374,15 @@ export function UserFrame({ children }: { children: ReactNode }) {
                   <path d="m5.5 7.5 4.5 4.5 4.5-4.5" />
                 </svg>
               </button>
-              {isAccountMenuOpen ? (
-                <div className="user-account-popover">
+                <div
+                  aria-hidden={!isAccountMenuOpen}
+                  className={
+                    isAccountMenuOpen
+                      ? "user-account-popover open"
+                      : "user-account-popover"
+                  }
+                  inert={!isAccountMenuOpen}
+                >
                   <div>
                     <strong>{user.name}</strong>
                     <span>{user.email}</span>
@@ -385,7 +392,6 @@ export function UserFrame({ children }: { children: ReactNode }) {
                   </Link>
                   <button onClick={logout} type="button">Log out</button>
                 </div>
-              ) : null}
             </div>
           </header>
           <div className="user-page">{children}</div>
