@@ -106,12 +106,12 @@ const rsvpFieldTypes: {
   },
   {
     value: "single_choice",
-    label: "Radio buttons",
+    label: "Single choice",
     description: "Guests select one answer using radio buttons.",
   },
   {
     value: "multiple_choice",
-    label: "Checkboxes",
+    label: "Multiple choice",
     description: "Guests can select more than one answer using checkboxes.",
   },
   {
