@@ -24,6 +24,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Optional Google OAuth integration.
 - Role-based permissions, staff management, user account management, session
   revocation, audit logs, and protected Super Admin records.
+- Route-backed, permission-aware admin navigation with compact table-first
+  category and subcategory management.
 - Public and administrative CMS pages and blog posts.
 - Dynamic design categories and subcategories.
 - HTML template upload, scanning, editing, duplication, rescan, publication,
@@ -201,8 +203,9 @@ controller and service together before modifying a flow.
 - Authentication: `/auth`, `/auth/verify`, `/auth/oauth-success`.
 - User workspace: `/dashboard`, `/designs`, `/events`, `/profile`, `/settings`.
 - Public invitation: `/invite/[slug]`.
-- Administration: `/users`, `/staff`, `/roles`, `/permissions`, `/sessions`,
-  `/audit`, `/website`, `/design-setup`.
+- Administration: `/event-management`, `/users`, `/staff`, `/roles`,
+  `/permissions`, `/sessions`, `/audit`, `/website`, `/design-setup`,
+  `/settings`.
 
 `apps/web/lib/api.ts` is the shared browser-side API client.
 `apps/web/lib/server-api.ts` selects the correct server-rendering API address.

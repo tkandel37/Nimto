@@ -1177,8 +1177,22 @@ a {
 
 .dashboard-shell.sidebar-collapsed .sidebar-logo-full,
 .dashboard-shell.sidebar-collapsed .sidebar-description,
+.dashboard-shell.sidebar-collapsed .sidebar-nav-label,
 .dashboard-shell.sidebar-collapsed .sidebar-tab-label {
   display: none;
+}
+
+.sidebar-nav-label {
+  padding-inline: 12px;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.dashboard-shell.sidebar-collapsed .sidebar-nav-group > div {
+  gap: 8px;
 }
 
 .dashboard-shell.sidebar-collapsed .sidebar-logo-mark {
@@ -3229,6 +3243,19 @@ a {
 
   .sidebar nav::-webkit-scrollbar {
     display: none;
+  }
+
+  .sidebar-nav-group {
+    display: contents;
+  }
+
+  .sidebar-nav-label {
+    display: none;
+  }
+
+  .sidebar-nav-group > div {
+    display: flex;
+    gap: 8px;
   }
 
   .sidebar nav .dashboard-tab {

@@ -8,6 +8,7 @@ import { AuthUser } from "@/lib/api";
 
 type AdminTabKey =
   | "overview"
+  | "events"
   | "designSetup"
   | "website"
   | "roles"
@@ -19,6 +20,7 @@ type AdminTabKey =
 
 type AdminIconName =
   | "dashboard"
+  | "events"
   | "design"
   | "website"
   | "roles"
@@ -34,6 +36,7 @@ const adminTabs: {
   icon: AdminIconName;
   permission: string | null;
   href: string;
+  group: "Workspace" | "Access" | "Operations";
 }[] = [
   {
     key: "overview",
@@ -41,6 +44,15 @@ const adminTabs: {
     icon: "dashboard",
     permission: null,
     href: "/dashboard",
+    group: "Workspace",
+  },
+  {
+    key: "events",
+    label: "Events",
+    icon: "events",
+    permission: null,
+    href: "/event-management",
+    group: "Workspace",
   },
   {
     key: "designSetup",
@@ -48,14 +60,23 @@ const adminTabs: {
     icon: "design",
     permission: null,
     href: "/design-setup",
+    group: "Workspace",
   },
-  { key: "website", label: "Website", icon: "website", permission: null, href: "/website" },
+  {
+    key: "website",
+    label: "Website",
+    icon: "website",
+    permission: null,
+    href: "/website",
+    group: "Workspace",
+  },
   {
     key: "users",
     label: "Users",
     icon: "users",
     permission: "staff:view",
     href: "/users",
+    group: "Access",
   },
   {
     key: "staff",
@@ -63,12 +84,46 @@ const adminTabs: {
     icon: "staff",
     permission: "staff:view",
     href: "/staff",
+    group: "Access",
+  },
+  {
+    key: "roles",
+    label: "Roles",
+    icon: "roles",
+    permission: "roles:view",
+    href: "/roles",
+    group: "Access",
+  },
+  {
+    key: "permissions",
+    label: "Permissions",
+    icon: "permissions",
+    permission: "permissions:view",
+    href: "/permissions",
+    group: "Access",
+  },
+  {
+    key: "sessions",
+    label: "Sessions",
+    icon: "sessions",
+    permission: "sessions:view",
+    href: "/sessions",
+    group: "Operations",
+  },
+  {
+    key: "audit",
+    label: "Audit log",
+    icon: "audit",
+    permission: "audit:view",
+    href: "/audit",
+    group: "Operations",
   },
 ];
 
 const adminPathToTab: Record<string, AdminTabKey | "settings"> = {
   "/audit": "audit",
   "/dashboard": "overview",
+  "/event-management": "events",
   "/design-setup": "designSetup",
   "/permissions": "permissions",
   "/roles": "roles",
@@ -89,7 +144,7 @@ function can(user: AuthUser | null, permission: string | null) {
 function canAny(user: AuthUser | null, permissions: string[]) {
   return Boolean(
     user?.permissions?.includes("*") ||
-      permissions.some((permission) => user?.permissions?.includes(permission)),
+    permissions.some((permission) => user?.permissions?.includes(permission)),
   );
 }
 
@@ -102,14 +157,8 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const activeTab = adminPathToTab[pathname] ?? "overview";
-  const activeTabForRender = isMounted ? activeTab : null;
   const isAdmin = isAdminPath(pathname);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -212,50 +261,62 @@ export function AdminFrame({ children }: { children: ReactNode }) {
               <CollapseIcon isCollapsed={isSidebarCollapsed} />
             </button>
           </div>
-          <p className="sidebar-description mt-3 text-sm leading-6 text-white/68">
-            Invitation workspace for events, content, staff, and roles.
-          </p>
         </div>
 
-        <nav className="mt-10 grid gap-2 text-sm font-bold">
-          {visibleTabs.map((tab) => (
-            <Link
-              aria-label={tab.label}
-              className={
-                activeTabForRender === tab.key
-                  ? "dashboard-tab dashboard-tab-active"
-                  : "dashboard-tab"
-              }
-              href={tab.href}
-              key={tab.key}
-              data-tooltip={tab.label}
-              title={tab.label}
-            >
-              <AdminTabIcon icon={tab.icon} />
-              <span className="sidebar-tab-label">{tab.label}</span>
-            </Link>
-          ))}
+        <nav className="mt-8 grid gap-5 text-sm font-bold">
+          {(["Workspace", "Access", "Operations"] as const).map((group) => {
+            const tabs = visibleTabs.filter((tab) => tab.group === group);
+            if (!tabs.length) return null;
+            return (
+              <div className="sidebar-nav-group" key={group}>
+                <p className="sidebar-nav-label">{group}</p>
+                <div className="mt-2 grid gap-1.5">
+                  {tabs.map((tab) => (
+                    <Link
+                      aria-current={activeTab === tab.key ? "page" : undefined}
+                      aria-label={tab.label}
+                      className={
+                        activeTab === tab.key
+                          ? "dashboard-tab dashboard-tab-active"
+                          : "dashboard-tab"
+                      }
+                      href={tab.href}
+                      key={tab.key}
+                      data-tooltip={tab.label}
+                      title={tab.label}
+                    >
+                      <AdminTabIcon icon={tab.icon} />
+                      <span className="sidebar-tab-label">{tab.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
-        <div className="sidebar-footer mt-auto grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
-          {!user || canAny(user, [
+        <div className="sidebar-footer mt-auto grid gap-3 border-t border-white/10 pt-4">
+          {!user ||
+          canAny(user, [
             "category:view",
             "category:manage",
             "subcategory:view",
             "subcategory:manage",
           ]) ? (
             <Link
+              aria-current={activeTab === "settings" ? "page" : undefined}
               aria-label="Settings"
               className={
-                activeTabForRender === "settings"
-                  ? "sidebar-icon-tab sidebar-icon-tab-active"
-                  : "sidebar-icon-tab"
+                activeTab === "settings"
+                  ? "dashboard-tab dashboard-tab-active"
+                  : "dashboard-tab"
               }
               data-tooltip="Settings"
               href="/settings"
               title="Settings"
             >
               <SettingsIcon />
+              <span className="sidebar-tab-label">Settings</span>
             </Link>
           ) : null}
         </div>
@@ -274,6 +335,12 @@ function AdminTabIcon({ icon }: { icon: AdminIconName }) {
         <rect x="13" y="3" width="8" height="5" rx="2" />
         <rect x="13" y="10" width="8" height="11" rx="2" />
         <rect x="3" y="13" width="8" height="8" rx="2" />
+      </>
+    ),
+    events: (
+      <>
+        <rect x="4" y="5" width="16" height="15" rx="3" />
+        <path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6" />
       </>
     ),
     design: (
@@ -346,12 +413,7 @@ function AdminTabIcon({ icon }: { icon: AdminIconName }) {
 
 function CollapseIcon({ isCollapsed }: { isCollapsed: boolean }) {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d={isCollapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"}
         stroke="currentColor"
@@ -371,7 +433,7 @@ function CollapseIcon({ isCollapsed }: { isCollapsed: boolean }) {
 
 function SettingsIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <path
         d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
         stroke="currentColor"

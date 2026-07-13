@@ -378,6 +378,20 @@ const ACCESS_CATALOG_CACHE_MS = 60_000;
 const ACCOUNT_ACTIVITY_CACHE_MS = 60_000;
 const DESIGN_SETUP_CACHE_MS = 60_000;
 
+const ADMIN_TAB_ROUTES: Partial<Record<TabKey, string>> = {
+  overview: "/dashboard",
+  events: "/event-management",
+  designSetup: "/design-setup",
+  website: "/website",
+  users: "/users",
+  staff: "/staff",
+  roles: "/roles",
+  permissions: "/permissions",
+  sessions: "/sessions",
+  audit: "/audit",
+  settings: "/settings",
+};
+
 const accountActivityCache = new Map<
   string,
   {
@@ -588,6 +602,15 @@ export function DashboardClient({
   const designSetupLoadedAtRef = useRef(0);
 
   const currentTab = activeTab;
+
+  function navigateToAdminTab(tab: TabKey) {
+    const href = ADMIN_TAB_ROUTES[tab];
+    if (href) {
+      router.push(href);
+      return;
+    }
+    setActiveTab(tab);
+  }
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1216,46 +1239,6 @@ export function DashboardClient({
         isActionPending ? "action-pending" : ""
       }`}
     >
-      {currentTab === "settings" ? (
-        <header className="dashboard-hero">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.24em] text-leaf">
-              Connected account
-            </p>
-            <h1 className="mt-3 text-3xl font-black text-ink md:text-5xl">
-              {user?.name ?? "Creator"}
-            </h1>
-            <p className="mt-2 break-all text-ink/65">{user?.email}</p>
-            {user?.roles?.length ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {user.roles.map((role) => (
-                  <span className="role-chip" key={role}>
-                    {role}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              className="dashboard-button-secondary"
-              disabled={isRefreshing}
-              onClick={() => refreshAdminData()}
-              type="button"
-            >
-              Refresh
-            </button>
-            <button
-              className="dashboard-button-secondary"
-              onClick={logout}
-              type="button"
-            >
-              Log out
-            </button>
-          </div>
-        </header>
-      ) : null}
-
       {currentTab === "overview" ? (
         <OverviewPanel
           auditCount={dashboardSummary?.auditCount ?? auditLogs.length}
@@ -1263,7 +1246,7 @@ export function DashboardClient({
           draftEventCount={events.filter((event) => !event.isPublished).length}
           designCount={publicDesigns.length || designs.length}
           eventCount={dashboardSummary?.eventCount ?? events.length}
-          onNavigate={setActiveTab}
+          onNavigate={navigateToAdminTab}
           publishedEventCount={
             events.filter((event) => event.isPublished).length
           }
@@ -1556,15 +1539,11 @@ function OverviewPanel({
       <div className="dashboard-welcome">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.22em] text-marigold">
-            Admin command center
+            Admin overview
           </p>
           <h2 className="mt-3 text-2xl font-black text-ink md:text-3xl">
-            Keep myNimto simple to run, even as it gets stronger.
+            Operations at a glance
           </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">
-            Start with the work that protects the user experience: event
-            readiness, template quality, staff access, and audit visibility.
-          </p>
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -1577,8 +1556,8 @@ function OverviewPanel({
       </div>
       <div className="admin-command-center">
         <section>
-          <p className="admin-command-kicker">Suggested admin flow</p>
-          <h3>What needs attention next?</h3>
+          <p className="admin-command-kicker">Priority actions</p>
+          <h3>Next actions</h3>
           <div className="admin-action-stack">
             {commandItems.map((item) => (
               <button
@@ -1597,7 +1576,7 @@ function OverviewPanel({
         </section>
         <section>
           <p className="admin-command-kicker">Platform health</p>
-          <h3>Quick quality signals</h3>
+          <h3>Current status</h3>
           <div className="admin-health-grid">
             {healthItems.map((item) => (
               <article className={item.tone} key={item.label}>
@@ -1611,7 +1590,7 @@ function OverviewPanel({
       <div className="admin-task-inbox">
         <div>
           <p className="admin-command-kicker">Task inbox</p>
-          <h3>Small fixes that improve the product immediately</h3>
+          <h3>Items to review</h3>
         </div>
         <div>
           {taskItems.map((item) => (
@@ -1663,6 +1642,7 @@ function EventsPanel({
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
 }) {
   const [selectedEventId, setSelectedEventId] = useState("");
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const selectedEvent =
     events.find((invitationEvent) => invitationEvent.id === selectedEventId) ??
     null;
@@ -1680,6 +1660,7 @@ function EventsPanel({
       "Event created.",
     );
     if (completed) event.currentTarget.reset();
+    if (completed) setIsCreatingEvent(false);
   }
 
   async function updateEvent(
@@ -1754,6 +1735,25 @@ function EventsPanel({
 
   return (
     <section className="mt-7 grid gap-5">
+      <header className="flex flex-col gap-3 border-y border-ink/10 bg-white px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+            Invitations
+          </p>
+          <h2 className="mt-1 text-2xl font-black text-ink">Events</h2>
+          <p className="mt-1 text-sm font-bold text-ink/45">
+            {events.length} total ·{" "}
+            {events.filter((event) => event.isPublished).length} published
+          </p>
+        </div>
+        <button
+          className="rounded-lg bg-ink px-4 py-2.5 text-sm font-bold text-white"
+          onClick={() => setIsCreatingEvent((value) => !value)}
+          type="button"
+        >
+          {isCreatingEvent ? "Close form" : "Add event"}
+        </button>
+      </header>
       <div className="overflow-x-auto border border-ink/10 bg-white">
         <table className="w-full min-w-[900px] border-collapse text-left text-sm">
           <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
@@ -1805,16 +1805,27 @@ function EventsPanel({
         )}
       </div>
 
-      <form
-        className="border border-ink/10 bg-white p-5"
-        onSubmit={createEvent}
-      >
-        <h2 className="text-lg font-black text-ink">Create event</h2>
-        <EventFields designs={designs} />
-        <button className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-          Create event
-        </button>
-      </form>
+      {isCreatingEvent ? (
+        <form
+          className="border border-ink/10 bg-white p-5"
+          onSubmit={createEvent}
+        >
+          <h3 className="text-lg font-black text-ink">Create event</h3>
+          <EventFields designs={designs} />
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              className="rounded-lg border border-ink/15 bg-white px-4 py-3 font-bold text-ink"
+              onClick={() => setIsCreatingEvent(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white">
+              Create event
+            </button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }
@@ -1841,7 +1852,7 @@ function EventFields({
 
   return (
     <div className="mt-5 grid gap-4 md:grid-cols-2">
-      <label className="field md:col-span-2">
+      <label className="field">
         <span className="text-sm font-bold text-ink">Title</span>
         <input defaultValue={event?.title ?? ""} name="title" required />
       </label>
@@ -5205,228 +5216,385 @@ function SettingsPanel({
   completeAction: CompleteAction;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
 }) {
-  async function createCategory(event: FormEvent<HTMLFormElement>) {
+  const [activeTab, setActiveTab] = useState<"categories" | "subcategories">(
+    "categories",
+  );
+  const [search, setSearch] = useState("");
+  const [editor, setEditor] = useState<{
+    kind: "category" | "subcategory";
+    item?: DesignCategory | DesignSubcategory;
+  } | null>(null);
+  const subcategories = categories.flatMap((category) =>
+    (category.subcategories ?? []).map((subcategory) => ({
+      ...subcategory,
+      parentName: category.name,
+    })),
+  );
+  const query = search.trim().toLowerCase();
+  const filteredCategories = categories.filter((category) =>
+    [category.name, category.slug, category.description]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(query)),
+  );
+  const filteredSubcategories = subcategories.filter((subcategory) =>
+    [
+      subcategory.name,
+      subcategory.slug,
+      subcategory.description,
+      subcategory.parentName,
+    ]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(query)),
+  );
+  const editingCategory =
+    editor?.kind === "category"
+      ? (editor.item as DesignCategory | undefined)
+      : undefined;
+  const editingSubcategory =
+    editor?.kind === "subcategory"
+      ? (editor.item as DesignSubcategory | undefined)
+      : undefined;
+
+  async function saveTaxonomy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!editor) return;
     const form = new FormData(event.currentTarget);
+
+    if (editor.kind === "category") {
+      const completed = await completeAction(
+        () =>
+          request(
+            editingCategory
+              ? `/template-design/categories/${editingCategory.id}`
+              : "/template-design/categories",
+            {
+              method: editingCategory ? "PATCH" : "POST",
+              body: JSON.stringify(taxonomyPayload(form)),
+            },
+          ),
+        editingCategory ? "Category updated." : "Category created.",
+      );
+      if (completed) setEditor(null);
+      return;
+    }
+
+    const categoryId = editingSubcategory
+      ? editingSubcategory.categoryId
+      : String(form.get("categoryId") ?? "");
     const completed = await completeAction(
       () =>
-        request("/template-design/categories", {
-          method: "POST",
-          body: JSON.stringify(taxonomyPayload(form)),
-        }),
-      "Category created.",
+        request(
+          editingSubcategory
+            ? `/template-design/subcategories/${editingSubcategory.id}`
+            : `/template-design/categories/${categoryId}/subcategories`,
+          {
+            method: editingSubcategory ? "PATCH" : "POST",
+            body: JSON.stringify(taxonomyPayload(form)),
+          },
+        ),
+      editingSubcategory ? "Subcategory updated." : "Subcategory created.",
     );
-    if (completed) event.currentTarget.reset();
+    if (completed) setEditor(null);
   }
 
-  async function updateCategory(
-    event: FormEvent<HTMLFormElement>,
-    category: DesignCategory,
-  ) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await completeAction(
-      () =>
-        request(`/template-design/categories/${category.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(taxonomyPayload(form)),
-        }),
-      "Category updated.",
-    );
-  }
-
-  async function createSubcategory(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const categoryId = String(form.get("categoryId") ?? "");
-    const completed = await completeAction(
-      () =>
-        request(`/template-design/categories/${categoryId}/subcategories`, {
-          method: "POST",
-          body: JSON.stringify(taxonomyPayload(form)),
-        }),
-      "Subcategory created.",
-    );
-    if (completed) event.currentTarget.reset();
-  }
-
-  async function updateSubcategory(
-    event: FormEvent<HTMLFormElement>,
-    subcategory: DesignSubcategory,
-  ) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await completeAction(
-      () =>
-        request(`/template-design/subcategories/${subcategory.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(taxonomyPayload(form)),
-        }),
-      "Subcategory updated.",
-    );
+  function openCreateEditor() {
+    const kind = activeTab === "categories" ? "category" : "subcategory";
+    setEditor({ kind });
   }
 
   return (
-    <section className="mt-7 grid gap-5">
-      <div className="border-y border-ink/10 bg-white px-4 py-4">
-        <h2 className="text-2xl font-black text-ink">Settings</h2>
-        <p className="mt-1 text-sm text-ink/55">
-          Category and subcategory setup lives here. Later settings can be added
-          beside these tables.
-        </p>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="overflow-x-auto border border-ink/10 bg-white">
-          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-            <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
-              <tr>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Slug</th>
-                <th className="px-4 py-3">Subcategories</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Sort</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((category) => (
-                <tr className="border-t border-ink/10" key={category.id}>
-                  <td className="px-4 py-3 font-black text-ink">
-                    {category.name}
-                  </td>
-                  <td className="px-4 py-3 text-ink/55">/{category.slug}</td>
-                  <td className="px-4 py-3 text-ink/60">
-                    {category.subcategories?.length ?? 0}
-                  </td>
-                  <td className="px-4 py-3 font-bold text-leaf">
-                    {category.status}
-                  </td>
-                  <td className="px-4 py-3 text-ink/55">
-                    {category.sortOrder}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <section className="mt-7 grid gap-4">
+      <header className="flex flex-col gap-4 border-y border-ink/10 bg-white px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+            Design taxonomy
+          </p>
+          <h2 className="mt-1 text-2xl font-black text-ink">
+            Categories & subcategories
+          </h2>
         </div>
-
-        <div className="grid content-start gap-4">
-          {canManageCategories ? (
-            <form
-              className="border border-ink/10 bg-white p-4"
-              onSubmit={createCategory}
-            >
-              <h3 className="font-black text-ink">Create category</h3>
-              <div className="mt-4 grid gap-3">
-                <TaxonomyFields />
-              </div>
-              <button className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-                Create category
-              </button>
-            </form>
-          ) : null}
-
-          {canManageSubcategories ? (
-            <form
-              className="border border-ink/10 bg-white p-4"
-              onSubmit={createSubcategory}
-            >
-              <h3 className="font-black text-ink">Create subcategory</h3>
-              <div className="mt-4 grid gap-3">
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">Category</span>
-                  <select
-                    className="rounded-lg border border-ink/20 bg-white px-3 py-3"
-                    name="categoryId"
-                    required
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <TaxonomyFields titlePrefix="New" />
-              </div>
-              <button className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white">
-                Create subcategory
-              </button>
-            </form>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-4">
-        {categories.map((category) => (
-          <div className="border border-ink/10 bg-white p-4" key={category.id}>
-            {canManageCategories ? (
-              <form
-                className="grid gap-3 md:grid-cols-5"
-                onSubmit={(event) => updateCategory(event, category)}
+        {activeTab === "categories"
+          ? canManageCategories && (
+              <button
+                className="rounded-lg bg-ink px-4 py-2.5 text-sm font-bold text-white"
+                onClick={openCreateEditor}
+                type="button"
               >
-                <TaxonomyFields item={category} />
-                <button className="rounded-lg bg-ink px-4 py-3 font-bold text-white md:col-span-5">
-                  Update category
-                </button>
-              </form>
-            ) : null}
-            {category.subcategories?.length ? (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                  <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
-                    <tr>
-                      <th className="px-4 py-3">Subcategory</th>
-                      <th className="px-4 py-3">Slug</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Sort</th>
-                      <th className="px-4 py-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {category.subcategories.map((subcategory) => (
-                      <tr
-                        className="border-t border-ink/10"
-                        key={subcategory.id}
-                      >
-                        <td className="px-4 py-3 font-bold text-ink">
-                          {subcategory.name}
-                        </td>
-                        <td className="px-4 py-3 text-ink/55">
-                          /{subcategory.slug}
-                        </td>
-                        <td className="px-4 py-3 font-bold text-leaf">
-                          {subcategory.status}
-                        </td>
-                        <td className="px-4 py-3 text-ink/55">
-                          {subcategory.sortOrder}
-                        </td>
-                        <td className="px-4 py-3">
-                          {canManageSubcategories ? (
-                            <form
-                              className="grid gap-2"
-                              onSubmit={(event) =>
-                                updateSubcategory(event, subcategory)
-                              }
-                            >
-                              <TaxonomyFields item={subcategory} />
-                              <button className="rounded-lg bg-ink px-3 py-2 text-sm font-bold text-white">
-                                Update
-                              </button>
-                            </form>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                Add category
+              </button>
+            )
+          : canManageSubcategories && (
+              <button
+                className="rounded-lg bg-ink px-4 py-2.5 text-sm font-bold text-white"
+                onClick={openCreateEditor}
+                type="button"
+              >
+                Add subcategory
+              </button>
+            )}
+      </header>
+
+      <div className="flex flex-col gap-3 border border-ink/10 bg-white p-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex gap-2" role="tablist" aria-label="Taxonomy type">
+          <button
+            aria-selected={activeTab === "categories"}
+            className={`rounded-lg px-4 py-2 text-sm font-black ${
+              activeTab === "categories"
+                ? "bg-ink text-white"
+                : "bg-paper text-ink/60"
+            }`}
+            onClick={() => {
+              setActiveTab("categories");
+              setEditor(null);
+            }}
+            role="tab"
+            type="button"
+          >
+            Categories ({categories.length})
+          </button>
+          <button
+            aria-selected={activeTab === "subcategories"}
+            className={`rounded-lg px-4 py-2 text-sm font-black ${
+              activeTab === "subcategories"
+                ? "bg-ink text-white"
+                : "bg-paper text-ink/60"
+            }`}
+            onClick={() => {
+              setActiveTab("subcategories");
+              setEditor(null);
+            }}
+            role="tab"
+            type="button"
+          >
+            Subcategories ({subcategories.length})
+          </button>
+        </div>
+        <label className="relative block w-full md:max-w-xs">
+          <span className="sr-only">Search taxonomy</span>
+          <input
+            className="w-full rounded-lg border border-ink/15 bg-white px-3 py-2.5 text-sm"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={`Search ${activeTab}`}
+            value={search}
+          />
+        </label>
+      </div>
+
+      <div
+        className={`grid items-start gap-4 ${
+          editor ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1"
+        }`}
+      >
+        <div className="overflow-x-auto border border-ink/10 bg-white">
+          {activeTab === "categories" ? (
+            <table className="w-full min-w-[780px] border-collapse text-left text-sm">
+              <thead className="bg-paper text-xs uppercase tracking-[0.12em] text-ink/45">
+                <tr>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Children</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Sort</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategories.map((category) => (
+                  <tr className="border-t border-ink/10" key={category.id}>
+                    <td className="px-4 py-3">
+                      <p className="font-black text-ink">{category.name}</p>
+                      <p className="mt-0.5 text-xs text-ink/45">
+                        /{category.slug}
+                      </p>
+                    </td>
+                    <td className="max-w-sm px-4 py-3 text-ink/60">
+                      <p className="line-clamp-2">
+                        {category.description || "—"}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-ink/60">
+                      {category.subcategories?.length ?? 0}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={category.status} />
+                    </td>
+                    <td className="px-4 py-3 text-ink/55">
+                      {category.sortOrder}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {canManageCategories ? (
+                        <button
+                          className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold text-ink"
+                          onClick={() =>
+                            setEditor({ kind: "category", item: category })
+                          }
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+              <thead className="bg-paper text-xs uppercase tracking-[0.12em] text-ink/45">
+                <tr>
+                  <th className="px-4 py-3">Subcategory</th>
+                  <th className="px-4 py-3">Parent</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Sort</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSubcategories.map((subcategory) => (
+                  <tr className="border-t border-ink/10" key={subcategory.id}>
+                    <td className="px-4 py-3">
+                      <p className="font-black text-ink">{subcategory.name}</p>
+                      <p className="mt-0.5 text-xs text-ink/45">
+                        /{subcategory.slug}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-ink/65">
+                      {subcategory.parentName}
+                    </td>
+                    <td className="max-w-sm px-4 py-3 text-ink/60">
+                      <p className="line-clamp-2">
+                        {subcategory.description || "—"}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={subcategory.status} />
+                    </td>
+                    <td className="px-4 py-3 text-ink/55">
+                      {subcategory.sortOrder}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {canManageSubcategories ? (
+                        <button
+                          className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold text-ink"
+                          onClick={() =>
+                            setEditor({
+                              kind: "subcategory",
+                              item: subcategory,
+                            })
+                          }
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {(activeTab === "categories"
+            ? filteredCategories.length
+            : filteredSubcategories.length) === 0 ? (
+            <div className="grid min-h-48 place-items-center p-6 text-center text-sm font-bold text-ink/50">
+              No matching {activeTab}.
+            </div>
+          ) : null}
+        </div>
+
+        {editor ? (
+          <aside className="sticky top-0 border border-ink/10 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-leaf">
+                  {editor.item ? "Edit" : "Create"}
+                </p>
+                <h3 className="mt-1 text-lg font-black text-ink">
+                  {editor.kind === "category" ? "Category" : "Subcategory"}
+                </h3>
               </div>
-            ) : null}
-          </div>
-        ))}
+              <button
+                aria-label="Close editor"
+                className="grid h-9 w-9 place-items-center rounded-lg border border-ink/15 bg-white font-black text-ink"
+                onClick={() => setEditor(null)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <form
+              className="mt-4"
+              key={`${editor.kind}-${editor.item?.id ?? "new"}`}
+              onSubmit={saveTaxonomy}
+            >
+              <div className="grid gap-3">
+                {editor.kind === "subcategory" ? (
+                  editingSubcategory ? (
+                    <div className="rounded-lg border border-ink/10 bg-paper px-3 py-3">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-ink/40">
+                        Parent category
+                      </p>
+                      <p className="mt-1 font-black text-ink">
+                        {categories.find(
+                          (category) =>
+                            category.id === editingSubcategory.categoryId,
+                        )?.name ?? "Unknown"}
+                      </p>
+                    </div>
+                  ) : (
+                    <label className="field">
+                      <span className="text-sm font-bold text-ink">
+                        Parent category
+                      </span>
+                      <select
+                        className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                        name="categoryId"
+                        required
+                      >
+                        <option value="">Select category</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )
+                ) : null}
+                <TaxonomyFields item={editingCategory ?? editingSubcategory} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  className="rounded-lg border border-ink/15 bg-white px-4 py-3 text-sm font-bold text-ink"
+                  onClick={() => setEditor(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white">
+                  {editor.item ? "Save changes" : "Create"}
+                </button>
+              </div>
+            </form>
+          </aside>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function StatusPill({ status }: { status: DesignCatalogStatus }) {
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
+        status === "ACTIVE"
+          ? "bg-leaf/10 text-leaf"
+          : "bg-ink/[0.08] text-ink/50"
+      }`}
+    >
+      {status === "ACTIVE" ? "Active" : "Inactive"}
+    </span>
   );
 }
 
@@ -6286,10 +6454,6 @@ function WebsitePanel({
             <h2 className="mt-2 text-2xl font-black text-ink">
               Pages and blog posts
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-              Manage website content from a table first, then open one item to
-              edit.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canManageContent ? (
@@ -6704,52 +6868,29 @@ function StaffAccessPanel({
   roles: Role[];
   staff: Staff[];
 }) {
-  const [activeSection, setActiveSection] =
-    useState<StaffAccessSection>(initialSection);
-
   useEffect(() => {
-    setActiveSection(initialSection);
-  }, [initialSection]);
-
-  useEffect(() => {
-    if (activeSection === "roles" || activeSection === "permissions") {
+    if (initialSection === "roles" || initialSection === "permissions") {
       void loadAccessCatalog();
     }
-  }, [activeSection, loadAccessCatalog]);
+  }, [initialSection, loadAccessCatalog]);
 
-  const sections = [
-    canViewStaff ? { key: "staff" as const, label: "Staff" } : null,
-    canViewRoles ? { key: "roles" as const, label: "Roles" } : null,
-    canViewPermissions
-      ? { key: "permissions" as const, label: "Permissions" }
-      : null,
-  ].filter(Boolean) as { key: StaffAccessSection; label: string }[];
+  const sectionTitle =
+    initialSection === "permissions"
+      ? "Permissions"
+      : initialSection === "roles"
+        ? "Roles"
+        : "Staff";
 
   return (
     <section className="mt-7 grid gap-5">
-      <div
-        className="grid w-full overflow-hidden rounded-lg border border-ink/10 bg-white"
-        style={{
-          gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))`,
-        }}
-      >
-        {sections.map((section) => (
-          <button
-            className={`min-h-12 border-r border-ink/10 px-4 py-3 text-sm font-black last:border-r-0 ${
-              activeSection === section.key
-                ? "bg-ink text-white"
-                : "bg-white text-ink hover:bg-paper"
-            }`}
-            key={section.key}
-            onClick={() => setActiveSection(section.key)}
-            type="button"
-          >
-            {section.label}
-          </button>
-        ))}
-      </div>
+      <header className="border-y border-ink/10 bg-white px-4 py-4">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+          Access control
+        </p>
+        <h2 className="mt-1 text-2xl font-black text-ink">{sectionTitle}</h2>
+      </header>
 
-      {activeSection === "staff" && canViewStaff ? (
+      {initialSection === "staff" && canViewStaff ? (
         <StaffPanel
           canManage={canManageStaff}
           canManageSessions={canManageSessions}
@@ -6764,7 +6905,7 @@ function StaffAccessPanel({
           staff={staff}
         />
       ) : null}
-      {activeSection === "roles" && canViewRoles ? (
+      {initialSection === "roles" && canViewRoles ? (
         <RolesPanel
           canManage={canManageRoles}
           completeAction={completeAction}
@@ -6774,7 +6915,7 @@ function StaffAccessPanel({
           roles={roles}
         />
       ) : null}
-      {activeSection === "permissions" && canViewPermissions ? (
+      {initialSection === "permissions" && canViewPermissions ? (
         <PermissionsPanel
           canManage={canManagePermissions}
           completeAction={completeAction}
@@ -7850,7 +7991,16 @@ function UsersPanel({
 
   return (
     <section className="mt-7 grid gap-5">
-      <div className="grid gap-3 md:grid-cols-2">
+      <header className="border-y border-ink/10 bg-white px-4 py-4">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+          Accounts
+        </p>
+        <h2 className="mt-1 text-2xl font-black text-ink">Users</h2>
+        <p className="mt-1 text-sm font-bold text-ink/45">
+          {userAccounts.length} accounts loaded
+        </p>
+      </header>
+      <div className="grid gap-3 rounded-lg border border-ink/10 bg-white p-4 md:grid-cols-2">
         <label className="field">
           <span className="text-sm font-bold text-ink">Search users</span>
           <input
@@ -8302,89 +8452,103 @@ function SessionsPanel({
   }
 
   return (
-    <section className="mt-7 overflow-x-auto rounded-lg border border-ink/10 bg-white">
-      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-        <thead className="bg-paper text-ink/60">
-          <tr>
-            <th className="px-4 py-3">User</th>
-            <th className="px-4 py-3">Created</th>
-            <th className="px-4 py-3">Expires</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sessions.map((session) => (
-            <tr className="border-t border-ink/10" key={session.id}>
-              <td className="px-4 py-3">
-                <p className="font-bold text-ink">{session.user.name}</p>
-                <p className="break-all text-ink/55">{session.user.email}</p>
-              </td>
-              <td className="px-4 py-3 text-ink/65">
-                {displayDate(session.createdAt)}
-              </td>
-              <td className="px-4 py-3 text-ink/65">
-                {displayDate(session.expiresAt)}
-              </td>
-              <td className="px-4 py-3 font-bold text-ink">
-                {session.revokedAt
-                  ? (session.revocationReason ?? "REVOKED")
-                  : "ACTIVE"}
-              </td>
-              <td className="px-4 py-3">
-                {canManage && !session.revokedAt ? (
-                  <button
-                    className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
-                    onClick={() => forceLogout(session)}
-                    type="button"
-                  >
-                    Force logout
-                  </button>
-                ) : null}
-              </td>
+    <section className="mt-7 grid gap-4">
+      <header className="border-y border-ink/10 bg-white px-4 py-4">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+          Security
+        </p>
+        <h2 className="mt-1 text-2xl font-black text-ink">Active sessions</h2>
+      </header>
+      <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
+        <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <thead className="bg-paper text-ink/60">
+            <tr>
+              <th className="px-4 py-3">User</th>
+              <th className="px-4 py-3">Created</th>
+              <th className="px-4 py-3">Expires</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sessions.map((session) => (
+              <tr className="border-t border-ink/10" key={session.id}>
+                <td className="px-4 py-3">
+                  <p className="font-bold text-ink">{session.user.name}</p>
+                  <p className="break-all text-ink/55">{session.user.email}</p>
+                </td>
+                <td className="px-4 py-3 text-ink/65">
+                  {displayDate(session.createdAt)}
+                </td>
+                <td className="px-4 py-3 text-ink/65">
+                  {displayDate(session.expiresAt)}
+                </td>
+                <td className="px-4 py-3 font-bold text-ink">
+                  {session.revokedAt
+                    ? (session.revocationReason ?? "REVOKED")
+                    : "ACTIVE"}
+                </td>
+                <td className="px-4 py-3">
+                  {canManage && !session.revokedAt ? (
+                    <button
+                      className="rounded-md border border-rose/30 px-3 py-2 font-bold text-rose"
+                      onClick={() => forceLogout(session)}
+                      type="button"
+                    >
+                      Force logout
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
 
 function AuditPanel({ logs }: { logs: AuditLog[] }) {
-  if (!logs.length) {
-    return (
-      <section className="mt-7 rounded-lg border border-ink/10 bg-white p-6">
-        <h2 className="text-xl font-black text-ink">No audit events yet</h2>
-        <p className="mt-2 text-sm leading-6 text-ink/60">
-          New login, content, blog, staff, role, and session actions will appear
-          here.
-        </p>
-      </section>
-    );
-  }
-
   return (
-    <section className="mt-7 grid gap-3">
-      {logs.map((log) => (
-        <article
-          className="rounded-lg border border-ink/10 bg-white p-4"
-          key={log.id}
-        >
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="font-black text-ink">{log.action}</h2>
-              <p className="mt-1 text-sm text-ink/55">
-                {log.entityType}
-                {log.entityId ? ` / ${log.entityId}` : ""}
+    <section className="mt-7 grid gap-4">
+      <header className="border-y border-ink/10 bg-white px-4 py-4">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-leaf">
+          Operations
+        </p>
+        <h2 className="mt-1 text-2xl font-black text-ink">Audit log</h2>
+      </header>
+      {logs.length ? (
+        <div className="grid gap-3">
+          {logs.map((log) => (
+            <article
+              className="rounded-lg border border-ink/10 bg-white p-4"
+              key={log.id}
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-black text-ink">{log.action}</h3>
+                  <p className="mt-1 text-sm text-ink/55">
+                    {log.entityType}
+                    {log.entityId ? ` / ${log.entityId}` : ""}
+                  </p>
+                </div>
+                <p className="text-sm text-ink/50">
+                  {displayDate(log.createdAt)}
+                </p>
+              </div>
+              <p className="mt-3 text-sm text-ink/60">
+                {log.actor
+                  ? `${log.actor.name} (${log.actor.email})`
+                  : "System"}
               </p>
-            </div>
-            <p className="text-sm text-ink/50">{displayDate(log.createdAt)}</p>
-          </div>
-          <p className="mt-3 text-sm text-ink/60">
-            {log.actor ? `${log.actor.name} (${log.actor.email})` : "System"}
-          </p>
-        </article>
-      ))}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-ink/10 bg-white p-6 text-sm font-bold text-ink/55">
+          No audit events yet.
+        </div>
+      )}
     </section>
   );
 }
