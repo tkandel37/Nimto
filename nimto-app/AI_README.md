@@ -27,7 +27,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Public and administrative CMS pages and blog posts.
 - Dynamic design categories and subcategories.
 - HTML template upload, scanning, editing, duplication, rescan, publication,
-  unpublication, and immutable design version snapshots.
+  unpublication, immutable design version snapshots, and matching catalogue
+  thumbnail authoring with reusable AI conversion prompts.
 - Public design catalogue.
 - Opening and background animation-component catalogue.
 - User event creation, update, deletion, and design-field values.
@@ -160,7 +161,9 @@ versioned snapshot visible to users.
 Invitation templates are one complete `.html` document:
 
 - CSS belongs inside `<style>`.
-- Optional behavior uses vanilla JavaScript inside `<script>`.
+- Visual motion uses CSS animation.
+- The only permitted `<script>` is the `nimto-template-meta` JSON block;
+  executable JavaScript is rejected by the upload scanner.
 - Editable elements use `data-nimto-field`.
 - Sections use `data-nimto-section`.
 - Features use `data-nimto-feature`.
@@ -168,7 +171,7 @@ Invitation templates are one complete `.html` document:
 
 ```html
 <script type="application/json" id="nimto-template-meta">
-{ "name": "Example", "sections": [], "fields": [], "features": [] }
+  { "name": "Example", "sections": [], "fields": [], "features": [] }
 </script>
 ```
 

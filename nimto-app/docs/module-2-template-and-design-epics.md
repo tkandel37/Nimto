@@ -76,12 +76,14 @@ Allowed:
 
 - HTML
 - CSS inside `<style>`
-- vanilla JavaScript inside `<script>`
+- CSS animation
+- one non-executable `nimto-template-meta` JSON `<script>` block
 
 Not allowed in MVP:
 
 - React, Vue, Angular, Tailwind, Bootstrap
 - external JavaScript libraries
+- executable JavaScript
 - backend code
 - API keys
 - payment logic
@@ -95,16 +97,16 @@ Every template must include:
 
 ```html
 <script type="application/json" id="nimto-template-meta">
-{
-  "name": "Elegant Invitation",
-  "category": "Wedding",
-  "subcategory": "Reception",
-  "version": "1.0.0",
-  "supportedModes": ["generic", "personalized"],
-  "sections": [],
-  "fields": [],
-  "features": []
-}
+  {
+    "name": "Elegant Invitation",
+    "category": "Wedding",
+    "subcategory": "Reception",
+    "version": "1.0.0",
+    "supportedModes": ["generic", "personalized"],
+    "sections": [],
+    "fields": [],
+    "features": []
+  }
 </script>
 ```
 
@@ -124,9 +126,7 @@ Examples:
 HTML example:
 
 ```html
-<section
-  data-nimto-section="cover"
-  data-nimto-section-label="Cover Page">
+<section data-nimto-section="cover" data-nimto-section-label="Cover Page">
   <h1 data-nimto-field="coverTitle">{{coverTitle}}</h1>
 </section>
 ```
@@ -208,16 +208,15 @@ Each design can support normal sharing and paid personalized sharing.
 Generic mode:
 
 ```html
-<div data-nimto-mode="generic">
-  You are invited to
-</div>
+<div data-nimto-mode="generic">You are invited to</div>
 ```
 
 Personalized mode:
 
 ```html
 <div data-nimto-mode="personalized">
-  Dear <span data-nimto-field="guestName">{{guestName}}</span>, you are invited to
+  Dear <span data-nimto-field="guestName">{{guestName}}</span>, you are invited
+  to
 </div>
 ```
 
@@ -257,10 +256,7 @@ Supported feature types for MVP planning:
 Countdown example:
 
 ```html
-<div
-  data-nimto-feature="countdown"
-  data-nimto-date-field="eventDateTime">
-</div>
+<div data-nimto-feature="countdown" data-nimto-date-field="eventDateTime"></div>
 ```
 
 Metadata example:

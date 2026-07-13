@@ -1990,6 +1990,7 @@ function DesignSetupPanel({
   const [selectedTemplate, setSelectedTemplate] =
     useState<InvitationTemplate | null>(null);
   const [editorRawHtml, setEditorRawHtml] = useState("");
+  const [editorThumbnailHtml, setEditorThumbnailHtml] = useState("");
   const [editorFields, setEditorFields] = useState<TemplateEditorField[]>([]);
   const [templateFeatureConfig, setTemplateFeatureConfig] =
     useState<InvitationFeatureConfig>({});
@@ -2012,6 +2013,7 @@ function DesignSetupPanel({
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
   const [isCreatePanelCollapsed, setIsCreatePanelCollapsed] = useState(false);
   const [createPreviewHtml, setCreatePreviewHtml] = useState("");
+  const [createThumbnailHtml, setCreateThumbnailHtml] = useState("");
   const [animations, setAnimations] = useState<AnimationComponent[]>([]);
   const [animationHtml, setAnimationHtml] = useState("");
   const [isUploadingAnimation, setIsUploadingAnimation] = useState(false);
@@ -2143,6 +2145,7 @@ function DesignSetupPanel({
     if (completed) {
       event.currentTarget.reset();
       setCreatePreviewHtml("");
+      setCreateThumbnailHtml("");
       setIsCreatingTemplate(false);
     }
   }
@@ -2171,6 +2174,7 @@ function DesignSetupPanel({
       current?.id === template.id ? template : current,
     );
     setEditorRawHtml(template.rawHtml ?? "");
+    setEditorThumbnailHtml(template.thumbnailHtml ?? "");
     setEditorFields(extractTemplateEditorFields(template));
     upsertTemplateSummary(template);
     return template;
@@ -2182,6 +2186,7 @@ function DesignSetupPanel({
       const template = cached.template;
       setSelectedTemplate(template);
       setEditorRawHtml(template.rawHtml ?? "");
+      setEditorThumbnailHtml(template.thumbnailHtml ?? "");
       const fields = extractTemplateEditorFields(template);
       setEditorFields(fields);
       setSelectedFieldKey(fields[0]?.key ?? "");
@@ -2194,6 +2199,7 @@ function DesignSetupPanel({
     templateDetailCache.set(templateId, { cachedAt: Date.now(), template });
     setSelectedTemplate(template);
     setEditorRawHtml(template.rawHtml ?? "");
+    setEditorThumbnailHtml(template.thumbnailHtml ?? "");
     setTemplateFeatureConfig(
       defaultFeatureConfig(template.scanResult, template.featureConfig),
     );
@@ -2211,6 +2217,7 @@ function DesignSetupPanel({
         method: "PATCH",
         body: JSON.stringify({
           rawHtml,
+          thumbnailHtml: editorThumbnailHtml.trim() || undefined,
           featureConfig: defaultFeatureConfig(
             selectedTemplate.scanResult,
             templateFeatureConfig,
@@ -2218,7 +2225,12 @@ function DesignSetupPanel({
         }),
       },
     );
-    const nextTemplate = { ...selectedTemplate, ...template, rawHtml };
+    const nextTemplate = {
+      ...selectedTemplate,
+      ...template,
+      rawHtml,
+      thumbnailHtml: editorThumbnailHtml.trim() || null,
+    };
     templateDetailCache.set(selectedTemplate.id, {
       cachedAt: Date.now(),
       template: nextTemplate,
@@ -2504,12 +2516,15 @@ function DesignSetupPanel({
       <TemplateCreatePanel
         categories={categories}
         createPreviewHtml={createPreviewHtml}
+        createThumbnailHtml={createThumbnailHtml}
         isCreatePanelCollapsed={isCreatePanelCollapsed}
         onCancel={() => {
           setIsCreatingTemplate(false);
           setCreatePreviewHtml("");
+          setCreateThumbnailHtml("");
         }}
         onFileHtml={setCreatePreviewHtml}
+        onThumbnailHtml={setCreateThumbnailHtml}
         onSubmit={createTemplate}
         onTogglePanel={() =>
           setIsCreatePanelCollapsed((isCollapsed) => !isCollapsed)
@@ -2527,6 +2542,7 @@ function DesignSetupPanel({
             canPublishTemplates={canPublishTemplates}
             canUnpublishTemplates={canUnpublishTemplates}
             editorRawHtml={editorRawHtml}
+            editorThumbnailHtml={editorThumbnailHtml}
             editorFields={editorFields}
             featureConfig={templateFeatureConfig}
             onBack={() => setSelectedTemplateId("")}
@@ -2539,6 +2555,7 @@ function DesignSetupPanel({
             onUnpublish={unpublishTemplate}
             onUpdateField={updateEditorField}
             onUpdateSource={updateEditorSource}
+            onUpdateThumbnail={setEditorThumbnailHtml}
             selectedField={selectedField}
             selectedFieldKey={selectedFieldKey}
             selectedTemplate={selectedTemplate}
@@ -2763,6 +2780,7 @@ function DesignSetupPanel({
                   className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white"
                   onClick={() => {
                     setCreatePreviewHtml("");
+                    setCreateThumbnailHtml("");
                     setIsCreatePanelCollapsed(false);
                     setIsCreatingTemplate(true);
                   }}
@@ -2925,6 +2943,7 @@ function DesignSetupPanel({
           canUnpublishTemplates={canUnpublishTemplates}
           animations={animations}
           editorRawHtml={editorRawHtml}
+          editorThumbnailHtml={editorThumbnailHtml}
           editorFields={editorFields}
           featureConfig={templateFeatureConfig}
           onBack={() => setSelectedTemplateId("")}
@@ -2937,6 +2956,7 @@ function DesignSetupPanel({
           onUnpublish={unpublishTemplate}
           onUpdateField={updateEditorField}
           onUpdateSource={updateEditorSource}
+          onUpdateThumbnail={setEditorThumbnailHtml}
           selectedField={selectedField}
           selectedFieldKey={selectedFieldKey}
           selectedTemplate={selectedTemplate}
@@ -3631,25 +3651,142 @@ function openDesignPreview(title: string, rawHtml?: string) {
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
 }
 
+const TEMPLATE_CONVERSION_PROMPT = `Convert the finalized HTML design I provide into a myNimto-compatible invitation template. Preserve its visual identity, layout, typography, colors, spacing, responsiveness, and content hierarchy as closely as the platform rules allow. Do not redesign it or add unrelated features.
+
+Output exactly one complete HTML document and nothing else. Do not use Markdown fences or add explanations.
+
+Mandatory document rules:
+- Include <!doctype html>, <html>, <head>, and <body>.
+- Keep all CSS inside a <style> element. The result must be mobile-first and responsive.
+- The only permitted <script> is one valid JSON metadata element: <script type="application/json" id="nimto-template-meta">. No executable JavaScript is allowed; recreate motion with CSS where possible.
+- The file must be self-contained and smaller than 1 MB.
+- Do not use React, Vue, Angular, Tailwind, Bootstrap, external libraries, external fonts, @import, CSS url(), or backend code.
+- Do not use img, picture, source, video, svg, math, iframe, object, embed, link, base, frame, frameset, or applet elements. Recreate essential decorative artwork with safe HTML elements, CSS shapes, gradients, borders, pseudo-elements, and Unicode symbols.
+- Do not use src, srcset, href, action, formaction, poster, data, srcdoc, or xlink:href attributes.
+- Do not use inline event attributes such as onclick, unsafe URL schemes, forms, trackers, authentication, API keys, payment logic, or network requests.
+
+myNimto structure:
+- Divide the invitation into logical sections. On each section root add a unique lowercase snake_case data-nimto-section key and a readable data-nimto-section-label.
+- Every visible value staff or customers may need to change must be its own element with one unique data-nimto-field key. Keys must start with a lowercase letter and use only lowercase letters, numbers, and underscores.
+- Each editable element must also have data-nimto-label and data-nimto-type. Use suitable types such as text, textarea, date, datetime, or custom_name.
+- Put a realistic readable default value inside every editable element. Do not depend on {{placeholder}} text for rendering.
+- Add data-nimto-required="true" only when the user must provide the value. Add data-nimto-locked="true" only for intentionally fixed content. Use data-nimto-paid="true" only for paid personalization.
+- Use the exact field key invitee_name with data-nimto-type="custom_name" for guest personalization, if the design contains a personalized guest name.
+- Never repeat a data-nimto-field key. Keep each field inside its correct section or add data-nimto-section-ref with the matching section key.
+- Include at least one data-nimto-field.
+- The nimto-template-meta JSON must be valid JSON and should describe the template title and category hint, for example: <script type="application/json" id="nimto-template-meta">{"title":"Invitation title","categoryHint":"Event category"}</script>. Do not put comments or trailing commas in it.
+
+Optional platform markers must be included only when that capability genuinely exists in the supplied design:
+- Countdown: data-nimto-countdown-for on a date/datetime field, or a unique data-nimto-countdown-slot.
+- RSVP: data-nimto-rsvp or a unique data-nimto-rsvp-slot.
+- Music: data-nimto-music or a unique data-nimto-music-slot. Do not add an audio element.
+- Additional information: data-nimto-additional-info or a unique data-nimto-additional-info-slot.
+- Gallery or map: data-nimto-gallery or data-nimto-map as a safe placeholder only; do not add images, links, or embeds.
+- Share preview: data-nimto-share-title-field and data-nimto-share-description-field may reference existing field keys.
+- Print page: data-nimto-print-page with a unique key.
+- Theme controls: data-nimto-style-slot with data-nimto-style-type="color" or "font", plus a safe data-nimto-default value.
+- Reusable animation areas: data-nimto-opening-slot, data-nimto-bg-effect-slot, data-nimto-effect-slot, or data-nimto-effect-area with unique lowercase snake_case values.
+
+Before answering, silently verify that the output satisfies every rule, that all JSON is valid, all keys are unique lowercase snake_case, referenced fields and sections exist, and the design remains visually faithful. Return only the final HTML.`;
+
+const THUMBNAIL_GENERATION_PROMPT = `Using the finalized invitation HTML/design I provide, create a separate catalogue thumbnail HTML document for the same design. This is not a second invitation and is not a screenshot of the whole long page. It is a polished, static cover that makes the design immediately recognizable in the myNimto design catalogue.
+
+Output exactly one complete HTML document and nothing else. Do not use Markdown fences or add explanations.
+
+Design requirements:
+- Match the original template's visual identity: its colors, typography character, motifs, border language, mood, and most recognizable composition.
+- Select only the strongest identifying content, normally a short eyebrow, the main event title or names, one short detail line, and one restrained motif. Avoid crowded text and tiny details.
+- Compose specifically for a 4:3 landscape catalogue card. It must remain attractive from small mobile cards to large previews.
+- Make html and body width:100%, height:100%, margin:0, and overflow:hidden. The thumbnail must fill the frame without scrolling.
+- Use fluid sizing such as percentages, clamp(), aspect-ratio, grid, and flex so it adapts to the iframe dimensions.
+- Keep it static, fast, legible, and visually balanced. Do not include editor fields, myNimto metadata, controls, buttons, hover-dependent content, animation, or interaction.
+
+Technical rules:
+- Include <!doctype html>, <html>, <head>, and <body>.
+- Keep all CSS inside <style>. Make the file fully self-contained and smaller than 200 KB.
+- Do not use script, iframe, form, video, audio, object, embed, inline event attributes, javascript: or vbscript: URLs.
+- Do not use external libraries, external fonts, trackers, API calls, or network-dependent assets. Prefer safe HTML, CSS shapes, gradients, borders, pseudo-elements, and Unicode motifs so the thumbnail always renders reliably.
+
+Before answering, silently verify that it is a complete valid HTML document, fills a 4:3 frame with no scrolling, contains no unsafe behavior, and clearly looks like the supplied invitation. Return only the final thumbnail HTML.`;
+
+function PromptCopyButton({
+  label,
+  prompt,
+}: {
+  label: string;
+  prompt: string;
+}) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+
+  async function copyPrompt() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(prompt);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = prompt;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("Clipboard copy failed.");
+      }
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 2_000);
+    } catch {
+      setCopyState("failed");
+      window.setTimeout(() => setCopyState("idle"), 2_000);
+    }
+  }
+
+  return (
+    <button
+      className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold text-ink"
+      onClick={copyPrompt}
+      type="button"
+    >
+      {copyState === "copied"
+        ? "Prompt copied"
+        : copyState === "failed"
+          ? "Copy failed"
+          : label}
+    </button>
+  );
+}
+
 function TemplateCreatePanel({
   categories,
   createPreviewHtml,
+  createThumbnailHtml,
   isCreatePanelCollapsed,
   onCancel,
   onFileHtml,
+  onThumbnailHtml,
   onSubmit,
   onTogglePanel,
 }: {
   categories: DesignCategory[];
   createPreviewHtml: string;
+  createThumbnailHtml: string;
   isCreatePanelCollapsed: boolean;
   onCancel: () => void;
   onFileHtml: (html: string) => void;
+  onThumbnailHtml: (html: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onTogglePanel: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"template" | "thumbnail">(
+    "template",
+  );
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [uploadValidationErrors, setUploadValidationErrors] = useState<
+    string[]
+  >([]);
+  const [thumbnailValidationErrors, setThumbnailValidationErrors] = useState<
     string[]
   >([]);
 
@@ -3668,14 +3805,46 @@ function TemplateCreatePanel({
     setHtmlForUpload(await file.text());
   }
 
+  function setThumbnailForUpload(html: string) {
+    onThumbnailHtml(html);
+    setThumbnailValidationErrors(validateThumbnailHtml(html));
+  }
+
+  async function readThumbnailFile(file?: File) {
+    if (!file || file.size === 0) return;
+    const fileErrors = validateThumbnailUploadFile(file);
+    if (fileErrors.length) {
+      setThumbnailValidationErrors(fileErrors);
+      return;
+    }
+    setThumbnailForUpload(await file.text());
+  }
+
   function submitTemplate(event: FormEvent<HTMLFormElement>) {
     const errors = validateTemplateUploadHtml(createPreviewHtml);
+    const thumbnailErrors = validateThumbnailHtml(createThumbnailHtml);
     setUploadValidationErrors(errors);
-    if (errors.length) {
+    setThumbnailValidationErrors(thumbnailErrors);
+    if (errors.length || thumbnailErrors.length) {
       event.preventDefault();
       return;
     }
     onSubmit(event);
+  }
+
+  const activeHtml =
+    activeTab === "template" ? createPreviewHtml : createThumbnailHtml;
+  const activeValidationErrors =
+    activeTab === "template"
+      ? uploadValidationErrors
+      : thumbnailValidationErrors;
+
+  function updateActiveHtml(html: string) {
+    if (activeTab === "template") {
+      setHtmlForUpload(html);
+      return;
+    }
+    setThumbnailForUpload(html);
   }
 
   return (
@@ -3710,6 +3879,45 @@ function TemplateCreatePanel({
       </div>
 
       <div
+        aria-label="Template content"
+        className="flex gap-2 border-b border-ink/10 bg-white px-4"
+        role="tablist"
+      >
+        <button
+          aria-selected={activeTab === "template"}
+          className={`border-b-2 px-4 py-3 text-sm font-black ${
+            activeTab === "template"
+              ? "border-leaf text-leaf"
+              : "border-transparent text-ink/55"
+          }`}
+          onClick={() => {
+            setActiveTab("template");
+            setIsSourceMode(false);
+          }}
+          role="tab"
+          type="button"
+        >
+          Template design
+        </button>
+        <button
+          aria-selected={activeTab === "thumbnail"}
+          className={`border-b-2 px-4 py-3 text-sm font-black ${
+            activeTab === "thumbnail"
+              ? "border-leaf text-leaf"
+              : "border-transparent text-ink/55"
+          }`}
+          onClick={() => {
+            setActiveTab("thumbnail");
+            setIsSourceMode(false);
+          }}
+          role="tab"
+          type="button"
+        >
+          Thumbnail
+        </button>
+      </div>
+
+      <div
         className={`grid gap-5 ${
           isCreatePanelCollapsed
             ? "xl:grid-cols-1"
@@ -3738,15 +3946,6 @@ function TemplateCreatePanel({
                 <label className="field">
                   <span className="text-sm font-bold text-ink">Name</span>
                   <input name="name" required />
-                </label>
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">HTML file</span>
-                  <input
-                    accept=".html,text/html"
-                    name="templateFile"
-                    onChange={(event) => readHtmlFile(event.target.files?.[0])}
-                    type="file"
-                  />
                 </label>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
                   <label className="field">
@@ -3782,53 +3981,133 @@ function TemplateCreatePanel({
                     </select>
                   </label>
                 </div>
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">HTML</span>
-                  <textarea
-                    className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
-                    name="rawHtml"
-                    onChange={(event) => setHtmlForUpload(event.target.value)}
-                    value={createPreviewHtml}
-                  />
-                </label>
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">
-                    Thumbnail HTML file
-                  </span>
-                  <input
-                    accept=".html,text/html"
-                    name="thumbnailFile"
-                    type="file"
-                  />
-                </label>
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">
-                    Thumbnail HTML
-                  </span>
-                  <textarea
-                    className="min-h-40 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
-                    name="thumbnailHtml"
-                    placeholder="Optional. Add a compact, self-contained HTML preview."
-                  />
-                </label>
-                {uploadValidationErrors.length ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
-                    <p className="font-black">Template blocked</p>
-                    <ul className="mt-2 grid gap-1">
-                      {uploadValidationErrors.slice(0, 5).map((error) => (
-                        <li key={error}>{error}</li>
-                      ))}
-                    </ul>
+                <div
+                  className={activeTab === "template" ? "grid gap-3" : "hidden"}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-ink">
+                        Template design HTML
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-ink/50">
+                        Convert a finalized design into myNimto format.
+                      </p>
+                    </div>
+                    <PromptCopyButton
+                      label="Copy HTML prompt"
+                      prompt={TEMPLATE_CONVERSION_PROMPT}
+                    />
                   </div>
-                ) : createPreviewHtml ? (
-                  <div className="rounded-lg border border-leaf/20 bg-leaf/5 px-3 py-3 text-sm font-bold text-leaf">
-                    Template passed browser safety checks.
+                  <label className="field">
+                    <span className="text-sm font-bold text-ink">
+                      HTML file
+                    </span>
+                    <input
+                      accept=".html,text/html"
+                      name="templateFile"
+                      onChange={(event) =>
+                        readHtmlFile(event.target.files?.[0])
+                      }
+                      type="file"
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="text-sm font-bold text-ink">HTML</span>
+                    <textarea
+                      className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
+                      name="rawHtml"
+                      onChange={(event) => setHtmlForUpload(event.target.value)}
+                      value={createPreviewHtml}
+                    />
+                  </label>
+                  {uploadValidationErrors.length ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                      <p className="font-black">Template blocked</p>
+                      <ul className="mt-2 grid gap-1">
+                        {uploadValidationErrors.slice(0, 5).map((error) => (
+                          <li key={error}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : createPreviewHtml ? (
+                    <div className="rounded-lg border border-leaf/20 bg-leaf/5 px-3 py-3 text-sm font-bold text-leaf">
+                      Template passed browser safety checks.
+                    </div>
+                  ) : null}
+                </div>
+                <div
+                  className={
+                    activeTab === "thumbnail" ? "grid gap-3" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-ink">
+                        Thumbnail HTML
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-ink/50">
+                        Generate a matching 4:3 catalogue cover.
+                      </p>
+                    </div>
+                    <PromptCopyButton
+                      label="Copy thumbnail prompt"
+                      prompt={THUMBNAIL_GENERATION_PROMPT}
+                    />
                   </div>
-                ) : null}
+                  <label className="field">
+                    <span className="text-sm font-bold text-ink">
+                      Thumbnail HTML file
+                    </span>
+                    <input
+                      accept=".html,text/html"
+                      name="thumbnailFile"
+                      onChange={(event) =>
+                        readThumbnailFile(event.target.files?.[0])
+                      }
+                      type="file"
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="text-sm font-bold text-ink">
+                      Thumbnail HTML
+                    </span>
+                    <textarea
+                      className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
+                      name="thumbnailHtml"
+                      onChange={(event) =>
+                        setThumbnailForUpload(event.target.value)
+                      }
+                      placeholder="Optional. Paste the matching catalogue thumbnail HTML."
+                      value={createThumbnailHtml}
+                    />
+                  </label>
+                  {thumbnailValidationErrors.length ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                      <p className="font-black">Thumbnail blocked</p>
+                      <ul className="mt-2 grid gap-1">
+                        {thumbnailValidationErrors.slice(0, 5).map((error) => (
+                          <li key={error}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : createThumbnailHtml ? (
+                    <div className="rounded-lg border border-leaf/20 bg-leaf/5 px-3 py-3 text-sm font-bold text-leaf">
+                      Thumbnail passed browser safety checks.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-ink/10 bg-paper px-3 py-3 text-sm text-ink/55">
+                      Thumbnail HTML is optional, but recommended for the
+                      catalogue.
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
-                disabled={uploadValidationErrors.length > 0}
+                disabled={
+                  uploadValidationErrors.length > 0 ||
+                  thumbnailValidationErrors.length > 0
+                }
               >
                 Create draft
               </button>
@@ -3839,7 +4118,8 @@ function TemplateCreatePanel({
         <div className="min-h-[62vh] border border-ink/10 bg-white md:min-h-[720px]">
           <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3">
             <h3 className="font-black text-ink">
-              {isSourceMode ? "Source" : "Preview"}
+              {activeTab === "template" ? "Template" : "Thumbnail"}{" "}
+              {isSourceMode ? "source" : "preview"}
             </h3>
             <button
               aria-label={isSourceMode ? "Show preview" : "Edit source code"}
@@ -3856,33 +4136,35 @@ function TemplateCreatePanel({
           {isSourceMode ? (
             <textarea
               className="min-h-[58vh] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none md:min-h-[672px]"
-              onChange={(event) => setHtmlForUpload(event.target.value)}
-              value={createPreviewHtml}
+              onChange={(event) => updateActiveHtml(event.target.value)}
+              value={activeHtml}
             />
-          ) : createPreviewHtml && !uploadValidationErrors.length ? (
+          ) : activeHtml && !activeValidationErrors.length ? (
             <iframe
               className="h-full min-h-[58vh] w-full border-0 bg-white md:min-h-[672px]"
-              sandbox="allow-scripts"
-              srcDoc={createPreviewHtml}
-              title="Template preview"
+              sandbox={activeTab === "template" ? "allow-scripts" : ""}
+              srcDoc={activeHtml}
+              title={`${activeTab === "template" ? "Template" : "Thumbnail"} preview`}
             />
-          ) : uploadValidationErrors.length ? (
+          ) : activeValidationErrors.length ? (
             <div className="grid min-h-[58vh] place-items-center p-6 text-center md:min-h-[672px]">
               <div className="max-w-sm">
                 <h3 className="text-xl font-black text-ink">Preview blocked</h3>
                 <p className="mt-2 text-sm leading-6 text-ink/55">
-                  Fix the highlighted template safety issues before previewing
-                  or saving this HTML.
+                  Fix the highlighted {activeTab} safety issues before
+                  previewing or saving this HTML.
                 </p>
               </div>
             </div>
           ) : (
             <div className="grid min-h-[58vh] place-items-center p-6 text-center md:min-h-[672px]">
               <div>
-                <h3 className="text-xl font-black text-ink">Preview</h3>
+                <h3 className="text-xl font-black text-ink">
+                  {activeTab === "template" ? "Template" : "Thumbnail"} preview
+                </h3>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-ink/55">
                   Upload an HTML file, paste HTML, or use the source icon to
-                  start editing here.
+                  start editing the {activeTab} here.
                 </p>
               </div>
             </div>
@@ -4250,6 +4532,7 @@ function TemplateEditorPanel({
   canPublishTemplates,
   canUnpublishTemplates,
   editorRawHtml,
+  editorThumbnailHtml,
   editorFields,
   featureConfig,
   onBack,
@@ -4262,6 +4545,7 @@ function TemplateEditorPanel({
   onUnpublish,
   onUpdateField,
   onUpdateSource,
+  onUpdateThumbnail,
   selectedField,
   selectedFieldKey,
   selectedTemplate,
@@ -4270,6 +4554,7 @@ function TemplateEditorPanel({
   canPublishTemplates: boolean;
   canUnpublishTemplates: boolean;
   editorRawHtml: string;
+  editorThumbnailHtml: string;
   editorFields: TemplateEditorField[];
   featureConfig: InvitationFeatureConfig;
   onBack: () => void;
@@ -4282,11 +4567,20 @@ function TemplateEditorPanel({
   onUnpublish: (templateId: string) => void;
   onUpdateField: (key: string, patch: Partial<TemplateEditorField>) => void;
   onUpdateSource: (rawHtml: string) => void;
+  onUpdateThumbnail: (thumbnailHtml: string) => void;
   selectedField?: TemplateEditorField;
   selectedFieldKey: string;
   selectedTemplate: InvitationTemplate;
 }) {
+  const [activeTab, setActiveTab] = useState<"template" | "thumbnail">(
+    "template",
+  );
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const [thumbnailFileErrors, setThumbnailFileErrors] = useState<string[]>([]);
+  const thumbnailValidationErrors = [
+    ...thumbnailFileErrors,
+    ...validateThumbnailHtml(editorThumbnailHtml),
+  ];
   const animationSlots = [
     ...(selectedTemplate.scanResult?.openingSlots ?? []),
     ...(selectedTemplate.scanResult?.backgroundEffectSlots ?? []),
@@ -4350,6 +4644,18 @@ function TemplateEditorPanel({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PromptCopyButton
+            label={
+              activeTab === "template"
+                ? "Copy HTML prompt"
+                : "Copy thumbnail prompt"
+            }
+            prompt={
+              activeTab === "template"
+                ? TEMPLATE_CONVERSION_PROMPT
+                : THUMBNAIL_GENERATION_PROMPT
+            }
+          />
           <button
             aria-label={
               isSourceMode ? "Show visual preview" : "Edit source code"
@@ -4364,7 +4670,8 @@ function TemplateEditorPanel({
             {isSourceMode ? <PreviewIcon /> : <CodeIcon />}
           </button>
           <button
-            className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white"
+            className="rounded-lg bg-ink px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
+            disabled={thumbnailValidationErrors.length > 0}
             onClick={onSave}
             type="button"
           >
@@ -4372,7 +4679,8 @@ function TemplateEditorPanel({
           </button>
           {canPublishTemplates ? (
             <button
-              className="rounded-lg bg-leaf px-4 py-3 text-sm font-bold text-white"
+              className="rounded-lg bg-leaf px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-leaf/40"
+              disabled={thumbnailValidationErrors.length > 0}
               onClick={() => onPublish(selectedTemplate.id)}
               type="button"
             >
@@ -4390,283 +4698,423 @@ function TemplateEditorPanel({
           ) : null}
         </div>
       </div>
-      <TemplateCapabilityPanel
-        featureConfig={featureConfig}
-        scanResult={selectedTemplate.scanResult}
-        onChange={onFeatureConfigChange}
-      />
-      {animationSlots.length ? (
-        <section className="grid gap-3 border-b border-ink/10 bg-paper/50 p-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
-              Template animations
-            </p>
-            <p className="mt-1 text-sm text-ink/55">
-              Connect an active reusable animation to each scanned template
-              slot.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {animationSlots.map((slotKey) => {
-              const assignment = selectedTemplate.animationAssignments?.find(
-                (item) => item.slotKey === slotKey,
-              );
-              return (
-                <div
-                  className="rounded-xl border border-ink/10 bg-white p-3"
-                  key={slotKey}
-                >
-                  <p className="text-sm font-black text-ink">{slotKey}</p>
-                  <select
-                    className="mt-2 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"
-                    onChange={(event) => {
-                      if (event.target.value)
-                        onAssignAnimation(slotKey, event.target.value);
-                    }}
-                    value={assignment?.animationComponent.id ?? ""}
+      <div
+        aria-label="Template content"
+        className="flex gap-2 border-b border-ink/10 bg-white px-4"
+        role="tablist"
+      >
+        <button
+          aria-selected={activeTab === "template"}
+          className={`border-b-2 px-4 py-3 text-sm font-black ${
+            activeTab === "template"
+              ? "border-leaf text-leaf"
+              : "border-transparent text-ink/55"
+          }`}
+          onClick={() => {
+            setActiveTab("template");
+            setIsSourceMode(false);
+          }}
+          role="tab"
+          type="button"
+        >
+          Template design
+        </button>
+        <button
+          aria-selected={activeTab === "thumbnail"}
+          className={`border-b-2 px-4 py-3 text-sm font-black ${
+            activeTab === "thumbnail"
+              ? "border-leaf text-leaf"
+              : "border-transparent text-ink/55"
+          }`}
+          onClick={() => {
+            setActiveTab("thumbnail");
+            setIsSourceMode(false);
+          }}
+          role="tab"
+          type="button"
+        >
+          Thumbnail
+        </button>
+      </div>
+      <div className={activeTab === "template" ? "" : "hidden"}>
+        <TemplateCapabilityPanel
+          featureConfig={featureConfig}
+          scanResult={selectedTemplate.scanResult}
+          onChange={onFeatureConfigChange}
+        />
+        {animationSlots.length ? (
+          <section className="grid gap-3 border-b border-ink/10 bg-paper/50 p-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
+                Template animations
+              </p>
+              <p className="mt-1 text-sm text-ink/55">
+                Connect an active reusable animation to each scanned template
+                slot.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {animationSlots.map((slotKey) => {
+                const assignment = selectedTemplate.animationAssignments?.find(
+                  (item) => item.slotKey === slotKey,
+                );
+                return (
+                  <div
+                    className="rounded-xl border border-ink/10 bg-white p-3"
+                    key={slotKey}
                   >
-                    <option value="">No animation</option>
-                    {animations
-                      .filter((animation) => animation.status === "ACTIVE")
-                      .map((animation) => (
-                        <option key={animation.id} value={animation.id}>
-                          {animation.name} ({animation.type})
-                        </option>
-                      ))}
-                  </select>
-                  {assignment ? (
-                    <button
-                      className="mt-2 text-xs font-black text-red-700"
-                      onClick={() => onRemoveAnimation(assignment.id)}
-                      type="button"
+                    <p className="text-sm font-black text-ink">{slotKey}</p>
+                    <select
+                      className="mt-2 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"
+                      onChange={(event) => {
+                        if (event.target.value)
+                          onAssignAnimation(slotKey, event.target.value);
+                      }}
+                      value={assignment?.animationComponent.id ?? ""}
                     >
-                      Remove assignment
-                    </button>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      <div className="template-editor-workspace grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="template-editor-preview min-w-0">
-          {isSourceMode ? (
-            <textarea
-              className="min-h-[calc(100vh-150px)] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
-              onChange={(event) => onUpdateSource(event.target.value)}
-              value={editorRawHtml}
-            />
-          ) : (
-            <iframe
-              className="h-[calc(100vh-150px)] min-h-[620px] w-full border-0 bg-white"
-              onLoad={syncPreview}
-              ref={previewRef}
-              sandbox="allow-scripts allow-same-origin"
-              srcDoc={previewHtml}
-              title={`${selectedTemplate.name} preview`}
-            />
-          )}
-        </div>
-
-        <aside className="template-editor-panel border-t border-ink/10 bg-paper/70 p-4 xl:border-l xl:border-t-0">
-          {selectedField ? (
-            <div className="rounded-lg border border-leaf/20 bg-white p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-leaf">
-                    Selected
-                  </p>
-                  <h3 className="mt-1 break-words text-base font-black text-ink">
-                    {selectedField.label}
-                  </h3>
-                </div>
-                <span className="rounded-full bg-leaf/10 px-2 py-1 text-xs font-black text-leaf">
-                  {selectedField.locked
-                    ? "Locked field"
-                    : selectedField.required
-                      ? "Input field"
-                      : "Content field"}
-                </span>
-              </div>
-              <div className="mt-3 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
-                <button
-                  aria-label="Previous field"
-                  className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
-                  disabled={editorFields.length < 2}
-                  onClick={() => moveSelection(-1)}
-                  title="Previous field"
-                  type="button"
-                >
-                  <BackIcon />
-                </button>
-                <p className="truncate text-center text-xs font-black uppercase tracking-[0.14em] text-ink/45">
-                  Field {selectedFieldIndex + 1} of {editorFields.length}
-                </p>
-                <button
-                  aria-label="Next field"
-                  className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
-                  disabled={editorFields.length < 2}
-                  onClick={() => moveSelection(1)}
-                  title="Next field"
-                  type="button"
-                >
-                  <CollapseIcon isCollapsed />
-                </button>
-              </div>
-              <label className="field mt-3">
-                <span className="text-sm font-bold text-ink">Value</span>
-                <textarea
-                  className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
-                  value={selectedField.value}
-                  onChange={(event) =>
-                    onUpdateField(selectedField.key, {
-                      value: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <label className="field">
-                  <span className="text-sm font-bold text-ink">Type</span>
-                  <select
-                    className="rounded-lg border border-ink/20 bg-white px-3 py-3"
-                    value={selectedField.type}
-                    onChange={(event) =>
-                      onUpdateField(selectedField.key, {
-                        type: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="text">Text</option>
-                    <option value="long_text">Long text</option>
-                    <option value="date">Date</option>
-                    <option value="datetime">Date time</option>
-                    <option value="custom_name">Custom name</option>
-                    <option value="image">Image</option>
-                  </select>
-                </label>
-                <div className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
-                    Field role
-                  </p>
-                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
-                    <input
-                      checked={selectedField.required && !selectedField.locked}
-                      className="mt-1"
-                      name={`field-role-${selectedField.key}`}
-                      onChange={() =>
-                        onUpdateField(selectedField.key, {
-                          required: true,
-                          locked: false,
-                        })
-                      }
-                      type="radio"
-                    />
-                    <span>
-                      <span className="block">Input field</span>
-                      <span className="block text-xs font-semibold leading-5 text-ink/50">
-                        User must enter this value.
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
-                    <input
-                      checked={!selectedField.required && !selectedField.locked}
-                      className="mt-1"
-                      name={`field-role-${selectedField.key}`}
-                      onChange={() =>
-                        onUpdateField(selectedField.key, {
-                          required: false,
-                          locked: false,
-                        })
-                      }
-                      type="radio"
-                    />
-                    <span>
-                      <span className="block">Content field</span>
-                      <span className="block text-xs font-semibold leading-5 text-ink/50">
-                        User may keep or edit this content.
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 text-sm font-bold text-ink">
-                    <input
-                      checked={selectedField.locked}
-                      className="mt-1"
-                      name={`field-role-${selectedField.key}`}
-                      onChange={() =>
-                        onUpdateField(selectedField.key, {
-                          required: false,
-                          locked: true,
-                        })
-                      }
-                      type="radio"
-                    />
-                    <span>
-                      <span className="block">Locked field</span>
-                      <span className="block text-xs font-semibold leading-5 text-ink/50">
-                        User cannot view or edit this field.
-                      </span>
-                    </span>
-                  </label>
-                  <label className="mt-1 flex items-center gap-2 border-t border-ink/10 pt-3 text-sm font-bold text-ink">
-                    <input
-                      checked={selectedField.paid}
-                      onChange={(event) =>
-                        onUpdateField(selectedField.key, {
-                          paid: event.target.checked,
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    Paid custom field
-                  </label>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-ink/10 bg-white p-4 text-sm font-bold text-ink/55">
-              Select a layer or click editable text in the preview.
-            </div>
-          )}
-
-          <div className="mt-4">
-            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-ink/55">
-              Structured layers
-            </h3>
-            <div className="template-layer-list mt-3 grid gap-3">
-              {groupTemplateFields(
-                editorFields,
-                selectedTemplate.scanResult?.sections ?? [],
-              ).map((group) => (
-                <div key={group.key}>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/40">
-                    {group.label}
-                  </p>
-                  <div className="mt-2 grid gap-2">
-                    {group.fields.map((field) => (
+                      <option value="">No animation</option>
+                      {animations
+                        .filter((animation) => animation.status === "ACTIVE")
+                        .map((animation) => (
+                          <option key={animation.id} value={animation.id}>
+                            {animation.name} ({animation.type})
+                          </option>
+                        ))}
+                    </select>
+                    {assignment ? (
                       <button
-                        className={`rounded-lg border px-3 py-2 text-left text-sm font-bold ${
-                          field.key === selectedFieldKey
-                            ? "border-leaf bg-leaf/10 text-leaf"
-                            : "border-ink/10 bg-white text-ink"
-                        }`}
-                        key={field.key}
-                        onClick={() => onSelectField(field.key)}
+                        className="mt-2 text-xs font-black text-red-700"
+                        onClick={() => onRemoveAnimation(assignment.id)}
                         type="button"
                       >
-                        {field.label}
+                        Remove assignment
                       </button>
-                    ))}
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="template-editor-workspace grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="template-editor-preview min-w-0">
+            {isSourceMode ? (
+              <textarea
+                className="min-h-[calc(100vh-150px)] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
+                onChange={(event) => onUpdateSource(event.target.value)}
+                value={editorRawHtml}
+              />
+            ) : (
+              <iframe
+                className="h-[calc(100vh-150px)] min-h-[620px] w-full border-0 bg-white"
+                onLoad={syncPreview}
+                ref={previewRef}
+                sandbox="allow-scripts allow-same-origin"
+                srcDoc={previewHtml}
+                title={`${selectedTemplate.name} preview`}
+              />
+            )}
+          </div>
+
+          <aside className="template-editor-panel border-t border-ink/10 bg-paper/70 p-4 xl:border-l xl:border-t-0">
+            {selectedField ? (
+              <div className="rounded-lg border border-leaf/20 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-leaf">
+                      Selected
+                    </p>
+                    <h3 className="mt-1 break-words text-base font-black text-ink">
+                      {selectedField.label}
+                    </h3>
+                  </div>
+                  <span className="rounded-full bg-leaf/10 px-2 py-1 text-xs font-black text-leaf">
+                    {selectedField.locked
+                      ? "Locked field"
+                      : selectedField.required
+                        ? "Input field"
+                        : "Content field"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+                  <button
+                    aria-label="Previous field"
+                    className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
+                    disabled={editorFields.length < 2}
+                    onClick={() => moveSelection(-1)}
+                    title="Previous field"
+                    type="button"
+                  >
+                    <BackIcon />
+                  </button>
+                  <p className="truncate text-center text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                    Field {selectedFieldIndex + 1} of {editorFields.length}
+                  </p>
+                  <button
+                    aria-label="Next field"
+                    className="grid h-10 w-11 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
+                    disabled={editorFields.length < 2}
+                    onClick={() => moveSelection(1)}
+                    title="Next field"
+                    type="button"
+                  >
+                    <CollapseIcon isCollapsed />
+                  </button>
+                </div>
+                <label className="field mt-3">
+                  <span className="text-sm font-bold text-ink">Value</span>
+                  <textarea
+                    className="min-h-24 rounded-lg border border-ink/20 bg-white px-3 py-3"
+                    value={selectedField.value}
+                    onChange={(event) =>
+                      onUpdateField(selectedField.key, {
+                        value: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <label className="field">
+                    <span className="text-sm font-bold text-ink">Type</span>
+                    <select
+                      className="rounded-lg border border-ink/20 bg-white px-3 py-3"
+                      value={selectedField.type}
+                      onChange={(event) =>
+                        onUpdateField(selectedField.key, {
+                          type: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="text">Text</option>
+                      <option value="long_text">Long text</option>
+                      <option value="date">Date</option>
+                      <option value="datetime">Date time</option>
+                      <option value="custom_name">Custom name</option>
+                      <option value="image">Image</option>
+                    </select>
+                  </label>
+                  <div className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                      Field role
+                    </p>
+                    <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={
+                          selectedField.required && !selectedField.locked
+                        }
+                        className="mt-1"
+                        name={`field-role-${selectedField.key}`}
+                        onChange={() =>
+                          onUpdateField(selectedField.key, {
+                            required: true,
+                            locked: false,
+                          })
+                        }
+                        type="radio"
+                      />
+                      <span>
+                        <span className="block">Input field</span>
+                        <span className="block text-xs font-semibold leading-5 text-ink/50">
+                          User must enter this value.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={
+                          !selectedField.required && !selectedField.locked
+                        }
+                        className="mt-1"
+                        name={`field-role-${selectedField.key}`}
+                        onChange={() =>
+                          onUpdateField(selectedField.key, {
+                            required: false,
+                            locked: false,
+                          })
+                        }
+                        type="radio"
+                      />
+                      <span>
+                        <span className="block">Content field</span>
+                        <span className="block text-xs font-semibold leading-5 text-ink/50">
+                          User may keep or edit this content.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm font-bold text-ink">
+                      <input
+                        checked={selectedField.locked}
+                        className="mt-1"
+                        name={`field-role-${selectedField.key}`}
+                        onChange={() =>
+                          onUpdateField(selectedField.key, {
+                            required: false,
+                            locked: true,
+                          })
+                        }
+                        type="radio"
+                      />
+                      <span>
+                        <span className="block">Locked field</span>
+                        <span className="block text-xs font-semibold leading-5 text-ink/50">
+                          User cannot view or edit this field.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="mt-1 flex items-center gap-2 border-t border-ink/10 pt-3 text-sm font-bold text-ink">
+                      <input
+                        checked={selectedField.paid}
+                        onChange={(event) =>
+                          onUpdateField(selectedField.key, {
+                            paid: event.target.checked,
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      Paid custom field
+                    </label>
                   </div>
                 </div>
-              ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-ink/10 bg-white p-4 text-sm font-bold text-ink/55">
+                Select a layer or click editable text in the preview.
+              </div>
+            )}
+
+            <div className="mt-4">
+              <h3 className="text-xs font-black uppercase tracking-[0.16em] text-ink/55">
+                Structured layers
+              </h3>
+              <div className="template-layer-list mt-3 grid gap-3">
+                {groupTemplateFields(
+                  editorFields,
+                  selectedTemplate.scanResult?.sections ?? [],
+                ).map((group) => (
+                  <div key={group.key}>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/40">
+                      {group.label}
+                    </p>
+                    <div className="mt-2 grid gap-2">
+                      {group.fields.map((field) => (
+                        <button
+                          className={`rounded-lg border px-3 py-2 text-left text-sm font-bold ${
+                            field.key === selectedFieldKey
+                              ? "border-leaf bg-leaf/10 text-leaf"
+                              : "border-ink/10 bg-white text-ink"
+                          }`}
+                          key={field.key}
+                          onClick={() => onSelectField(field.key)}
+                          type="button"
+                        >
+                          {field.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
       </div>
+      {activeTab === "thumbnail" ? (
+        <div className="grid min-h-[calc(100vh-205px)] gap-0 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="border-b border-ink/10 bg-paper/70 p-4 xl:border-b-0 xl:border-r">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
+                Catalogue thumbnail
+              </p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">
+                Upload or paste a self-contained 4:3 HTML cover matching this
+                invitation.
+              </p>
+            </div>
+            <label className="field mt-4">
+              <span className="text-sm font-bold text-ink">
+                Thumbnail HTML file
+              </span>
+              <input
+                accept=".html,text/html"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const errors = validateThumbnailUploadFile(file);
+                  setThumbnailFileErrors(errors);
+                  if (errors.length) return;
+                  void file.text().then(onUpdateThumbnail);
+                }}
+                type="file"
+              />
+            </label>
+            <label className="field mt-4">
+              <span className="text-sm font-bold text-ink">Thumbnail HTML</span>
+              <textarea
+                className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
+                onChange={(event) => {
+                  setThumbnailFileErrors([]);
+                  onUpdateThumbnail(event.target.value);
+                }}
+                placeholder="Paste the matching thumbnail HTML."
+                value={editorThumbnailHtml}
+              />
+            </label>
+            {thumbnailValidationErrors.length ? (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                <p className="font-black">Thumbnail blocked</p>
+                <ul className="mt-2 grid gap-1">
+                  {thumbnailValidationErrors.slice(0, 5).map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : editorThumbnailHtml ? (
+              <div className="mt-4 rounded-lg border border-leaf/20 bg-leaf/5 px-3 py-3 text-sm font-bold text-leaf">
+                Thumbnail passed browser safety checks.
+              </div>
+            ) : (
+              <div className="mt-4 rounded-lg border border-ink/10 bg-white px-3 py-3 text-sm text-ink/55">
+                No custom thumbnail has been added yet.
+              </div>
+            )}
+          </aside>
+          <div className="min-w-0 bg-white">
+            {isSourceMode ? (
+              <textarea
+                className="min-h-[calc(100vh-205px)] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
+                onChange={(event) => {
+                  setThumbnailFileErrors([]);
+                  onUpdateThumbnail(event.target.value);
+                }}
+                value={editorThumbnailHtml}
+              />
+            ) : editorThumbnailHtml && !thumbnailValidationErrors.length ? (
+              <iframe
+                className="h-[calc(100vh-205px)] min-h-[620px] w-full border-0 bg-white"
+                sandbox=""
+                srcDoc={editorThumbnailHtml}
+                title={`${selectedTemplate.name} thumbnail preview`}
+              />
+            ) : (
+              <div className="grid min-h-[620px] place-items-center p-6 text-center">
+                <div className="max-w-sm">
+                  <h3 className="text-xl font-black text-ink">
+                    {thumbnailValidationErrors.length
+                      ? "Preview blocked"
+                      : "Thumbnail preview"}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-ink/55">
+                    {thumbnailValidationErrors.length
+                      ? "Fix the highlighted safety issues before previewing or saving this thumbnail."
+                      : "Upload or paste thumbnail HTML to preview the catalogue card here."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -5087,6 +5535,45 @@ function validateTemplateUploadFile(file: File) {
     errors.push("Template file must be 1 MB or smaller.");
   }
   return errors;
+}
+
+function validateThumbnailUploadFile(file: File) {
+  const errors: string[] = [];
+  const fileName = file.name.toLowerCase();
+  if (!fileName.endsWith(".html") && file.type !== "text/html") {
+    errors.push("Only .html files are accepted.");
+  }
+  if (file.size > 200_000) {
+    errors.push("Thumbnail file must be 200 KB or smaller.");
+  }
+  return errors;
+}
+
+function validateThumbnailHtml(rawHtml: string) {
+  const html = rawHtml.trim();
+  const errors: string[] = [];
+  if (!html) return errors;
+  if (html.length < 80) {
+    errors.push("Thumbnail HTML is too short.");
+  }
+  if (html.length > 200_000) {
+    errors.push("Thumbnail HTML must be 200 KB or smaller.");
+  }
+  if (!/<!doctype\s+html/i.test(html)) {
+    errors.push("Thumbnail must include <!doctype html>.");
+  }
+  if (!/<body[\s>]/i.test(html)) {
+    errors.push("Thumbnail must include a body tag.");
+  }
+  if (/<(?:script|iframe|form|video|audio|object|embed)\b/i.test(html)) {
+    errors.push(
+      "Thumbnail cannot contain scripts, frames, forms, or embedded media.",
+    );
+  }
+  if (/\b(?:javascript|vbscript):/i.test(html) || /\son\w+\s*=/i.test(html)) {
+    errors.push("Thumbnail contains unsafe behavior.");
+  }
+  return [...new Set(errors)];
 }
 
 function validateTemplateUploadHtml(rawHtml: string) {
