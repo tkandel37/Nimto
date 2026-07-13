@@ -3804,19 +3804,20 @@ function PromptActionCard({
   workflowNote: string;
 }) {
   return (
-    <div className="flex items-center justify-end gap-2">
-      <div className="group relative flex-none">
+    <div className="prompt-action-card">
+      <div className="prompt-guide group">
         <button
-          aria-label="About this AI prompt"
-          className="grid h-10 w-10 place-items-center rounded-full border border-leaf/25 bg-white text-sm font-black text-leaf transition hover:bg-leaf/10 focus:bg-leaf/10 focus:outline-none focus:ring-2 focus:ring-leaf/20"
-          title="About this prompt"
+          aria-label="How to use this AI prompt"
+          className="prompt-guide-trigger"
+          title="How to use this prompt"
           type="button"
         >
-          i
+          <span aria-hidden="true">?</span>
+          Guide
         </button>
-        <div className="invisible absolute right-0 top-12 z-30 w-[min(300px,75vw)] translate-y-1 rounded-xl border border-ink/10 bg-white p-4 text-left opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+        <div className="prompt-guide-panel">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
-            About this prompt
+            AI prompt guide
           </p>
           <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
             {description}
