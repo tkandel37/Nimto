@@ -1,5 +1,6 @@
 export type RsvpFieldType =
   | "single_choice"
+  | "multiple_choice"
   | "text"
   | "textarea"
   | "number"

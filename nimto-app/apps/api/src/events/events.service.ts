@@ -34,6 +34,7 @@ type NormalizedRsvpField = {
   label: string;
   type:
     | "single_choice"
+    | "multiple_choice"
     | "text"
     | "textarea"
     | "number"
@@ -1433,7 +1434,7 @@ export class EventsService {
             : field.enabled,
         type,
         options:
-          type === "single_choice"
+          type === "single_choice" || type === "multiple_choice"
             ? this.normalizeChoiceOptions(
                 provided?.options,
                 field.options?.length ? field.options : ["Option 1"],
@@ -1470,7 +1471,7 @@ export class EventsService {
           enabled: field.enabled !== false,
           builtIn: false,
           options:
-            type === "single_choice"
+            type === "single_choice" || type === "multiple_choice"
               ? this.normalizeChoiceOptions(field.options, ["Option 1"])
               : undefined,
           placeholder:
@@ -1492,6 +1493,7 @@ export class EventsService {
   private normalizeRsvpFieldType(value: unknown): NormalizedRsvpField["type"] {
     switch (value) {
       case "single_choice":
+      case "multiple_choice":
       case "textarea":
       case "number":
       case "date":
@@ -1526,7 +1528,7 @@ export class EventsService {
   ) {
     const rawAnswers =
       dto.answers && typeof dto.answers === "object" ? dto.answers : {};
-    const answers: Record<string, string | number> = {
+    const answers: Record<string, string | number | string[]> = {
       attendance_status:
         dto.status === RsvpStatus.ATTENDING ? "Attending" : "Cannot attend",
     };
@@ -1548,6 +1550,15 @@ export class EventsService {
         }
         continue;
       }
+      if (field.type === "multiple_choice") {
+        const values = Array.isArray(rawValue)
+          ? rawValue
+              .map((value) => String(value).trim())
+              .filter((value) => field.options?.includes(value))
+          : [];
+        if (values.length) answers[field.key] = values;
+        continue;
+      }
       const text = String(rawValue ?? "").trim();
       if (text) answers[field.key] = text;
     }
@@ -1567,7 +1578,7 @@ export class EventsService {
 
   private validateRsvpSubmission(
     config: NormalizedRsvpConfig,
-    answers: Record<string, string | number>,
+    answers: Record<string, string | number | string[]>,
     requireName: boolean,
   ) {
     const attending =
@@ -1592,7 +1603,9 @@ export class EventsService {
         field.required &&
         field.key !== "full_name" &&
         field.key !== "number_of_guests" &&
-        !String(answers[field.key] ?? "").trim()
+        (Array.isArray(answers[field.key])
+          ? (answers[field.key] as string[]).length === 0
+          : !String(answers[field.key] ?? "").trim())
       ) {
         throw new BadRequestException(`${field.label} is required.`);
       }
@@ -1606,6 +1619,16 @@ export class EventsService {
       if (field.type === "single_choice" && field.options?.length) {
         const value = this.answerText(answers, field.key);
         if (value && !field.options.includes(value)) {
+          throw new BadRequestException(
+            `${field.label} has an invalid option.`,
+          );
+        }
+      }
+      if (field.type === "multiple_choice" && field.options?.length) {
+        const values = Array.isArray(answers[field.key])
+          ? (answers[field.key] as string[])
+          : [];
+        if (values.some((value) => !field.options?.includes(value))) {
           throw new BadRequestException(
             `${field.label} has an invalid option.`,
           );

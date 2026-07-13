@@ -59,6 +59,17 @@ export function RsvpForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const missingMultipleChoice = fields.find(
+      (field) =>
+        field.enabled &&
+        field.required &&
+        field.type === "multiple_choice" &&
+        form.getAll(field.key).length === 0,
+    );
+    if (missingMultipleChoice) {
+      setError(`Please answer ${missingMultipleChoice.label}.`);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -225,17 +236,33 @@ function renderField(
 
   if (field.type === "single_choice") {
     return (
-      <label className="nimto-rsvp-field" key={field.id}>
-        {commonLabel}
-        <select defaultValue="" name={field.key} required={field.required}>
-          <option value="">Select</option>
+      <fieldset className="nimto-rsvp-field nimto-rsvp-option-field" key={field.id}>
+        <legend>{commonLabel}</legend>
+        <div className="nimto-rsvp-option-list">
           {(field.options ?? []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
+            <label key={option}>
+              <input name={field.key} required={field.required} type="radio" value={option} />
+              <span>{option}</span>
+            </label>
           ))}
-        </select>
-      </label>
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (field.type === "multiple_choice") {
+    return (
+      <fieldset className="nimto-rsvp-field nimto-rsvp-option-field span-2" key={field.id}>
+        <legend>{commonLabel}</legend>
+        <div className="nimto-rsvp-option-list">
+          {(field.options ?? []).map((option) => (
+            <label key={option}>
+              <input name={field.key} type="checkbox" value={option} />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
     );
   }
 
@@ -288,7 +315,7 @@ function collectAnswers(
     status: RsvpStatus;
   },
 ) {
-  const answers: Record<string, string | number> = {
+  const answers: Record<string, string | number | string[]> = {
     attendance_status:
       context.status === "ATTENDING" ? "Attending" : "Cannot attend",
   };
@@ -299,6 +326,14 @@ function collectAnswers(
     }
     if (field.key === "full_name" && !context.publicMode) {
       answers[field.key] = context.inviteeName;
+      continue;
+    }
+    if (field.type === "multiple_choice") {
+      const values = form
+        .getAll(field.key)
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+      if (values.length) answers[field.key] = values;
       continue;
     }
     const raw = form.get(field.key);
