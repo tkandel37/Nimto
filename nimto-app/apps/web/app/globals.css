@@ -1100,8 +1100,42 @@ a {
   overflow-y: auto;
   margin-bottom: 16px;
   padding-right: 4px;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-color: transparent transparent;
   scrollbar-width: thin;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav:hover,
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav:focus-within {
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav::-webkit-scrollbar,
+.dashboard-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav::-webkit-scrollbar-track,
+.dashboard-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav::-webkit-scrollbar-thumb,
+.dashboard-main::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+.dashboard-shell:not(.sidebar-collapsed)
+  .sidebar
+  nav:hover::-webkit-scrollbar-thumb,
+.dashboard-shell:not(.sidebar-collapsed)
+  .sidebar
+  nav:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.34);
+  background-clip: padding-box;
 }
 
 .dashboard-shell:not(.sidebar-collapsed) .sidebar-footer {
@@ -1118,7 +1152,25 @@ a {
   overflow-x: hidden;
   padding: 16px;
   scroll-behavior: smooth;
+  scrollbar-color: transparent transparent;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.dashboard-main:hover,
+.dashboard-main:focus-within {
+  scrollbar-color: rgba(129, 39, 216, 0.42) transparent;
+}
+
+.dashboard-main:hover::-webkit-scrollbar-thumb,
+.dashboard-main:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(129, 39, 216, 0.42);
+  background-clip: padding-box;
+}
+
+.dashboard-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(129, 39, 216, 0.62);
+  background-clip: padding-box;
 }
 
 .dashboard-page-surface {
