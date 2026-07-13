@@ -1480,13 +1480,30 @@ export class EventsService {
       ];
     });
 
+    const fields = [...merged, ...custom];
+    const providedOrder = new Map(
+      providedFields.flatMap((item, index) => {
+        if (!item || typeof item !== "object") return [];
+        const key = (item as Record<string, unknown>).key;
+        return typeof key === "string" ? [[key, index] as const] : [];
+      }),
+    );
+    const fallbackOrder = new Map(
+      fields.map((field, index) => [field.key, providedFields.length + index]),
+    );
+    fields.sort(
+      (left, right) =>
+        (providedOrder.get(left.key) ?? fallbackOrder.get(left.key) ?? 0) -
+        (providedOrder.get(right.key) ?? fallbackOrder.get(right.key) ?? 0),
+    );
+
     return {
       note: typeof source.note === "string" ? source.note : "",
       closedMessage:
         typeof source.closedMessage === "string" && source.closedMessage.trim()
           ? source.closedMessage
           : "Sorry, RSVP is closed for this event.",
-      fields: [...merged, ...custom],
+      fields,
     };
   }
 

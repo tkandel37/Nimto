@@ -832,6 +832,37 @@ function EventDetailContent({
     });
   }
 
+  function reorderRsvpField(sourceId: string, targetId: string) {
+    if (!sourceId || sourceId === targetId) return;
+    setRsvpDraft((current) => {
+      const fields = [...current.fields];
+      const sourceIndex = fields.findIndex((field) => field.id === sourceId);
+      if (sourceIndex < 0) return current;
+      const [moved] = fields.splice(sourceIndex, 1);
+      const targetIndex = fields.findIndex((field) => field.id === targetId);
+      if (targetIndex < 0) return current;
+      fields.splice(targetIndex, 0, moved);
+      return { ...current, fields };
+    });
+  }
+
+  function nudgeRsvpField(fieldId: string, direction: -1 | 1) {
+    setRsvpDraft((current) => {
+      const visible = current.fields.filter((field) => field.enabled);
+      const visibleIndex = visible.findIndex((field) => field.id === fieldId);
+      const target = visible[visibleIndex + direction];
+      if (!target) return current;
+      const fields = [...current.fields];
+      const sourceIndex = fields.findIndex((field) => field.id === fieldId);
+      const targetIndex = fields.findIndex((field) => field.id === target.id);
+      [fields[sourceIndex], fields[targetIndex]] = [
+        fields[targetIndex],
+        fields[sourceIndex],
+      ];
+      return { ...current, fields };
+    });
+  }
+
   async function duplicateEvent() {
     if (!event) return;
     setIsSaving(true);
@@ -1579,17 +1610,11 @@ function EventDetailContent({
                     <h3>Guest questions</h3>
                     <p>Choose what guests see and how each answer should be collected.</p>
                   </div>
-                  <button className="user-primary-button" disabled={isSaving} type="submit">
-                    {isSaving ? "Saving..." : "Save RSVP form"}
-                  </button>
                 </header>
                 <div className="rsvp-builder-toolbar">
                   <span>
                     <b>{rsvpConfig.fields.filter((field) => field.enabled).length}</b> questions in this form
                   </span>
-                  <button className="user-secondary-button" onClick={addCustomRsvpField} type="button">
-                    + Add question
-                  </button>
                 </div>
                 <div className="rsvp-question-list">
                   {rsvpConfig.fields.filter((field) => field.enabled).map((field, fieldIndex) => {
@@ -1601,8 +1626,41 @@ function EventDetailContent({
                         id={`rsvp-question-${field.id}`}
                         key={field.id}
                         name="rsvp-question-editor"
+                        onDragOver={(dragEvent) => dragEvent.preventDefault()}
+                        onDrop={(dropEvent) => {
+                          dropEvent.preventDefault();
+                          reorderRsvpField(
+                            dropEvent.dataTransfer.getData("text/plain"),
+                            field.id,
+                          );
+                        }}
                       >
                         <summary className="rsvp-question-summary">
+                          <span
+                            aria-label={`Drag ${field.label} to reorder. Use arrow keys for precise movement.`}
+                            className="rsvp-drag-handle"
+                            draggable
+                            onDragStart={(dragEvent) => {
+                              dragEvent.dataTransfer.effectAllowed = "move";
+                              dragEvent.dataTransfer.setData("text/plain", field.id);
+                            }}
+                            onKeyDown={(keyEvent) => {
+                              if (keyEvent.key === "ArrowUp") {
+                                keyEvent.preventDefault();
+                                nudgeRsvpField(field.id, -1);
+                              }
+                              if (keyEvent.key === "ArrowDown") {
+                                keyEvent.preventDefault();
+                                nudgeRsvpField(field.id, 1);
+                              }
+                            }}
+                            onClick={(clickEvent) => clickEvent.preventDefault()}
+                            role="button"
+                            tabIndex={0}
+                            title="Drag to reorder"
+                          >
+                            <svg aria-hidden="true" viewBox="0 0 16 20"><path d="M5 4h.01M11 4h.01M5 10h.01M11 10h.01M5 16h.01M11 16h.01" /></svg>
+                          </span>
                           <span className="rsvp-question-number" aria-hidden="true">{fieldIndex + 1}</span>
                           <div className="rsvp-question-summary-copy">
                             <strong>{field.label}</strong>
@@ -1631,6 +1689,17 @@ function EventDetailContent({
                         </summary>
 
                         <div className="rsvp-question-body">
+                          <div className="rsvp-order-actions">
+                            <span>Question position</span>
+                            <button disabled={fieldIndex === 0} onClick={() => nudgeRsvpField(field.id, -1)} type="button">Move up</button>
+                            <button
+                              disabled={fieldIndex === rsvpConfig.fields.filter((item) => item.enabled).length - 1}
+                              onClick={() => nudgeRsvpField(field.id, 1)}
+                              type="button"
+                            >
+                              Move down
+                            </button>
+                          </div>
                           <label className="rsvp-question-title-field">
                             <span>Question</span>
                             <input
@@ -1733,6 +1802,10 @@ function EventDetailContent({
                   })}
                 </div>
 
+                <button className="user-secondary-button rsvp-add-question-button" onClick={addCustomRsvpField} type="button">
+                  + Add question
+                </button>
+
                 <section className="rsvp-optional-settings">
                   <label className="event-inline-toggle">
                     <input checked={isRsvpNoteEnabled} onChange={(changeEvent) => setIsRsvpNoteEnabled(changeEvent.target.checked)} type="checkbox" />
@@ -1776,9 +1849,6 @@ function EventDetailContent({
                   ) : null}
                 </section>
                 <footer className="rsvp-builder-actions">
-                  <button className="user-secondary-button" onClick={addCustomRsvpField} type="button">
-                    + Add question
-                  </button>
                   <button className="user-primary-button" disabled={isSaving} type="submit">
                     {isSaving ? "Saving..." : "Save RSVP form"}
                   </button>
@@ -2637,10 +2707,22 @@ function normalizeRsvpConfig(
       } satisfies RsvpFieldConfig,
     ];
   });
+  const fields = [...mergedDefaults, ...customFields];
+  const providedOrder = new Map(
+    providedFields.map((field, index) => [field.key, index]),
+  );
+  const fallbackOrder = new Map(
+    fields.map((field, index) => [field.key, providedFields.length + index]),
+  );
+  fields.sort(
+    (left, right) =>
+      (providedOrder.get(left.key) ?? fallbackOrder.get(left.key) ?? 0) -
+      (providedOrder.get(right.key) ?? fallbackOrder.get(right.key) ?? 0),
+  );
   return {
     note: String(config?.note ?? defaults.note),
     closedMessage: String(config?.closedMessage ?? defaults.closedMessage),
-    fields: [...mergedDefaults, ...customFields],
+    fields,
   };
 }
 

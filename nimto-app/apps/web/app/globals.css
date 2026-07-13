@@ -7538,6 +7538,12 @@ button.user-design-preview {
   font-weight: 750;
 }
 
+.rsvp-add-question-button {
+  width: 100%;
+  min-height: 46px;
+  border-style: dashed;
+}
+
 .rsvp-builder-toolbar b {
   color: var(--ink);
 }
@@ -7568,13 +7574,43 @@ button.user-design-preview {
 
 .rsvp-question-summary {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(180px, 1fr) auto auto;
   align-items: center;
   gap: 12px;
   min-height: 62px;
   cursor: pointer;
   list-style: none;
   padding: 12px 14px;
+}
+
+.rsvp-drag-handle {
+  display: grid;
+  width: 24px;
+  height: 34px;
+  place-items: center;
+  cursor: grab;
+  border-radius: 7px;
+  color: rgb(23 37 29 / 0.34);
+}
+
+.rsvp-drag-handle:active {
+  cursor: grabbing;
+}
+
+.rsvp-drag-handle:hover,
+.rsvp-drag-handle:focus-visible {
+  outline: 0;
+  background: #f0e8f5;
+  color: #6d2aa5;
+}
+
+.rsvp-drag-handle svg {
+  width: 14px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 3;
 }
 
 .rsvp-question-summary::-webkit-details-marker {
@@ -7722,6 +7758,37 @@ button.user-design-preview {
   border-top: 1px solid rgb(23 37 29 / 0.08);
   margin: 0 14px;
   padding: 16px 0;
+}
+
+.rsvp-order-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.rsvp-order-actions span {
+  margin-right: auto;
+  color: rgb(23 37 29 / 0.52);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.rsvp-order-actions button {
+  cursor: pointer;
+  border: 1px solid rgb(23 37 29 / 0.1);
+  border-radius: 8px;
+  background: #faf9f6;
+  padding: 6px 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.rsvp-order-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .rsvp-question-title-field {
@@ -8069,7 +8136,7 @@ button.user-design-preview {
   }
 
   .rsvp-question-summary {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     gap: 8px;
     min-height: 58px;
     padding: 10px 11px;
@@ -8135,8 +8202,7 @@ button.user-design-preview {
 
   .rsvp-builder-actions {
     bottom: calc(92px + env(safe-area-inset-bottom));
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
   }
 
   .rsvp-builder-actions button {
