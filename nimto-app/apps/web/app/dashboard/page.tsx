@@ -3807,32 +3807,36 @@ function PromptActionCard({
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-leaf/15 bg-leaf/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-leaf text-xs font-black text-white">
           AI
         </span>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-black text-ink">{title}</p>
-            <details className="group relative flex-none">
-              <summary
-                aria-label="When to use this prompt"
-                className="grid h-6 w-6 cursor-pointer list-none place-items-center rounded-full border border-leaf/25 bg-white text-xs font-black text-leaf transition hover:bg-leaf/10 [&::-webkit-details-marker]:hidden"
-                title="When to use this prompt"
-              >
-                i
-              </summary>
-              <div className="absolute left-0 top-8 z-30 w-[min(280px,75vw)] rounded-xl border border-ink/10 bg-white p-4 text-left shadow-xl">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
-                  Use this at the right time
-                </p>
-                <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
-                  {workflowNote}
-                </p>
-              </div>
-            </details>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="text-sm font-black text-ink">{title}</p>
+          <div className="group relative flex-none">
+            <button
+              aria-label="About this AI prompt"
+              className="grid h-6 w-6 place-items-center rounded-full border border-leaf/25 bg-white text-xs font-black text-leaf transition hover:bg-leaf/10 focus:bg-leaf/10 focus:outline-none focus:ring-2 focus:ring-leaf/20"
+              title="About this prompt"
+              type="button"
+            >
+              i
+            </button>
+            <div className="invisible absolute left-0 top-8 z-30 w-[min(300px,75vw)] translate-y-1 rounded-xl border border-ink/10 bg-white p-4 text-left opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
+                About this prompt
+              </p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
+                {description}
+              </p>
+              <p className="mt-3 border-t border-ink/10 pt-3 text-xs font-black text-ink">
+                When to use it
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-ink/65">
+                {workflowNote}
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs leading-5 text-ink/55">{description}</p>
         </div>
       </div>
       <div className="flex-none">
