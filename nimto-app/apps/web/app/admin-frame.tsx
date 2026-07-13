@@ -4,8 +4,7 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
 import { usePathname, useRouter } from "next/navigation";
-import { apiRequest, AuthUser } from "@/lib/api";
-import { clearAuthSession } from "@/lib/auth-session";
+import { AuthUser } from "@/lib/api";
 
 type AdminTabKey =
   | "overview"
@@ -159,7 +158,6 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const activeTab = adminPathToTab[pathname] ?? "overview";
   const isAdmin = isAdminPath(pathname);
 
@@ -228,28 +226,6 @@ export function AdminFrame({ children }: { children: ReactNode }) {
     hrefs.forEach((href) => router.prefetch(href));
     router.prefetch("/admin-profile");
   }, [isAdmin, router, user, visibleTabs]);
-
-  async function logout() {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    const token = localStorage.getItem("nimto_token");
-    clearAuthSession();
-    if (user?.id) {
-      localStorage.removeItem(`nimto_dashboard_cache:${user.id}`);
-    }
-    setUser(null);
-    router.replace("/");
-
-    if (!token) return;
-    try {
-      await apiRequest("/auth/logout", {
-        headers: { Authorization: `Bearer ${token}` },
-        method: "POST",
-      });
-    } catch {
-      // The local session is already cleared; expired server sessions are safe.
-    }
-  }
 
   if (!isAdmin) {
     return <>{children}</>;
@@ -370,20 +346,6 @@ export function AdminFrame({ children }: { children: ReactNode }) {
                 </span>
               </span>
             </Link>
-            <button
-              aria-label="Log out"
-              className="dashboard-tab text-white/65"
-              data-tooltip="Log out"
-              disabled={isLoggingOut}
-              onClick={logout}
-              title="Log out"
-              type="button"
-            >
-              <LogoutIcon />
-              <span className="sidebar-tab-label">
-                {isLoggingOut ? "Logging out…" : "Log out"}
-              </span>
-            </button>
           </div>
         </div>
       </aside>
@@ -519,20 +481,6 @@ function SettingsIcon() {
         stroke="currentColor"
         strokeLinejoin="round"
         strokeWidth="2.1"
-      />
-    </svg>
-  );
-}
-
-function LogoutIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path
-        d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M9 12h9"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
       />
     </svg>
   );
