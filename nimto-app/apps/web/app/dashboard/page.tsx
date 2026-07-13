@@ -1547,7 +1547,7 @@ function OverviewPanel({
           </h2>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="admin-metric-grid">
         <Metric label="Events" value={eventCount} tone="text-leaf" />
         <Metric label="Roles" value={roleCount} tone="text-leaf" />
         <Metric label="Staff" value={staffCount} tone="text-marigold" />
@@ -2592,7 +2592,7 @@ function DesignSetupPanel({
   return (
     <section className="mt-7 grid gap-5">
       <div className="border-y border-ink/10 bg-white px-4 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="grid gap-5">
           <div>
             <h2 className="text-2xl font-black text-ink">Design Setup</h2>
             <p className="mt-1 text-sm text-ink/55">
@@ -2600,7 +2600,7 @@ function DesignSetupPanel({
               workspace.
             </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-6 xl:min-w-[900px]">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <label className="field md:col-span-2">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-ink/45">
                 Search
@@ -7131,12 +7131,15 @@ function RolesPanel({
         {canManage ? (
           <button
             aria-label="Create role"
-            className="h-12 w-12 rounded-lg bg-ink text-2xl font-black leading-none text-white"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-ink px-4 font-black text-white"
             onClick={() => setIsCreatingRole((value) => !value)}
             title="Create role"
             type="button"
           >
-            +
+            <span aria-hidden="true" className="text-xl leading-none">
+              +
+            </span>
+            Create role
           </button>
         ) : null}
       </div>

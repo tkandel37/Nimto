@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
 import { usePathname, useRouter } from "next/navigation";
@@ -158,6 +158,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const navigationRef = useRef<HTMLElement | null>(null);
   const activeTab = adminPathToTab[pathname] ?? "overview";
   const isAdmin = isAdminPath(pathname);
 
@@ -227,6 +228,12 @@ export function AdminFrame({ children }: { children: ReactNode }) {
     router.prefetch("/admin-profile");
   }, [isAdmin, router, user, visibleTabs]);
 
+  useEffect(() => {
+    navigationRef.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeTab, visibleTabs]);
+
   if (!isAdmin) {
     return <>{children}</>;
   }
@@ -265,7 +272,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <nav className="mt-8 grid gap-5 text-sm font-bold">
+        <nav className="mt-8 grid gap-5 text-sm font-bold" ref={navigationRef}>
           {(["Workspace", "Access", "Operations"] as const).map((group) => {
             const tabs = visibleTabs.filter((tab) => tab.group === group);
             if (!tabs.length) return null;

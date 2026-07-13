@@ -1090,6 +1090,24 @@ a {
   transition: padding 180ms ease;
 }
 
+.dashboard-shell:not(.sidebar-collapsed) .sidebar {
+  overflow: hidden;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding-right: 4px;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-width: thin;
+}
+
+.dashboard-shell:not(.sidebar-collapsed) .sidebar-footer {
+  flex: 0 0 auto;
+}
+
 .dashboard-main {
   position: relative;
   z-index: 1;
@@ -1574,6 +1592,12 @@ a {
   box-shadow: 0 12px 30px rgba(23, 32, 51, 0.05);
 }
 
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .admin-command-center {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
@@ -1619,6 +1643,17 @@ a {
   background: white;
   padding: 14px;
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.admin-action-stack button:hover {
+  border-color: rgba(129, 39, 216, 0.28);
+  background: rgba(129, 39, 216, 0.045);
+  box-shadow: 0 10px 24px rgba(59, 39, 58, 0.08);
 }
 
 .admin-action-stack strong,
@@ -3232,11 +3267,24 @@ a {
     padding: 20px;
   }
 
+  .sidebar-footer {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .sidebar-account {
+    border-top: 0;
+    padding-top: 0;
+  }
+
   .sidebar nav {
     display: flex;
+    min-height: auto;
+    flex: 0 0 auto;
     gap: 8px;
     margin-top: 20px;
     overflow-x: auto;
+    overflow-y: hidden;
     padding-bottom: 4px;
     scrollbar-width: none;
   }
@@ -3274,6 +3322,10 @@ a {
 
   .admin-command-center {
     grid-template-columns: 1fr;
+  }
+
+  .admin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-task-inbox,
@@ -8268,7 +8320,6 @@ body::before {
 .site-button-primary,
 .site-login-button,
 .user-primary-button,
-.admin-action-stack button,
 button[class*="bg-ink"],
 a[class*="bg-ink"] {
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
@@ -8281,7 +8332,6 @@ a[class*="bg-ink"] {
 .site-button-primary:hover,
 .site-login-button:hover,
 .user-primary-button:not(:disabled):hover,
-.admin-action-stack button:hover,
 button[class*="bg-ink"]:hover,
 a[class*="bg-ink"]:hover {
   background: var(--brand-gradient-hover) !important;
