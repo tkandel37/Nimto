@@ -30,7 +30,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Dynamic design categories and subcategories.
 - HTML template upload, scanning, editing, duplication, rescan, publication,
   unpublication, immutable design version snapshots, and matching catalogue
-  thumbnail authoring with reusable AI conversion prompts.
+  thumbnail authoring through a guided two-step workflow with reusable AI
+  conversion prompts and an automatic publish-time thumbnail fallback.
 - Public design catalogue.
 - Opening and background animation-component catalogue.
 - User event creation, update, deletion, and design-field values.

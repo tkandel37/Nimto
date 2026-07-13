@@ -3756,16 +3756,67 @@ function PromptCopyButton({
 
   return (
     <button
-      className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold text-ink"
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-ink/90"
       onClick={copyPrompt}
       type="button"
     >
+      <svg
+        aria-hidden="true"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <rect
+          height="13"
+          rx="2"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          width="13"
+          x="8"
+          y="8"
+        />
+        <path
+          d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.8"
+        />
+      </svg>
       {copyState === "copied"
         ? "Prompt copied"
         : copyState === "failed"
           ? "Copy failed"
           : label}
     </button>
+  );
+}
+
+function PromptActionCard({
+  description,
+  label,
+  prompt,
+  title,
+}: {
+  description: string;
+  label: string;
+  prompt: string;
+  title: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-leaf/15 bg-leaf/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-leaf text-xs font-black text-white">
+          AI
+        </span>
+        <div>
+          <p className="text-sm font-black text-ink">{title}</p>
+          <p className="mt-1 text-xs leading-5 text-ink/55">{description}</p>
+        </div>
+      </div>
+      <div className="flex-none">
+        <PromptCopyButton label={label} prompt={prompt} />
+      </div>
+    </div>
   );
 }
 
@@ -3793,6 +3844,7 @@ function TemplateCreatePanel({
   const [activeTab, setActiveTab] = useState<"template" | "thumbnail">(
     "template",
   );
+  const formRef = useRef<HTMLFormElement | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [uploadValidationErrors, setUploadValidationErrors] = useState<
     string[]
@@ -3821,16 +3873,6 @@ function TemplateCreatePanel({
     setThumbnailValidationErrors(validateThumbnailHtml(html));
   }
 
-  async function readThumbnailFile(file?: File) {
-    if (!file || file.size === 0) return;
-    const fileErrors = validateThumbnailUploadFile(file);
-    if (fileErrors.length) {
-      setThumbnailValidationErrors(fileErrors);
-      return;
-    }
-    setThumbnailForUpload(await file.text());
-  }
-
   function submitTemplate(event: FormEvent<HTMLFormElement>) {
     const errors = validateTemplateUploadHtml(createPreviewHtml);
     const thumbnailErrors = validateThumbnailHtml(createThumbnailHtml);
@@ -3841,6 +3883,14 @@ function TemplateCreatePanel({
       return;
     }
     onSubmit(event);
+  }
+
+  function continueToThumbnail() {
+    const errors = validateTemplateUploadHtml(createPreviewHtml);
+    setUploadValidationErrors(errors);
+    if (errors.length || !formRef.current?.reportValidity()) return;
+    setActiveTab("thumbnail");
+    setIsSourceMode(false);
   }
 
   const activeHtml =
@@ -3873,7 +3923,7 @@ function TemplateCreatePanel({
         <div>
           <h2 className="text-2xl font-black text-ink">Create template</h2>
           <p className="mt-1 text-sm text-ink/55">
-            Add HTML on the left and preview the design on the right.
+            Complete the template first, then review its catalogue thumbnail.
           </p>
         </div>
         {isCreatePanelCollapsed ? (
@@ -3889,42 +3939,49 @@ function TemplateCreatePanel({
         ) : null}
       </div>
 
-      <div
-        aria-label="Template content"
-        className="flex gap-2 border-b border-ink/10 bg-white px-4"
-        role="tablist"
-      >
+      <div className="grid gap-2 border-b border-ink/10 bg-white px-4 py-3 sm:grid-cols-2">
         <button
-          aria-selected={activeTab === "template"}
-          className={`border-b-2 px-4 py-3 text-sm font-black ${
+          aria-current={activeTab === "template" ? "step" : undefined}
+          className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-black ${
             activeTab === "template"
-              ? "border-leaf text-leaf"
-              : "border-transparent text-ink/55"
+              ? "border-leaf/25 bg-leaf/10 text-leaf"
+              : "border-ink/10 bg-white text-ink/55"
           }`}
           onClick={() => {
             setActiveTab("template");
             setIsSourceMode(false);
           }}
-          role="tab"
           type="button"
         >
-          Template design
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-leaf text-xs text-white">
+            1
+          </span>
+          <span>
+            <span className="block">Template details</span>
+            <span className="mt-0.5 block text-xs font-semibold opacity-65">
+              Information and HTML
+            </span>
+          </span>
         </button>
         <button
-          aria-selected={activeTab === "thumbnail"}
-          className={`border-b-2 px-4 py-3 text-sm font-black ${
+          aria-current={activeTab === "thumbnail" ? "step" : undefined}
+          className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-black ${
             activeTab === "thumbnail"
-              ? "border-leaf text-leaf"
-              : "border-transparent text-ink/55"
+              ? "border-leaf/25 bg-leaf/10 text-leaf"
+              : "border-ink/10 bg-white text-ink/55"
           }`}
-          onClick={() => {
-            setActiveTab("thumbnail");
-            setIsSourceMode(false);
-          }}
-          role="tab"
+          onClick={continueToThumbnail}
           type="button"
         >
-          Thumbnail
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-leaf text-xs text-white">
+            2
+          </span>
+          <span>
+            <span className="block">Thumbnail</span>
+            <span className="mt-0.5 block text-xs font-semibold opacity-65">
+              Optional catalogue cover
+            </span>
+          </span>
         </button>
       </div>
 
@@ -3939,10 +3996,20 @@ function TemplateCreatePanel({
           <form
             className="border border-ink/10 bg-white p-4"
             onSubmit={submitTemplate}
+            ref={formRef}
           >
             <>
               <div className="flex items-center justify-between gap-3">
-                <h3 className="font-black text-ink">Template details</h3>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-leaf">
+                    Step {activeTab === "template" ? "1 of 2" : "2 of 2"}
+                  </p>
+                  <h3 className="mt-1 font-black text-ink">
+                    {activeTab === "template"
+                      ? "Template details"
+                      : "Catalogue thumbnail"}
+                  </h3>
+                </div>
                 <button
                   aria-label="Minimize form"
                   className="grid h-10 w-10 place-items-center rounded-lg border border-ink/15 bg-white text-ink"
@@ -3954,11 +4021,19 @@ function TemplateCreatePanel({
                 </button>
               </div>
               <div className="mt-4 grid gap-3">
-                <label className="field">
+                <label
+                  className={activeTab === "template" ? "field" : "hidden"}
+                >
                   <span className="text-sm font-bold text-ink">Name</span>
                   <input name="name" required />
                 </label>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                <div
+                  className={
+                    activeTab === "template"
+                      ? "grid gap-3 md:grid-cols-2 xl:grid-cols-1"
+                      : "hidden"
+                  }
+                >
                   <label className="field">
                     <span className="text-sm font-bold text-ink">Category</span>
                     <select
@@ -3995,20 +4070,12 @@ function TemplateCreatePanel({
                 <div
                   className={activeTab === "template" ? "grid gap-3" : "hidden"}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-ink">
-                        Template design HTML
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-ink/50">
-                        Convert a finalized design into myNimto format.
-                      </p>
-                    </div>
-                    <PromptCopyButton
-                      label="Copy HTML prompt"
-                      prompt={TEMPLATE_CONVERSION_PROMPT}
-                    />
-                  </div>
+                  <PromptActionCard
+                    description="Copy these platform rules into your AI chat before asking it for the final HTML file."
+                    label="Copy template prompt"
+                    prompt={TEMPLATE_CONVERSION_PROMPT}
+                    title="Prepare HTML with AI"
+                  />
                   <label className="field">
                     <span className="text-sm font-bold text-ink">
                       HTML file
@@ -4045,39 +4112,27 @@ function TemplateCreatePanel({
                       Template passed browser safety checks.
                     </div>
                   ) : null}
+                  <button
+                    className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-ink/40"
+                    disabled={uploadValidationErrors.length > 0}
+                    onClick={continueToThumbnail}
+                    type="button"
+                  >
+                    Next: thumbnail
+                    <span aria-hidden="true">→</span>
+                  </button>
                 </div>
                 <div
                   className={
                     activeTab === "thumbnail" ? "grid gap-3" : "hidden"
                   }
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-ink">
-                        Thumbnail HTML
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-ink/50">
-                        Generate a matching 4:3 catalogue cover.
-                      </p>
-                    </div>
-                    <PromptCopyButton
-                      label="Copy thumbnail prompt"
-                      prompt={THUMBNAIL_GENERATION_PROMPT}
-                    />
-                  </div>
-                  <label className="field">
-                    <span className="text-sm font-bold text-ink">
-                      Thumbnail HTML file
-                    </span>
-                    <input
-                      accept=".html,text/html"
-                      name="thumbnailFile"
-                      onChange={(event) =>
-                        readThumbnailFile(event.target.files?.[0])
-                      }
-                      type="file"
-                    />
-                  </label>
+                  <PromptActionCard
+                    description="Give this prompt and the finished template HTML to any AI, then paste its thumbnail HTML below."
+                    label="Copy thumbnail prompt"
+                    prompt={THUMBNAIL_GENERATION_PROMPT}
+                    title="Generate a matching cover"
+                  />
                   <label className="field">
                     <span className="text-sm font-bold text-ink">
                       Thumbnail HTML
@@ -4088,7 +4143,7 @@ function TemplateCreatePanel({
                       onChange={(event) =>
                         setThumbnailForUpload(event.target.value)
                       }
-                      placeholder="Optional. Paste the matching catalogue thumbnail HTML."
+                      placeholder="Optional: paste the AI-generated thumbnail HTML here."
                       value={createThumbnailHtml}
                     />
                   </label>
@@ -4106,22 +4161,34 @@ function TemplateCreatePanel({
                       Thumbnail passed browser safety checks.
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-ink/10 bg-paper px-3 py-3 text-sm text-ink/55">
-                      Thumbnail HTML is optional, but recommended for the
-                      catalogue.
+                    <div className="rounded-lg border border-ink/10 bg-paper px-3 py-3 text-sm leading-6 text-ink/55">
+                      No upload is required. You can paste an AI-generated
+                      thumbnail, or leave this blank and myNimto will create a
+                      catalogue fallback when the template is published.
                     </div>
                   )}
                 </div>
               </div>
-              <button
-                className="mt-4 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
-                disabled={
-                  uploadValidationErrors.length > 0 ||
-                  thumbnailValidationErrors.length > 0
-                }
-              >
-                Create draft
-              </button>
+              {activeTab === "thumbnail" ? (
+                <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+                  <button
+                    className="rounded-lg border border-ink/15 bg-white px-4 py-3 font-bold text-ink"
+                    onClick={() => {
+                      setActiveTab("template");
+                      setIsSourceMode(false);
+                    }}
+                    type="button"
+                  >
+                    Back
+                  </button>
+                  <button
+                    className="rounded-lg bg-ink px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
+                    disabled={thumbnailValidationErrors.length > 0}
+                  >
+                    Create draft
+                  </button>
+                </div>
+              ) : null}
             </>
           </form>
         )}
@@ -4174,8 +4241,9 @@ function TemplateCreatePanel({
                   {activeTab === "template" ? "Template" : "Thumbnail"} preview
                 </h3>
                 <p className="mt-2 max-w-sm text-sm leading-6 text-ink/55">
-                  Upload an HTML file, paste HTML, or use the source icon to
-                  start editing the {activeTab} here.
+                  {activeTab === "template"
+                    ? "Upload the template HTML, paste it, or use the source icon to start editing."
+                    : "Paste an AI-generated cover to preview it, or continue without one to use the automatic fallback."}
                 </p>
               </div>
             </div>
@@ -4587,11 +4655,7 @@ function TemplateEditorPanel({
     "template",
   );
   const [isSourceMode, setIsSourceMode] = useState(false);
-  const [thumbnailFileErrors, setThumbnailFileErrors] = useState<string[]>([]);
-  const thumbnailValidationErrors = [
-    ...thumbnailFileErrors,
-    ...validateThumbnailHtml(editorThumbnailHtml),
-  ];
+  const thumbnailValidationErrors = validateThumbnailHtml(editorThumbnailHtml);
   const animationSlots = [
     ...(selectedTemplate.scanResult?.openingSlots ?? []),
     ...(selectedTemplate.scanResult?.backgroundEffectSlots ?? []),
@@ -4655,18 +4719,6 @@ function TemplateEditorPanel({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <PromptCopyButton
-            label={
-              activeTab === "template"
-                ? "Copy HTML prompt"
-                : "Copy thumbnail prompt"
-            }
-            prompt={
-              activeTab === "template"
-                ? TEMPLATE_CONVERSION_PROMPT
-                : THUMBNAIL_GENERATION_PROMPT
-            }
-          />
           <button
             aria-label={
               isSourceMode ? "Show visual preview" : "Edit source code"
@@ -4746,6 +4798,30 @@ function TemplateEditorPanel({
         >
           Thumbnail
         </button>
+      </div>
+      <div className="border-b border-ink/10 bg-white p-4">
+        <PromptActionCard
+          description={
+            activeTab === "template"
+              ? "Use these rules when asking any AI to convert the finalized design into myNimto HTML."
+              : "Give this prompt and the template HTML to any AI, then paste the generated cover below."
+          }
+          label={
+            activeTab === "template"
+              ? "Copy template prompt"
+              : "Copy thumbnail prompt"
+          }
+          prompt={
+            activeTab === "template"
+              ? TEMPLATE_CONVERSION_PROMPT
+              : THUMBNAIL_GENERATION_PROMPT
+          }
+          title={
+            activeTab === "template"
+              ? "Convert a design with AI"
+              : "Generate a matching cover"
+          }
+        />
       </div>
       <div className={activeTab === "template" ? "" : "hidden"}>
         <TemplateCapabilityPanel
@@ -5038,36 +5114,16 @@ function TemplateEditorPanel({
                 Catalogue thumbnail
               </p>
               <p className="mt-1 text-sm leading-6 text-ink/55">
-                Upload or paste a self-contained 4:3 HTML cover matching this
-                invitation.
+                Paste a self-contained 4:3 HTML cover, or leave it blank to use
+                the automatic catalogue fallback.
               </p>
             </div>
-            <label className="field mt-4">
-              <span className="text-sm font-bold text-ink">
-                Thumbnail HTML file
-              </span>
-              <input
-                accept=".html,text/html"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  const errors = validateThumbnailUploadFile(file);
-                  setThumbnailFileErrors(errors);
-                  if (errors.length) return;
-                  void file.text().then(onUpdateThumbnail);
-                }}
-                type="file"
-              />
-            </label>
             <label className="field mt-4">
               <span className="text-sm font-bold text-ink">Thumbnail HTML</span>
               <textarea
                 className="min-h-72 rounded-lg border border-ink/20 bg-white px-3 py-3 font-mono text-xs"
-                onChange={(event) => {
-                  setThumbnailFileErrors([]);
-                  onUpdateThumbnail(event.target.value);
-                }}
-                placeholder="Paste the matching thumbnail HTML."
+                onChange={(event) => onUpdateThumbnail(event.target.value)}
+                placeholder="Optional: paste the AI-generated thumbnail HTML."
                 value={editorThumbnailHtml}
               />
             </label>
@@ -5085,8 +5141,9 @@ function TemplateEditorPanel({
                 Thumbnail passed browser safety checks.
               </div>
             ) : (
-              <div className="mt-4 rounded-lg border border-ink/10 bg-white px-3 py-3 text-sm text-ink/55">
-                No custom thumbnail has been added yet.
+              <div className="mt-4 rounded-lg border border-ink/10 bg-white px-3 py-3 text-sm leading-6 text-ink/55">
+                No upload is required. myNimto will create a catalogue fallback
+                when this template is published.
               </div>
             )}
           </aside>
@@ -5094,10 +5151,7 @@ function TemplateEditorPanel({
             {isSourceMode ? (
               <textarea
                 className="min-h-[calc(100vh-205px)] w-full resize-none border-0 bg-ink px-4 py-4 font-mono text-xs leading-5 text-white outline-none"
-                onChange={(event) => {
-                  setThumbnailFileErrors([]);
-                  onUpdateThumbnail(event.target.value);
-                }}
+                onChange={(event) => onUpdateThumbnail(event.target.value)}
                 value={editorThumbnailHtml}
               />
             ) : editorThumbnailHtml && !thumbnailValidationErrors.length ? (
@@ -5676,11 +5730,7 @@ async function templatePayload(form: FormData) {
       : String(form.get("rawHtml") ?? "");
   const categoryId = String(form.get("categoryId") ?? "");
   const subcategoryId = String(form.get("subcategoryId") ?? "");
-  const thumbnailFile = form.get("thumbnailFile");
-  const thumbnailHtml =
-    thumbnailFile instanceof File && thumbnailFile.size > 0
-      ? await thumbnailFile.text()
-      : String(form.get("thumbnailHtml") ?? "").trim();
+  const thumbnailHtml = String(form.get("thumbnailHtml") ?? "").trim();
 
   return {
     name: form.get("name"),
@@ -5701,18 +5751,6 @@ function validateTemplateUploadFile(file: File) {
   }
   if (file.size > 1_000_000) {
     errors.push("Template file must be 1 MB or smaller.");
-  }
-  return errors;
-}
-
-function validateThumbnailUploadFile(file: File) {
-  const errors: string[] = [];
-  const fileName = file.name.toLowerCase();
-  if (!fileName.endsWith(".html") && file.type !== "text/html") {
-    errors.push("Only .html files are accepted.");
-  }
-  if (file.size > 200_000) {
-    errors.push("Thumbnail file must be 200 KB or smaller.");
   }
   return errors;
 }
