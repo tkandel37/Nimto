@@ -1033,7 +1033,7 @@ function EventDetailContent({
               }
             : activeTab === "settings"
               ? {
-                  label: isSaving ? "Saving..." : "Save details",
+                  label: isSaving ? "Saving..." : "Save settings",
                   action: undefined,
                   disabled: isSaving,
                   submitFormId: "event-settings-form",
@@ -1875,113 +1875,205 @@ function EventDetailContent({
       {activeTab === "settings" ? (
         <form
           id="event-settings-form"
-          className="user-panel event-edit-form"
+          className="user-panel event-settings-form"
           onSubmit={saveEventDetails}
         >
-          <label className="user-field">
-            <span>Event title</span>
-            <input
-              defaultValue={event.title}
-              minLength={2}
-              name="title"
-              required
-            />
-          </label>
-          <label className="user-field">
-            <span>Event type</span>
-            <select defaultValue={event.type} name="type">
-              <option value="WEDDING">Wedding</option>
-              <option value="BIRTHDAY">Birthday</option>
-              <option value="CORPORATE">Corporate</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </label>
-          <label className="user-field">
-            <span>Date and time</span>
-            <input
-              defaultValue={event.eventDate?.slice(0, 16) ?? ""}
-              name="eventDate"
-              type="datetime-local"
-            />
-          </label>
-          <label className="user-field">
-            <span>Venue</span>
-            <input defaultValue={event.venue ?? ""} name="venue" />
-          </label>
-          <label className="user-field event-edit-description">
-            <span>Description</span>
-            <textarea
-              defaultValue={event.description ?? ""}
-              name="description"
-              rows={3}
-            />
-          </label>
-          <label className="user-field">
-            <span>RSVP deadline</span>
-            <input
-              defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""}
-              name="rsvpDeadline"
-              type="datetime-local"
-            />
-          </label>
-          <label className="user-field event-edit-description">
-            <span>Private organizer notes</span>
-            <textarea
-              defaultValue={event.organizerNotes ?? ""}
-              name="organizerNotes"
-              rows={3}
-            />
-          </label>
-          <div className="event-checklist-edit">
-            <strong>Event checklist</strong>
-            <label>
-              <input
-                defaultChecked={event.checklist?.details}
-                name="checklistDetails"
-                type="checkbox"
-              />{" "}
-              Event details reviewed
+          <header className="event-settings-header">
+            <div>
+              <p className="user-kicker">Event settings</p>
+              <h2>Details and publishing</h2>
+              <p>Keep the information guests see accurate and up to date.</p>
+            </div>
+            <p className="event-required-legend">
+              <span aria-hidden="true">*</span> Required field
+            </p>
+          </header>
+
+          <section className="event-settings-section">
+            <div className="event-settings-section-heading">
+              <span className="event-settings-section-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+                </svg>
+              </span>
+              <div>
+                <h3>Event details</h3>
+                <p>These details appear on your invitation and event pages.</p>
+              </div>
+            </div>
+            <div className="event-settings-grid">
+              <label className="user-field event-settings-title-field">
+                <span>
+                  Event title{" "}
+                  <b className="event-required-mark" aria-hidden="true">
+                    *
+                  </b>
+                </span>
+                <input
+                  defaultValue={event.title}
+                  minLength={2}
+                  name="title"
+                  required
+                />
+              </label>
+              <label className="user-field">
+                <span>Event type</span>
+                <select defaultValue={event.type} name="type">
+                  <option value="WEDDING">Wedding</option>
+                  <option value="BIRTHDAY">Birthday</option>
+                  <option value="CORPORATE">Corporate</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+              <label className="user-field">
+                <span>Date and time</span>
+                <input
+                  defaultValue={event.eventDate?.slice(0, 16) ?? ""}
+                  name="eventDate"
+                  type="datetime-local"
+                />
+              </label>
+              <label className="user-field">
+                <span>Venue</span>
+                <input defaultValue={event.venue ?? ""} name="venue" />
+              </label>
+              <label className="user-field event-settings-wide-field">
+                <span>Description</span>
+                <textarea
+                  defaultValue={event.description ?? ""}
+                  name="description"
+                  rows={3}
+                />
+              </label>
+              <label className="user-field">
+                <span>RSVP deadline</span>
+                <input
+                  defaultValue={event.rsvpDeadline?.slice(0, 16) ?? ""}
+                  name="rsvpDeadline"
+                  type="datetime-local"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="event-settings-section">
+            <div className="event-settings-section-heading">
+              <span className="event-settings-section-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 5h14v12H9l-4 3V5zM8 9h8M8 13h5" />
+                </svg>
+              </span>
+              <div>
+                <h3>Organizer notes</h3>
+                <p>Private planning notes. Guests will never see these.</p>
+              </div>
+            </div>
+            <label className="user-field">
+              <span>Private notes</span>
+              <textarea
+                defaultValue={event.organizerNotes ?? ""}
+                name="organizerNotes"
+                placeholder="Add reminders, vendor details, or anything your team needs to know."
+                rows={4}
+              />
             </label>
-            <label>
-              <input
-                defaultChecked={event.checklist?.guests}
-                name="checklistGuests"
-                type="checkbox"
-              />{" "}
-              Guest list prepared
-            </label>
-            <label>
-              <input
-                defaultChecked={event.checklist?.reviewed}
-                name="checklistReviewed"
-                type="checkbox"
-              />{" "}
-              Invitation preview reviewed
-            </label>
-            <label>
-              <input
-                defaultChecked={event.checklist?.shared}
-                name="checklistShared"
-                type="checkbox"
-              />{" "}
-              Invitations shared
-            </label>
+          </section>
+
+          <div className="event-settings-secondary-grid">
+            <section className="event-settings-section event-settings-compact-section">
+              <div className="event-settings-section-heading">
+                <span
+                  className="event-settings-section-icon"
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="m5 7 2 2 4-4M13 7h6M5 13l2 2 4-4M13 13h6M5 19l2 2 4-4M13 19h6" />
+                  </svg>
+                </span>
+                <div>
+                  <h3>Planning checklist</h3>
+                  <p>Track what is ready before you share.</p>
+                </div>
+              </div>
+              <div className="event-checklist-edit">
+                <label>
+                  <input
+                    defaultChecked={event.checklist?.details}
+                    name="checklistDetails"
+                    type="checkbox"
+                  />
+                  <span>Event details reviewed</span>
+                </label>
+                <label>
+                  <input
+                    defaultChecked={event.checklist?.guests}
+                    name="checklistGuests"
+                    type="checkbox"
+                  />
+                  <span>Guest list prepared</span>
+                </label>
+                <label>
+                  <input
+                    defaultChecked={event.checklist?.reviewed}
+                    name="checklistReviewed"
+                    type="checkbox"
+                  />
+                  <span>Invitation preview reviewed</span>
+                </label>
+                <label>
+                  <input
+                    defaultChecked={event.checklist?.shared}
+                    name="checklistShared"
+                    type="checkbox"
+                  />
+                  <span>Invitations shared</span>
+                </label>
+              </div>
+            </section>
+
+            <section className="event-settings-section event-settings-compact-section">
+              <div className="event-settings-section-heading">
+                <span
+                  className="event-settings-section-icon"
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3zM9 12l2 2 4-4" />
+                  </svg>
+                </span>
+                <div>
+                  <h3>Publishing</h3>
+                  <p>Control whether guests can open this event.</p>
+                </div>
+              </div>
+              <label className="event-publish-toggle">
+                <span>
+                  <strong>Published and shareable</strong>
+                  <small>Public links work while this is turned on.</small>
+                </span>
+                <input
+                  defaultChecked={event.isPublished}
+                  name="isPublished"
+                  type="checkbox"
+                />
+                <i aria-hidden="true" />
+              </label>
+              <p className="event-publish-note">
+                Publishing requires a date, venue, and invitation design.
+              </p>
+            </section>
           </div>
-          <label className="event-publish-toggle">
-            <input
-              defaultChecked={event.isPublished}
-              name="isPublished"
-              type="checkbox"
-            />
-            Published and shareable
-          </label>
-          <button
-            className="user-primary-button"
-            disabled={isSaving}
-            type="submit"
-          >
-            {isSaving ? "Saving..." : "Save changes"}
-          </button>
+
+          <footer className="event-settings-actions">
+            <p>Your changes only apply to this event.</p>
+            <button
+              className="user-primary-button event-settings-save-button"
+              disabled={isSaving}
+              type="submit"
+            >
+              {isSaving ? "Saving..." : "Save settings"}
+            </button>
+          </footer>
         </form>
       ) : null}
 
