@@ -3796,47 +3796,37 @@ function PromptActionCard({
   description,
   label,
   prompt,
-  title,
   workflowNote,
 }: {
   description: string;
   label: string;
   prompt: string;
-  title: string;
   workflowNote: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-leaf/15 bg-leaf/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-leaf text-xs font-black text-white">
-          AI
-        </span>
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="text-sm font-black text-ink">{title}</p>
-          <div className="group relative flex-none">
-            <button
-              aria-label="About this AI prompt"
-              className="grid h-6 w-6 place-items-center rounded-full border border-leaf/25 bg-white text-xs font-black text-leaf transition hover:bg-leaf/10 focus:bg-leaf/10 focus:outline-none focus:ring-2 focus:ring-leaf/20"
-              title="About this prompt"
-              type="button"
-            >
-              i
-            </button>
-            <div className="invisible absolute left-0 top-8 z-30 w-[min(300px,75vw)] translate-y-1 rounded-xl border border-ink/10 bg-white p-4 text-left opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
-                About this prompt
-              </p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
-                {description}
-              </p>
-              <p className="mt-3 border-t border-ink/10 pt-3 text-xs font-black text-ink">
-                When to use it
-              </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-ink/65">
-                {workflowNote}
-              </p>
-            </div>
-          </div>
+    <div className="flex items-center justify-end gap-2">
+      <div className="group relative flex-none">
+        <button
+          aria-label="About this AI prompt"
+          className="grid h-10 w-10 place-items-center rounded-full border border-leaf/25 bg-white text-sm font-black text-leaf transition hover:bg-leaf/10 focus:bg-leaf/10 focus:outline-none focus:ring-2 focus:ring-leaf/20"
+          title="About this prompt"
+          type="button"
+        >
+          i
+        </button>
+        <div className="invisible absolute right-0 top-12 z-30 w-[min(300px,75vw)] translate-y-1 rounded-xl border border-ink/10 bg-white p-4 text-left opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
+            About this prompt
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
+            {description}
+          </p>
+          <p className="mt-3 border-t border-ink/10 pt-3 text-xs font-black text-ink">
+            When to use it
+          </p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-ink/65">
+            {workflowNote}
+          </p>
         </div>
       </div>
       <div className="flex-none">
@@ -4100,7 +4090,6 @@ function TemplateCreatePanel({
                     description="Copy these platform rules into your AI chat before asking it for the final HTML file."
                     label="Copy template prompt"
                     prompt={TEMPLATE_CONVERSION_PROMPT}
-                    title="Prepare HTML with AI"
                     workflowNote="First, work with your AI only on the visual design and content. Review and revise it until you are completely happy. Do not use this conversion prompt at the beginning. Use it only after the design is final, so the AI converts the approved HTML into myNimto format without redesigning it."
                   />
                   <label className="field">
@@ -4158,7 +4147,6 @@ function TemplateCreatePanel({
                     description="Give this prompt and the finished template HTML to any AI, then paste its thumbnail HTML below."
                     label="Copy thumbnail prompt"
                     prompt={THUMBNAIL_GENERATION_PROMPT}
-                    title="Generate a matching cover"
                     workflowNote="Finish and approve the myNimto template first. Then give the finalized template HTML and this prompt to your AI to create the matching thumbnail. Do not design the thumbnail before the main template is final."
                   />
                   <label className="field">
@@ -4843,11 +4831,6 @@ function TemplateEditorPanel({
             activeTab === "template"
               ? TEMPLATE_CONVERSION_PROMPT
               : THUMBNAIL_GENERATION_PROMPT
-          }
-          title={
-            activeTab === "template"
-              ? "Convert a design with AI"
-              : "Generate a matching cover"
           }
           workflowNote={
             activeTab === "template"
