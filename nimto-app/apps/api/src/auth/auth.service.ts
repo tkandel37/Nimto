@@ -21,6 +21,7 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
 import { ResendVerificationDto } from "./dto/resend-verification.dto";
 import { SUPER_ADMIN_ROLE } from "./permissions";
+import { invalidateSessionAuthCache } from "./jwt-auth.guard";
 
 @Injectable()
 export class AuthService {
@@ -653,6 +654,7 @@ export class AuthService {
         },
       }),
     ]);
+    invalidateSessionAuthCache();
 
     await this.record(
       passwordResetToken.userId,
@@ -677,6 +679,7 @@ export class AuthService {
           revocationReason: "USER_LOGOUT",
         },
       });
+      invalidateSessionAuthCache([sessionId]);
       await this.record(
         session.userId,
         "auth.logout",

@@ -24,6 +24,17 @@ const sessionAuthCache = new Map<
   { expiresAt: number; sessionExpiresAt: Date; userStatus: string }
 >();
 
+export function invalidateSessionAuthCache(sessionIds?: Iterable<string>) {
+  if (!sessionIds) {
+    sessionAuthCache.clear();
+    return;
+  }
+
+  for (const sessionId of sessionIds) {
+    sessionAuthCache.delete(sessionId);
+  }
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(

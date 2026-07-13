@@ -4,7 +4,8 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
 import { usePathname, useRouter } from "next/navigation";
-import { AuthUser } from "@/lib/api";
+import { apiRequest, AuthUser } from "@/lib/api";
+import { clearAuthSession } from "@/lib/auth-session";
 
 type AdminTabKey =
   | "overview"
@@ -120,7 +121,8 @@ const adminTabs: {
   },
 ];
 
-const adminPathToTab: Record<string, AdminTabKey | "settings"> = {
+const adminPathToTab: Record<string, AdminTabKey | "profile" | "settings"> = {
+  "/admin-profile": "profile",
   "/audit": "audit",
   "/dashboard": "overview",
   "/event-management": "events",
@@ -157,6 +159,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const activeTab = adminPathToTab[pathname] ?? "overview";
   const isAdmin = isAdminPath(pathname);
 
@@ -223,7 +226,30 @@ export function AdminFrame({ children }: { children: ReactNode }) {
     }
 
     hrefs.forEach((href) => router.prefetch(href));
+    router.prefetch("/admin-profile");
   }, [isAdmin, router, user, visibleTabs]);
+
+  async function logout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    const token = localStorage.getItem("nimto_token");
+    clearAuthSession();
+    if (user?.id) {
+      localStorage.removeItem(`nimto_dashboard_cache:${user.id}`);
+    }
+    setUser(null);
+    router.replace("/");
+
+    if (!token) return;
+    try {
+      await apiRequest("/auth/logout", {
+        headers: { Authorization: `Bearer ${token}` },
+        method: "POST",
+      });
+    } catch {
+      // The local session is already cleared; expired server sessions are safe.
+    }
+  }
 
   if (!isAdmin) {
     return <>{children}</>;
@@ -319,12 +345,61 @@ export function AdminFrame({ children }: { children: ReactNode }) {
               <span className="sidebar-tab-label">Settings</span>
             </Link>
           ) : null}
+          <div className="sidebar-account grid gap-1 border-t border-white/10 pt-3">
+            <Link
+              aria-current={activeTab === "profile" ? "page" : undefined}
+              aria-label="My profile"
+              className={
+                activeTab === "profile"
+                  ? "dashboard-tab dashboard-tab-active"
+                  : "dashboard-tab"
+              }
+              data-tooltip="My profile"
+              href="/admin-profile"
+              title="My profile"
+            >
+              <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-white/15 text-xs font-black text-white">
+                {adminInitials(user)}
+              </span>
+              <span className="sidebar-tab-label min-w-0">
+                <span className="block truncate">
+                  {user?.name ?? "My profile"}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-semibold text-white/45">
+                  {user?.email ?? "Account"}
+                </span>
+              </span>
+            </Link>
+            <button
+              aria-label="Log out"
+              className="dashboard-tab text-white/65"
+              data-tooltip="Log out"
+              disabled={isLoggingOut}
+              onClick={logout}
+              title="Log out"
+              type="button"
+            >
+              <LogoutIcon />
+              <span className="sidebar-tab-label">
+                {isLoggingOut ? "Logging out…" : "Log out"}
+              </span>
+            </button>
+          </div>
         </div>
       </aside>
 
       <section className="dashboard-main">{children}</section>
     </main>
   );
+}
+
+function adminInitials(user: AuthUser | null) {
+  const value = user?.name?.trim() || user?.email?.trim() || "A";
+  return value
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
 }
 
 function AdminTabIcon({ icon }: { icon: AdminIconName }) {
@@ -444,6 +519,20 @@ function SettingsIcon() {
         stroke="currentColor"
         strokeLinejoin="round"
         strokeWidth="2.1"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+      <path
+        d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M9 12h9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
       />
     </svg>
   );

@@ -19,8 +19,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 
 ### Implemented
 
-- Email/password registration, verification, login, logout, JWT sessions, and
-  profile updates.
+- Email/password registration, verification, login, server-enforced logout,
+  JWT sessions, and profile updates.
 - Optional Google OAuth integration.
 - Role-based permissions with collapsible category assignment, immediate access
   cache invalidation, staff and user management, session revocation, audit logs,
@@ -207,7 +207,7 @@ controller and service together before modifying a flow.
 - Public invitation: `/invite/[slug]`.
 - Administration: `/event-management`, `/users`, `/staff`, `/roles`,
   `/permissions`, `/sessions`, `/audit`, `/website`, `/design-setup`,
-  `/settings`.
+  `/settings`, `/admin-profile`.
 
 `apps/web/lib/api.ts` is the shared browser-side API client.
 `apps/web/lib/server-api.ts` selects the correct server-rendering API address.

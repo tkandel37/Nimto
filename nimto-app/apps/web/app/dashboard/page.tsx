@@ -380,6 +380,7 @@ const DESIGN_SETUP_CACHE_MS = 60_000;
 
 const ADMIN_TAB_ROUTES: Partial<Record<TabKey, string>> = {
   overview: "/dashboard",
+  profile: "/admin-profile",
   events: "/event-management",
   designSetup: "/design-setup",
   website: "/website",
@@ -5224,7 +5225,7 @@ function ProfilePanel({
   return (
     <section className="mt-7 grid gap-5">
       <div className="border-y border-ink/10 bg-white px-4 py-4">
-        <h2 className="text-2xl font-black text-ink">Profile</h2>
+        <h2 className="text-2xl font-black text-ink">My profile</h2>
         <p className="mt-1 text-sm text-ink/55">
           Account information for the current dashboard session.
         </p>

@@ -14,6 +14,7 @@ import { UpdateRoleDto } from "./dto/update-role.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { PERMISSION_CATALOG, SUPER_ADMIN_ROLE } from "../auth/permissions";
 import { invalidatePermissionCache } from "../auth/guards/permissions.guard";
+import { invalidateSessionAuthCache } from "../auth/jwt-auth.guard";
 
 type ActorContext = {
   actorId: string;
@@ -382,6 +383,9 @@ export class AdminService {
     });
 
     if (dto.roleIds) invalidatePermissionCache([userId]);
+    if ((dto.status && dto.status !== UserStatus.ACTIVE) || passwordHash) {
+      invalidateSessionAuthCache();
+    }
 
     await this.record(context, "staff.updated", "User", user.id, {
       email: user.email,
@@ -441,6 +445,10 @@ export class AdminService {
 
       return updated;
     });
+
+    if (dto.status && dto.status !== UserStatus.ACTIVE) {
+      invalidateSessionAuthCache();
+    }
 
     await this.record(context, "user.updated", "User", user.id, {
       email: user.email,
@@ -542,6 +550,7 @@ export class AdminService {
           },
         });
     this.clearAccountSessionCache(session.userId);
+    invalidateSessionAuthCache([session.id]);
 
     await this.record(
       context,
