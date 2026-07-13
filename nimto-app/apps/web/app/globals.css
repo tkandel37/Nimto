@@ -55,6 +55,54 @@
   --brand-gold: var(--brand-champagne);
 }
 
+/* Keep scrolling available without leaving heavy browser chrome on every panel. */
+:where(html, body, *) {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+:where(html, body, *)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:where(html, body, *)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:where(html, body, *)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+:where(html, body, *):hover,
+:where(html, body, *):focus-within {
+  scrollbar-color: rgba(129, 39, 216, 0.4) transparent;
+}
+
+:where(html, body, *):hover::-webkit-scrollbar-thumb,
+:where(html, body, *):focus-within::-webkit-scrollbar-thumb {
+  background: rgba(129, 39, 216, 0.4);
+  background-clip: padding-box;
+}
+
+:where(html, body, *)::-webkit-scrollbar-thumb:hover {
+  background: rgba(129, 39, 216, 0.62);
+  background-clip: padding-box;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  :where(html, body, *) {
+    scrollbar-width: none;
+  }
+
+  :where(html, body, *)::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Finalized myNimto brand system */
 .brand-logo {
   display: inline-flex;
@@ -3417,11 +3465,6 @@ a {
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: 4px;
-    scrollbar-width: none;
-  }
-
-  .sidebar nav::-webkit-scrollbar {
-    display: none;
   }
 
   .sidebar-nav-group {
@@ -3706,11 +3749,6 @@ a {
     overflow-x: auto;
     padding-bottom: 2px;
     white-space: nowrap;
-    scrollbar-width: none;
-  }
-
-  .site-header nav::-webkit-scrollbar {
-    display: none;
   }
 
   .hero-section .grid {
@@ -5691,7 +5729,6 @@ button.user-design-preview {
   overflow-x: auto;
   margin-top: 22px;
   padding-bottom: 3px;
-  scrollbar-width: none;
 }
 
 .design-discovery-bar button {
