@@ -3796,11 +3796,13 @@ function PromptActionCard({
   label,
   prompt,
   title,
+  workflowNote,
 }: {
   description: string;
   label: string;
   prompt: string;
   title: string;
+  workflowNote: string;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-leaf/15 bg-leaf/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -3808,8 +3810,27 @@ function PromptActionCard({
         <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-leaf text-xs font-black text-white">
           AI
         </span>
-        <div>
-          <p className="text-sm font-black text-ink">{title}</p>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-black text-ink">{title}</p>
+            <details className="group relative flex-none">
+              <summary
+                aria-label="When to use this prompt"
+                className="grid h-6 w-6 cursor-pointer list-none place-items-center rounded-full border border-leaf/25 bg-white text-xs font-black text-leaf transition hover:bg-leaf/10 [&::-webkit-details-marker]:hidden"
+                title="When to use this prompt"
+              >
+                i
+              </summary>
+              <div className="absolute left-0 top-8 z-30 w-[min(280px,75vw)] rounded-xl border border-ink/10 bg-white p-4 text-left shadow-xl">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-leaf">
+                  Use this at the right time
+                </p>
+                <p className="mt-2 text-xs font-semibold leading-5 text-ink/65">
+                  {workflowNote}
+                </p>
+              </div>
+            </details>
+          </div>
           <p className="mt-1 text-xs leading-5 text-ink/55">{description}</p>
         </div>
       </div>
@@ -4075,6 +4096,7 @@ function TemplateCreatePanel({
                     label="Copy template prompt"
                     prompt={TEMPLATE_CONVERSION_PROMPT}
                     title="Prepare HTML with AI"
+                    workflowNote="First, work with your AI only on the visual design and content. Review and revise it until you are completely happy. Do not use this conversion prompt at the beginning. Use it only after the design is final, so the AI converts the approved HTML into myNimto format without redesigning it."
                   />
                   <label className="field">
                     <span className="text-sm font-bold text-ink">
@@ -4132,6 +4154,7 @@ function TemplateCreatePanel({
                     label="Copy thumbnail prompt"
                     prompt={THUMBNAIL_GENERATION_PROMPT}
                     title="Generate a matching cover"
+                    workflowNote="Finish and approve the myNimto template first. Then give the finalized template HTML and this prompt to your AI to create the matching thumbnail. Do not design the thumbnail before the main template is final."
                   />
                   <label className="field">
                     <span className="text-sm font-bold text-ink">
@@ -4820,6 +4843,11 @@ function TemplateEditorPanel({
             activeTab === "template"
               ? "Convert a design with AI"
               : "Generate a matching cover"
+          }
+          workflowNote={
+            activeTab === "template"
+              ? "First, work with your AI only on the visual design and content. Review and revise it until you are completely happy. Do not use this conversion prompt at the beginning. Use it only after the design is final, so the AI converts the approved HTML into myNimto format without redesigning it."
+              : "Finish and approve the myNimto template first. Then give the finalized template HTML and this prompt to your AI to create the matching thumbnail. Do not design the thumbnail before the main template is final."
           }
         />
       </div>
