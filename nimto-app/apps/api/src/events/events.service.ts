@@ -1416,6 +1416,7 @@ export class EventsService {
           typeof item === "object" &&
           (item as Record<string, unknown>).key === field.key,
       ) as Record<string, unknown> | undefined;
+      const type = this.normalizeRsvpFieldType(provided?.type ?? field.type);
       return {
         ...field,
         label:
@@ -1430,9 +1431,13 @@ export class EventsService {
           typeof provided?.enabled === "boolean"
             ? provided.enabled
             : field.enabled,
+        type,
         options:
-          field.type === "single_choice"
-            ? this.normalizeChoiceOptions(provided?.options, field.options)
+          type === "single_choice"
+            ? this.normalizeChoiceOptions(
+                provided?.options,
+                field.options?.length ? field.options : ["Option 1"],
+              )
             : undefined,
       };
     });

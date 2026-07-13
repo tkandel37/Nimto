@@ -79,6 +79,52 @@ const eventTabs: { id: EventTab; label: string }[] = [
   { id: "settings", label: "Settings" },
 ];
 
+const rsvpFieldTypes: {
+  value: RsvpFieldConfig["type"];
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "text",
+    label: "Short text",
+    description: "A single line for short answers such as a name or preference.",
+  },
+  {
+    value: "textarea",
+    label: "Long text",
+    description: "A larger text box for messages or detailed answers.",
+  },
+  {
+    value: "number",
+    label: "Number",
+    description: "Accepts numbers only, useful for guest counts or quantities.",
+  },
+  {
+    value: "date",
+    label: "Date",
+    description: "Lets guests choose a date from a calendar.",
+  },
+  {
+    value: "single_choice",
+    label: "Single choice",
+    description: "Guests select one answer from the options you add.",
+  },
+  {
+    value: "email",
+    label: "Email",
+    description: "Checks that the answer is a valid email address.",
+  },
+  {
+    value: "phone",
+    label: "Phone",
+    description: "A phone-friendly field for contact numbers.",
+  },
+];
+
+function rsvpFieldTypeInfo(type: RsvpFieldConfig["type"]) {
+  return rsvpFieldTypes.find((item) => item.value === type) ?? rsvpFieldTypes[0];
+}
+
 const eventWorkspaceCache = new Map<string, EventWorkspaceCache>();
 
 export default function EventDetailPage() {
@@ -1517,90 +1563,143 @@ function EventDetailContent({
                 <header className="rsvp-workspace-section-heading">
                   <div>
                     <h3>Guest questions</h3>
-                    <p>Only enabled questions appear on the invitation.</p>
+                    <p>Choose what guests see and how each answer should be collected.</p>
                   </div>
                   <button className="user-primary-button" disabled={isSaving} type="submit">
-                    {isSaving ? "Saving..." : "Save changes"}
+                    {isSaving ? "Saving..." : "Save RSVP form"}
                   </button>
                 </header>
-                <div className="rsvp-question-list">
-                  {rsvpConfig.fields.filter((field) => field.enabled).map((field) => (
-                    <article className="rsvp-question-row" key={field.id}>
-                      <div className="rsvp-question-main">
-                        <input
-                          aria-label="Question"
-                          onChange={(changeEvent) =>
-                            updateRsvpField(field.id, { label: changeEvent.target.value })
-                          }
-                          value={field.label}
-                        />
-                        {field.builtIn ? <span>Standard</span> : null}
-                      </div>
-                      <div className="rsvp-question-controls">
-                        <select
-                          aria-label="Answer format"
-                          disabled={field.builtIn}
-                          onChange={(changeEvent) =>
-                            updateRsvpField(field.id, {
-                              type: changeEvent.target.value as RsvpFieldConfig["type"],
-                              options: changeEvent.target.value === "single_choice"
-                                ? field.options?.length ? field.options : ["Option 1"]
-                                : [],
-                            })
-                          }
-                          value={field.type}
-                        >
-                          <option value="text">Short text</option>
-                          <option value="textarea">Long text</option>
-                          <option value="number">Number</option>
-                          <option value="date">Date</option>
-                          <option value="single_choice">Choice</option>
-                          <option value="email">Email</option>
-                          <option value="phone">Phone</option>
-                        </select>
-                        <label className="event-inline-toggle">
-                          <input checked={field.enabled} onChange={(changeEvent) => updateRsvpField(field.id, { enabled: changeEvent.target.checked })} type="checkbox" />
-                          Show
-                        </label>
-                        <label className="event-inline-toggle">
-                          <input checked={field.required} onChange={(changeEvent) => updateRsvpField(field.id, { required: changeEvent.target.checked })} type="checkbox" />
-                          Required
-                        </label>
-                        {!field.builtIn ? (
-                          <button className="user-text-button" onClick={() => removeRsvpField(field.id)} type="button">Remove</button>
-                        ) : null}
-                      </div>
-                      {field.type === "single_choice" ? (
-                        <input
-                          aria-label="Choices, separated by commas"
-                          className="rsvp-question-options"
-                          onChange={(changeEvent) => updateRsvpField(field.id, {
-                            options: changeEvent.target.value.split(",").map((option) => option.trim()).filter(Boolean),
-                          })}
-                          placeholder="Choices, separated by commas"
-                          value={(field.options ?? []).join(", ")}
-                        />
-                      ) : null}
-                    </article>
-                  ))}
+                <div className="rsvp-builder-toolbar">
+                  <span>
+                    <b>{rsvpConfig.fields.filter((field) => field.enabled).length}</b> of {rsvpConfig.fields.length} questions shown
+                  </span>
+                  <button className="user-secondary-button" onClick={addCustomRsvpField} type="button">
+                    + Add question
+                  </button>
                 </div>
-                {rsvpConfig.fields.some((field) => !field.enabled) ? (
-                  <div className="rsvp-question-additions">
-                    <span>Add a common question</span>
-                    {rsvpConfig.fields.filter((field) => !field.enabled).map((field) => (
-                      <button
-                        key={field.id}
-                        onClick={() => updateRsvpField(field.id, { enabled: true })}
-                        type="button"
-                      >
-                        {field.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <button className="user-secondary-button" onClick={addCustomRsvpField} type="button">
-                  Add custom question
-                </button>
+                <div className="rsvp-question-list">
+                  {rsvpConfig.fields.map((field, fieldIndex) => {
+                    const typeInfo = rsvpFieldTypeInfo(field.type);
+                    const choiceOptions = field.options?.length ? field.options : ["Option 1"];
+                    return (
+                      <article className={`rsvp-question-row${field.enabled ? "" : " is-hidden"}`} key={field.id}>
+                        <header className="rsvp-question-header">
+                          <span className="rsvp-question-number" aria-hidden="true">{fieldIndex + 1}</span>
+                          <div className="rsvp-question-main">
+                            <input
+                              aria-label={`Question ${fieldIndex + 1}`}
+                              onChange={(changeEvent) =>
+                                updateRsvpField(field.id, { label: changeEvent.target.value })
+                              }
+                              value={field.label}
+                            />
+                            <span>{field.builtIn ? "Default question" : "Custom question"}</span>
+                          </div>
+                          <div className="rsvp-question-actions">
+                            <label className="event-inline-toggle" title="Turn this question on or off without deleting it.">
+                              <input checked={field.enabled} onChange={(changeEvent) => updateRsvpField(field.id, { enabled: changeEvent.target.checked })} type="checkbox" />
+                              Show to guests
+                            </label>
+                            <label className="event-inline-toggle" title="Guests must answer this before submitting their RSVP.">
+                              <input checked={field.required} onChange={(changeEvent) => updateRsvpField(field.id, { required: changeEvent.target.checked })} type="checkbox" />
+                              Required
+                            </label>
+                            {!field.builtIn ? (
+                              <button className="rsvp-remove-question" onClick={() => removeRsvpField(field.id)} type="button">
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </header>
+
+                        <div className="rsvp-question-body">
+                          <div className="rsvp-answer-type-field">
+                            <span>Answer type</span>
+                            <details className="rsvp-type-picker">
+                              <summary aria-label={`Answer type for ${field.label}`}>
+                                <span>
+                                  <strong>{typeInfo.label}</strong>
+                                  <small>{typeInfo.description}</small>
+                                </span>
+                                <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" /></svg>
+                              </summary>
+                              <div className="rsvp-type-menu">
+                                {rsvpFieldTypes.map((type) => (
+                                  <button
+                                    aria-selected={field.type === type.value}
+                                    className={field.type === type.value ? "active" : ""}
+                                    key={type.value}
+                                    onClick={(clickEvent) => {
+                                      updateRsvpField(field.id, {
+                                        type: type.value,
+                                        options: type.value === "single_choice"
+                                          ? choiceOptions
+                                          : [],
+                                      });
+                                      clickEvent.currentTarget.closest("details")?.removeAttribute("open");
+                                    }}
+                                    title={type.description}
+                                    type="button"
+                                  >
+                                    <strong>{type.label}</strong>
+                                    <span>{type.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+
+                          {field.type === "single_choice" ? (
+                            <div className="rsvp-choice-editor">
+                              <header>
+                                <div>
+                                  <strong>Answer choices</strong>
+                                  <span>Add each choice separately. Guests can select one.</span>
+                                </div>
+                                <button
+                                  onClick={() => updateRsvpField(field.id, {
+                                    options: [...choiceOptions, `Option ${choiceOptions.length + 1}`],
+                                  })}
+                                  type="button"
+                                >
+                                  + Add option
+                                </button>
+                              </header>
+                              <div className="rsvp-choice-list">
+                                {choiceOptions.map((option, optionIndex) => (
+                                  <div className="rsvp-choice-row" key={`${field.id}-${optionIndex}`}>
+                                    <span aria-hidden="true">{optionIndex + 1}</span>
+                                    <input
+                                      aria-label={`Option ${optionIndex + 1} for ${field.label}`}
+                                      onChange={(changeEvent) => updateRsvpField(field.id, {
+                                        options: choiceOptions.map((current, currentIndex) =>
+                                          currentIndex === optionIndex ? changeEvent.target.value : current,
+                                        ),
+                                      })}
+                                      placeholder={`Option ${optionIndex + 1}`}
+                                      value={option}
+                                    />
+                                    <button
+                                      aria-label={`Remove option ${optionIndex + 1}`}
+                                      disabled={choiceOptions.length === 1}
+                                      onClick={() => updateRsvpField(field.id, {
+                                        options: choiceOptions.filter((_, currentIndex) => currentIndex !== optionIndex),
+                                      })}
+                                      title={choiceOptions.length === 1 ? "At least one option is required." : "Remove this option"}
+                                      type="button"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
 
                 <section className="rsvp-optional-settings">
                   <label className="event-inline-toggle">
@@ -2449,10 +2548,11 @@ function normalizeRsvpConfig(
     : [];
   const mergedDefaults = defaults.fields.map((field) => {
     const provided = providedFields.find((item) => item?.key === field.key);
+    const type = provided?.type || field.type;
     return {
       ...field,
       label: provided?.label || field.label,
-      type: provided?.type || field.type,
+      type,
       required:
         typeof provided?.required === "boolean"
           ? provided.required
@@ -2462,10 +2562,12 @@ function normalizeRsvpConfig(
           ? provided.enabled
           : field.enabled,
       options:
-        field.type === "single_choice"
+        type === "single_choice"
           ? Array.isArray(provided?.options) && provided.options.length
             ? provided.options
-            : field.options
+            : field.options?.length
+              ? field.options
+              : ["Option 1"]
           : undefined,
     };
   });
