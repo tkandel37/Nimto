@@ -676,7 +676,7 @@ function DesignsContent({
                       onClick={() => openDesignEditor(previewDesign)}
                       type="button"
                     >
-                      Use invitation
+                      Customize
                     </button>
                   </div>
                 </header>

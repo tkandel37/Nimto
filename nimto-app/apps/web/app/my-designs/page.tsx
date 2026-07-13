@@ -228,9 +228,6 @@ function MyDesignsContent({
                     title={`${item.design.name} history preview`}
                   />
                 </div>
-                <span className="design-preview-overlay">
-                  {reusable ? "Reuse invitation" : "History preview"}
-                </span>
               </button>
               <div className="design-card-details">
                 <div className="flex items-start justify-between gap-3">

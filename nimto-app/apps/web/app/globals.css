@@ -4194,16 +4194,6 @@ button.user-design-preview {
   box-shadow: 0 8px 25px rgb(23 32 51 / 0.1);
 }
 
-.design-preview-overlay {
-  right: 50%;
-  bottom: 14px;
-  left: auto;
-  min-height: 36px;
-  padding: 0 16px;
-  white-space: nowrap;
-  transform: translateX(50%);
-}
-
 .design-favourite {
   top: 14px;
   right: 14px;
@@ -4304,10 +4294,6 @@ button.user-design-preview {
     width: 32px;
     height: 32px;
     font-size: 1.05rem;
-  }
-
-  .design-preview-overlay {
-    display: none;
   }
 
   .design-card-details {
@@ -5530,28 +5516,6 @@ button.user-design-preview {
   pointer-events: none;
 }
 
-.design-preview-overlay {
-  position: absolute;
-  inset: auto 14px 14px;
-  display: grid;
-  min-height: 38px;
-  place-items: center;
-  border-radius: 9px;
-  background: rgb(23 32 51 / 0.88);
-  color: white;
-  font-size: 0.78rem;
-  font-weight: 900;
-  opacity: 0;
-  translate: 0 6px;
-  transition: 160ms ease;
-}
-
-.user-design-preview:hover .design-preview-overlay,
-.user-design-preview:focus-visible .design-preview-overlay {
-  opacity: 1;
-  translate: 0;
-}
-
 .design-favourite {
   position: absolute;
   top: 12px;
@@ -6303,11 +6267,6 @@ button.user-design-preview {
 
   .recently-viewed-strip {
     padding: 16px;
-  }
-
-  .design-preview-overlay {
-    opacity: 1;
-    translate: 0;
   }
 
   .share-preparation-preview,
@@ -7942,10 +7901,6 @@ button.user-design-preview {
     justify-content: center;
     padding: 8px;
     font-size: 0.76rem;
-  }
-
-  .design-catalogue .design-preview-overlay {
-    display: none;
   }
 
   .design-preview-modal {
