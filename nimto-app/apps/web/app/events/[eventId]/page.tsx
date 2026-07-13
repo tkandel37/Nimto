@@ -114,9 +114,6 @@ function EventDetailContent({
   const [inviteePaste, setInviteePaste] = useState("");
   const [inviteeSearch, setInviteeSearch] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [sharePreviewDevice, setSharePreviewDevice] = useState<
-    "mobile" | "desktop"
-  >("mobile");
   const [activeTab, setActiveTab] = useState<EventTab>("overview");
   const [showEventMenu, setShowEventMenu] = useState(false);
   const [showCreatedSuccess, setShowCreatedSuccess] = useState(
@@ -1701,91 +1698,57 @@ function EventDetailContent({
       {activeTab === "sharing" ? (
         <div className="event-tab-content">
           <section className="share-preparation-card">
-            <div className={`share-preparation-preview ${sharePreviewDevice}`}>
-              {event.isPublished ? (
-                <iframe
-                  sandbox="allow-scripts"
-                  src={`/invite/${event.slug}`}
-                  title={`${event.title} sharing preview`}
-                />
-              ) : (
-                <div>
-                  <span>✦</span>
-                  <strong>Invitation preview</strong>
-                  <p>Publish to activate the public link.</p>
-                </div>
-              )}
+            <div className="share-review-heading">
+              <div>
+                <p className="user-kicker">Share readiness</p>
+                <h2>{event.title}</h2>
+                <p className="share-review-intro">
+                  Confirm the essentials, then send the invitation using the
+                  option that suits your guests.
+                </p>
+              </div>
+              <span
+                className={`share-publish-state ${event.isPublished ? "ready" : "pending"}`}
+              >
+                {event.isPublished ? "Ready to share" : "Publish required"}
+              </span>
             </div>
-            <div className="share-preparation-details">
-              <div className="share-review-heading">
-                <div>
-                  <p className="user-kicker">Final review</p>
-                  <h2>{event.title}</h2>
-                </div>
-                <div className="event-device-switcher">
-                  {(["mobile", "desktop"] as const).map((device) => (
-                    <button
-                      className={sharePreviewDevice === device ? "active" : ""}
-                      key={device}
-                      onClick={() => setSharePreviewDevice(device)}
-                      type="button"
-                    >
-                      {device}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="share-final-review-grid">
-                <article>
-                  <span>Date</span>
-                  <strong>{formatEventDate(event.eventDate)}</strong>
-                </article>
-                <article>
-                  <span>Venue</span>
-                  <strong>{event.venue || "Not added"}</strong>
-                </article>
-                <article>
-                  <span>Guests</span>
-                  <strong>{invitees.length}</strong>
-                </article>
-                <article>
-                  <span>RSVP deadline</span>
-                  <strong>
-                    {event.rsvpDeadline
-                      ? formatEventDate(event.rsvpDeadline)
-                      : "Not set"}
-                  </strong>
-                </article>
-              </div>
-              <div className="share-check-list">
-                <span className={event.isPublished ? "ready" : ""}>
-                  {event.isPublished ? "✓" : "○"} Invitation published
-                </span>
-                <span className={invitees.length ? "ready" : ""}>
-                  {invitees.length ? "✓" : "○"} {invitees.length} guests added
-                </span>
-                <span className={event.rsvpDeadline ? "ready" : ""}>
-                  {event.rsvpDeadline ? "✓" : "○"} RSVP deadline{" "}
+            <div className="share-final-review-grid">
+              <article>
+                <span>Date</span>
+                <strong>{formatEventDate(event.eventDate)}</strong>
+              </article>
+              <article>
+                <span>Venue</span>
+                <strong>{event.venue || "Not added"}</strong>
+              </article>
+              <article>
+                <span>Guests</span>
+                <strong>{invitees.length}</strong>
+              </article>
+              <article>
+                <span>RSVP deadline</span>
+                <strong>
                   {event.rsvpDeadline
                     ? formatEventDate(event.rsvpDeadline)
-                    : "not set"}
-                </span>
-              </div>
-              <p className="share-suggested-message">
-                “{suggestedShareMessage}”
-              </p>
-              <div className="share-reassurance-grid">
-                <span>Only people with the link can open this invite.</span>
-                <span>
-                  Guest names personalize only when using guest links.
-                </span>
-                <span>You can still edit details after sharing.</span>
-                <span>CSV uploads add guests; they do not notify anyone.</span>
-              </div>
+                    : "Not set"}
+                </strong>
+              </article>
+            </div>
+            <div className="share-check-list">
+              <span className={event.isPublished ? "ready" : "pending"}>
+                {event.isPublished ? "✓" : "○"} Published
+              </span>
+              <span className={invitees.length ? "ready" : "pending"}>
+                {invitees.length ? "✓" : "○"} {invitees.length} guests
+              </span>
+              <span className={event.rsvpDeadline ? "ready" : "pending"}>
+                {event.rsvpDeadline ? "✓" : "○"} RSVP deadline
+              </span>
             </div>
           </section>
           <section className="user-panel event-share-panel">
-            <div>
+            <div className="share-panel-heading">
               <p className="user-kicker">Share invitation</p>
               <h2>Send the main invitation</h2>
               <p>
@@ -1793,57 +1756,61 @@ function EventDetailContent({
                 links for RSVP tracking.
               </p>
             </div>
-            <div className="event-header-actions">
-              <button
-                className="user-primary-button"
-                disabled={!event.isPublished}
-                onClick={() => void copyShareLink()}
-                type="button"
-              >
-                Copy event link
-              </button>
-              <Link
-                aria-disabled={!event.isPublished}
-                className={
-                  event.isPublished
-                    ? "user-secondary-button"
-                    : "user-secondary-button disabled"
-                }
-                href={event.isPublished ? `/invite/${event.slug}` : "#"}
-                target={event.isPublished ? "_blank" : undefined}
-              >
-                Open as guest
-              </Link>
-              <button
-                className="user-secondary-button"
-                disabled={!event.isPublished}
-                onClick={() => void nativeShareEvent()}
-                type="button"
-              >
-                Share from device
-              </button>
-              <button
-                className="user-secondary-button"
-                disabled={!event.isPublished}
-                onClick={() => shareEvent("whatsapp")}
-                type="button"
-              >
-                WhatsApp
-              </button>
-              <button
-                className="user-secondary-button"
-                disabled={!event.isPublished}
-                onClick={() => shareEvent("email")}
-                type="button"
-              >
-                Email
-              </button>
-              {event.isPublished ? (
-                <InvitationQrCode
-                  label={event.title}
-                  url={`${typeof window === "undefined" ? "" : window.location.origin}/invite/${event.slug}`}
-                />
-              ) : null}
+            <div className="share-action-groups">
+              <div className="share-primary-actions">
+                <button
+                  className="user-primary-button"
+                  disabled={!event.isPublished}
+                  onClick={() => void copyShareLink()}
+                  type="button"
+                >
+                  Copy event link
+                </button>
+                <Link
+                  aria-disabled={!event.isPublished}
+                  className={
+                    event.isPublished
+                      ? "user-secondary-button"
+                      : "user-secondary-button disabled"
+                  }
+                  href={event.isPublished ? `/invite/${event.slug}` : "#"}
+                  target={event.isPublished ? "_blank" : undefined}
+                >
+                  Open invitation
+                </Link>
+              </div>
+              <div className="share-channel-actions">
+                <button
+                  className="user-secondary-button"
+                  disabled={!event.isPublished}
+                  onClick={() => void nativeShareEvent()}
+                  type="button"
+                >
+                  Device share
+                </button>
+                <button
+                  className="user-secondary-button"
+                  disabled={!event.isPublished}
+                  onClick={() => shareEvent("whatsapp")}
+                  type="button"
+                >
+                  WhatsApp
+                </button>
+                <button
+                  className="user-secondary-button"
+                  disabled={!event.isPublished}
+                  onClick={() => shareEvent("email")}
+                  type="button"
+                >
+                  Email
+                </button>
+                {event.isPublished ? (
+                  <InvitationQrCode
+                    label={event.title}
+                    url={`${typeof window === "undefined" ? "" : window.location.origin}/invite/${event.slug}`}
+                  />
+                ) : null}
+              </div>
             </div>
           </section>
           {!event.isPublished ? (
@@ -1878,7 +1845,8 @@ function EventDetailContent({
                 }}
                 type="button"
               >
-                {message}
+                <span>{message}</span>
+                <strong>Copy</strong>
               </button>
             ))}
           </section>
