@@ -7243,18 +7243,85 @@ function RoleForm({
   role?: Role;
   title: string;
 }) {
-  const selected = new Set(
-    role?.permissions.map((rolePermission) => rolePermission.permission.key) ??
-      [],
-  );
   const permissionGroups = groupPermissions(permissions);
+  const [selectedPermissions, setSelectedPermissions] = useState(
+    () =>
+      new Set(
+        role?.permissions.map(
+          (rolePermission) => rolePermission.permission.key,
+        ) ?? [],
+      ),
+  );
+  const [openGroups, setOpenGroups] = useState(
+    () => new Set(permissionGroups.slice(0, 1).map((group) => group.label)),
+  );
+
+  function togglePermission(permissionKey: string) {
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      if (next.has(permissionKey)) next.delete(permissionKey);
+      else next.add(permissionKey);
+      return next;
+    });
+  }
+
+  function setGroupSelection(
+    group: (typeof permissionGroups)[number],
+    value: boolean,
+  ) {
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      for (const permission of group.permissions) {
+        if (value) next.add(permission.key);
+        else next.delete(permission.key);
+      }
+      return next;
+    });
+  }
+
+  function toggleGroup(groupLabel: string) {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupLabel)) next.delete(groupLabel);
+      else next.add(groupLabel);
+      return next;
+    });
+  }
 
   return (
     <form
       className="rounded-lg border border-ink/10 bg-white p-5"
       onSubmit={onSubmit}
     >
-      <h2 className="text-lg font-black text-ink">{title}</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-ink">{title}</h2>
+          <p className="mt-1 text-sm text-ink/55">
+            {selectedPermissions.size} of {permissions.length} permissions
+            selected
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-black text-ink"
+            onClick={() =>
+              setOpenGroups(
+                new Set(permissionGroups.map((group) => group.label)),
+              )
+            }
+            type="button"
+          >
+            Expand all
+          </button>
+          <button
+            className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-black text-ink"
+            onClick={() => setOpenGroups(new Set())}
+            type="button"
+          >
+            Collapse all
+          </button>
+        </div>
+      </div>
       <label className="field mt-4">
         <span className="text-sm font-bold text-ink">Name</span>
         <input
@@ -7272,42 +7339,96 @@ function RoleForm({
           name="description"
         />
       </label>
-      <div className="mt-4 grid max-h-[28rem] gap-4 overflow-auto pr-1 md:grid-cols-2">
-        {permissionGroups.map((group) => (
-          <fieldset
-            className="rounded-lg border border-ink/10 bg-paper/50 p-3"
-            key={group.label}
-          >
-            <legend className="px-1 text-sm font-black text-ink">
-              {group.label}
-            </legend>
-            <div className="mt-2 grid gap-2">
-              {group.permissions.map((permission) => (
-                <label
-                  className="flex items-start gap-3 rounded-md border border-ink/10 bg-white p-3 text-sm"
-                  key={permission.key}
+      {[...selectedPermissions].map((permissionKey) => (
+        <input
+          key={permissionKey}
+          name="permissionKeys"
+          type="hidden"
+          value={permissionKey}
+        />
+      ))}
+      <div className="mt-5 grid max-h-[34rem] gap-2 overflow-auto pr-1">
+        {permissionGroups.map((group) => {
+          const isOpen = openGroups.has(group.label);
+          const selectedCount = group.permissions.filter((permission) =>
+            selectedPermissions.has(permission.key),
+          ).length;
+          const isFullySelected = selectedCount === group.permissions.length;
+
+          return (
+            <section
+              className="overflow-hidden rounded-xl border border-ink/10 bg-paper/40"
+              key={group.label}
+            >
+              <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  aria-expanded={isOpen}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  onClick={() => toggleGroup(group.label)}
+                  type="button"
                 >
-                  <input
-                    className="mt-1"
-                    defaultChecked={selected.has(permission.key)}
-                    disabled={disabled}
-                    name="permissionKeys"
-                    type="checkbox"
-                    value={permission.key}
-                  />
-                  <span>
-                    <span className="block font-bold text-ink">
-                      {permission.key}
+                  <span className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-ink/10 bg-white text-lg font-black text-ink">
+                    {isOpen ? "−" : "+"}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-black text-ink">
+                      {group.label}
                     </span>
-                    <span className="text-ink/55">
-                      {permission.description}
+                    <span className="mt-0.5 block text-xs font-semibold text-ink/50">
+                      {selectedCount} of {group.permissions.length} selected
                     </span>
                   </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ))}
+                </button>
+                {!disabled ? (
+                  <div className="flex gap-2 pl-11 sm:pl-0">
+                    <button
+                      className="rounded-lg border border-leaf/20 bg-white px-3 py-2 text-xs font-black text-leaf disabled:opacity-40"
+                      disabled={isFullySelected}
+                      onClick={() => setGroupSelection(group, true)}
+                      type="button"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      className="rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-black text-ink/60 disabled:opacity-40"
+                      disabled={selectedCount === 0}
+                      onClick={() => setGroupSelection(group, false)}
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              {isOpen ? (
+                <div className="grid gap-2 border-t border-ink/10 bg-white p-3 md:grid-cols-2">
+                  {group.permissions.map((permission) => (
+                    <label
+                      className="flex items-start gap-3 rounded-lg border border-ink/10 bg-white p-3 text-sm transition hover:border-leaf/20 hover:bg-leaf/[0.03]"
+                      key={permission.key}
+                    >
+                      <input
+                        checked={selectedPermissions.has(permission.key)}
+                        className="mt-1"
+                        disabled={disabled}
+                        onChange={() => togglePermission(permission.key)}
+                        type="checkbox"
+                      />
+                      <span>
+                        <span className="block font-bold text-ink">
+                          {permission.key}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-ink/55">
+                          {permission.description}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
       </div>
       <button
         className="mt-5 w-full rounded-lg bg-ink px-4 py-3 font-bold text-white disabled:opacity-50"
@@ -7333,7 +7454,11 @@ function PermissionsPanel({
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   roles: Role[];
 }) {
+  const permissionGroups = groupPermissions(permissions);
   const [selectedPermissionKey, setSelectedPermissionKey] = useState("");
+  const [openPermissionGroups, setOpenPermissionGroups] = useState(
+    () => new Set(permissionGroups.slice(0, 1).map((group) => group.label)),
+  );
   const selectedPermission =
     permissions.find(
       (permission) => permission.key === selectedPermissionKey,
@@ -7412,55 +7537,114 @@ function PermissionsPanel({
 
   return (
     <section className="grid gap-5">
-      {canManage ? (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-black text-ink"
+          onClick={() =>
+            setOpenPermissionGroups(
+              new Set(permissionGroups.map((group) => group.label)),
+            )
+          }
+          type="button"
+        >
+          Expand all
+        </button>
+        <button
+          className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-xs font-black text-ink"
+          onClick={() => setOpenPermissionGroups(new Set())}
+          type="button"
+        >
+          Collapse all
+        </button>
+        {canManage ? (
           <button
-            className="rounded-lg bg-ink px-4 py-3 font-bold text-white"
+            className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white"
             onClick={syncCatalog}
             type="button"
           >
             Sync catalog
           </button>
-        </div>
-      ) : null}
-      <div className="overflow-x-auto border border-ink/10 bg-white">
-        <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-          <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
-            <tr>
-              <th className="px-4 py-3">Permission</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Assigned roles</th>
-            </tr>
-          </thead>
-          <tbody>
-            {permissions.map((permission) => {
-              const assignedRoles = roles.filter((role) =>
-                role.permissions.some(
-                  (rolePermission) =>
-                    rolePermission.permission.key === permission.key,
-                ),
-              );
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        {permissionGroups.map((group) => {
+          const isOpen = openPermissionGroups.has(group.label);
+          return (
+            <section
+              className="overflow-hidden rounded-xl border border-ink/10 bg-white"
+              key={group.label}
+            >
+              <button
+                aria-expanded={isOpen}
+                className="flex w-full items-center justify-between gap-4 bg-paper/50 px-4 py-4 text-left"
+                onClick={() =>
+                  setOpenPermissionGroups((current) => {
+                    const next = new Set(current);
+                    if (next.has(group.label)) next.delete(group.label);
+                    else next.add(group.label);
+                    return next;
+                  })
+                }
+                type="button"
+              >
+                <span>
+                  <span className="block font-black text-ink">
+                    {group.label}
+                  </span>
+                  <span className="mt-1 block text-xs font-semibold text-ink/50">
+                    {group.permissions.length} permissions
+                  </span>
+                </span>
+                <span className="grid h-8 w-8 place-items-center rounded-lg border border-ink/10 bg-white text-lg font-black text-ink">
+                  {isOpen ? "−" : "+"}
+                </span>
+              </button>
+              {isOpen ? (
+                <div className="overflow-x-auto border-t border-ink/10">
+                  <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+                    <thead className="bg-paper text-xs uppercase tracking-[0.14em] text-ink/45">
+                      <tr>
+                        <th className="px-4 py-3">Permission</th>
+                        <th className="px-4 py-3">Description</th>
+                        <th className="px-4 py-3">Assigned roles</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.permissions.map((permission) => {
+                        const assignedRoles = roles.filter((role) =>
+                          role.permissions.some(
+                            (rolePermission) =>
+                              rolePermission.permission.key === permission.key,
+                          ),
+                        );
 
-              return (
-                <tr
-                  className="cursor-pointer border-t border-ink/10 bg-white"
-                  key={permission.key}
-                  onClick={() => setSelectedPermissionKey(permission.key)}
-                >
-                  <td className="break-all px-4 py-3 font-black text-ink">
-                    {permission.key}
-                  </td>
-                  <td className="px-4 py-3 text-ink/60">
-                    {permission.description}
-                  </td>
-                  <td className="px-4 py-3 text-ink/60">
-                    {assignedRoles.length}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        return (
+                          <tr
+                            className="cursor-pointer border-t border-ink/10 bg-white hover:bg-leaf/[0.03]"
+                            key={permission.key}
+                            onClick={() =>
+                              setSelectedPermissionKey(permission.key)
+                            }
+                          >
+                            <td className="break-all px-4 py-3 font-black text-ink">
+                              {permission.key}
+                            </td>
+                            <td className="px-4 py-3 text-ink/60">
+                              {permission.description}
+                            </td>
+                            <td className="px-4 py-3 text-ink/60">
+                              {assignedRoles.length}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
       </div>
     </section>
   );

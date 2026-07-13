@@ -16,6 +16,17 @@ const permissionCache = new Map<
   { expiresAt: number; permissions: Set<string>; roleNames: string[] }
 >();
 
+export function invalidatePermissionCache(userIds?: Iterable<string>) {
+  if (!userIds) {
+    permissionCache.clear();
+    return;
+  }
+
+  for (const userId of userIds) {
+    permissionCache.delete(userId);
+  }
+}
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(

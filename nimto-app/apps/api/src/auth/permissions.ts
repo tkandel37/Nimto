@@ -57,7 +57,7 @@ export const PERMISSION_CATALOG = [
   { key: PERMISSIONS.permissionsView, description: "View permission catalog." },
   {
     key: PERMISSIONS.permissionsManage,
-    description: "Assign permissions to roles.",
+    description: "Synchronize the permission catalog.",
   },
   { key: PERMISSIONS.staffView, description: "View staff accounts." },
   {

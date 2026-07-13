@@ -22,8 +22,9 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Email/password registration, verification, login, logout, JWT sessions, and
   profile updates.
 - Optional Google OAuth integration.
-- Role-based permissions, staff management, user account management, session
-  revocation, audit logs, and protected Super Admin records.
+- Role-based permissions with collapsible category assignment, immediate access
+  cache invalidation, staff and user management, session revocation, audit logs,
+  and database-protected Super Admin records.
 - Route-backed, permission-aware admin navigation with compact table-first
   category and subcategory management.
 - Public and administrative CMS pages and blog posts.

@@ -13,6 +13,7 @@ import { CreateStaffDto } from "./dto/create-staff.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { PERMISSION_CATALOG, SUPER_ADMIN_ROLE } from "../auth/permissions";
+import { invalidatePermissionCache } from "../auth/guards/permissions.guard";
 
 type ActorContext = {
   actorId: string;
@@ -123,6 +124,8 @@ export class AdminService {
 
   async createRole(dto: CreateRoleDto, context: ActorContext) {
     const name = this.normalizeRoleName(dto.name);
+    const permissionKeys = this.normalizePermissionKeys(dto.permissionKeys);
+    await this.assertPermissionsExist(permissionKeys);
 
     try {
       const role = await this.prisma.role.create({
@@ -130,7 +133,7 @@ export class AdminService {
           name,
           description: dto.description?.trim() || null,
           permissions: {
-            create: (dto.permissionKeys ?? []).map((key) => ({
+            create: permissionKeys.map((key) => ({
               permission: { connect: { key } },
             })),
           },
@@ -151,13 +154,25 @@ export class AdminService {
 
   async updateRole(roleId: string, dto: UpdateRoleDto, context: ActorContext) {
     const existing = await this.getRole(roleId);
-    if (existing.name === SUPER_ADMIN_ROLE) {
-      throw new ForbiddenException("SUPER_ADMIN role cannot be changed.");
+    if (existing.isSystem || existing.name === SUPER_ADMIN_ROLE) {
+      throw new ForbiddenException("System roles cannot be changed.");
     }
+    const permissionKeys =
+      dto.permissionKeys === undefined
+        ? undefined
+        : this.normalizePermissionKeys(dto.permissionKeys);
+    if (permissionKeys) await this.assertPermissionsExist(permissionKeys);
+    const assignedUsers =
+      permissionKeys !== undefined || dto.name !== undefined
+        ? await this.prisma.userRole.findMany({
+            where: { roleId },
+            select: { userId: true },
+          })
+        : [];
 
     try {
       const role = await this.prisma.$transaction(async (tx) => {
-        if (dto.permissionKeys) {
+        if (permissionKeys !== undefined) {
           await tx.rolePermission.deleteMany({ where: { roleId } });
         }
 
@@ -169,17 +184,20 @@ export class AdminService {
               dto.description !== undefined
                 ? dto.description.trim() || null
                 : undefined,
-            permissions: dto.permissionKeys
-              ? {
-                  create: dto.permissionKeys.map((key) => ({
-                    permission: { connect: { key } },
-                  })),
-                }
-              : undefined,
+            permissions:
+              permissionKeys !== undefined
+                ? {
+                    create: permissionKeys.map((key) => ({
+                      permission: { connect: { key } },
+                    })),
+                  }
+                : undefined,
           },
           include: { permissions: { include: { permission: true } } },
         });
       });
+
+      invalidatePermissionCache(assignedUsers.map((user) => user.userId));
 
       await this.record(context, "role.updated", "Role", role.id, {
         name: role.name,
@@ -362,6 +380,8 @@ export class AdminService {
 
       return updated;
     });
+
+    if (dto.roleIds) invalidatePermissionCache([userId]);
 
     await this.record(context, "staff.updated", "User", user.id, {
       email: user.email,
@@ -663,6 +683,10 @@ export class AdminService {
     if (count !== new Set(keys).size) {
       throw new BadRequestException("One or more permissions do not exist.");
     }
+  }
+
+  private normalizePermissionKeys(keys: string[] | undefined) {
+    return [...new Set((keys ?? []).map((key) => key.trim()).filter(Boolean))];
   }
 
   private async assertRolesAssignable(roleIds: string[]) {
