@@ -46,6 +46,7 @@ type StyleSlot = {
 type LinkSetting = {
   fieldKey: string;
   url: string;
+  hoverText?: string;
 };
 
 type EventFeatureSettings = {
@@ -71,6 +72,7 @@ export function EventDesignEditor({
   onRevisions,
   revisions,
   showToast,
+  view = "design",
 }: {
   authHeaders: Record<string, string>;
   designs: PublicDesign[];
@@ -79,6 +81,7 @@ export function EventDesignEditor({
   onRevisions: (revisions: EventDesignRevision[]) => void;
   revisions: EventDesignRevision[];
   showToast: (message: string, tone?: "success" | "error") => void;
+  view?: "design" | "links";
 }) {
   const initialVersion =
     event.draftDesignVersion ?? event.designVersion ?? designs[0]?.versions[0];
@@ -225,7 +228,10 @@ export function EventDesignEditor({
     if (!nextField) return;
     updateFeatureSettings((current) => ({
       ...current,
-      links: [...(current.links ?? []), { fieldKey: nextField.key, url: "" }],
+      links: [
+        ...(current.links ?? []),
+        { fieldKey: nextField.key, url: "", hoverText: "Follow link" },
+      ],
     }));
   }
 
@@ -308,6 +314,174 @@ export function EventDesignEditor({
     );
     onEvent({ ...event, ...updated });
     showToast("Older design restored as an unpublished draft.");
+  }
+
+  if (view === "links") {
+    return (
+      <form
+        className="user-panel event-design-editor event-field-links-editor"
+        id="event-field-links-form"
+        onSubmit={(submitEvent) => {
+          submitEvent.preventDefault();
+          void saveDraft();
+        }}
+      >
+        <div className="event-section-heading">
+          <div>
+            <p className="user-kicker">Invitation</p>
+            <h2>Field links</h2>
+            <p>Link eligible text without changing how it looks.</p>
+            <p className="design-draft-status">
+              {connectionState} · {draftStatus}
+            </p>
+          </div>
+          <button
+            className="user-secondary-button event-action-desktop"
+            disabled={saving}
+            type="submit"
+          >
+            {saving ? "Saving..." : "Save field links"}
+          </button>
+        </div>
+
+        <div className="event-design-layout event-field-links-layout">
+          <div className="event-design-controls">
+            {!featureConfig.links.available ? (
+              <div className="event-feature-block">
+                <strong>Field links are unavailable</strong>
+                <p className="event-feature-muted">
+                  This invitation design does not include linkable fields.
+                </p>
+              </div>
+            ) : linkableFields.length ? (
+              <div className="event-feature-block event-field-links-list">
+                <div className="event-feature-heading">
+                  <div>
+                    <strong>Linked text</strong>
+                    <p className="event-feature-muted">
+                      Add one destination per eligible invitation field.
+                    </p>
+                  </div>
+                  <button
+                    disabled={linkableFields.length <= selectedLinkFields.size}
+                    onClick={addLinkSetting}
+                    type="button"
+                  >
+                    Add link
+                  </button>
+                </div>
+                {(featureSettings.links ?? []).length ? (
+                  (featureSettings.links ?? []).map((link, index) => (
+                    <div
+                      className="event-link-card"
+                      key={`${link.fieldKey}-${index}`}
+                    >
+                      <div className="event-link-card-heading">
+                        <strong>Link {index + 1}</strong>
+                        <button
+                          className="user-text-button"
+                          onClick={() => removeLinkSetting(index)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <label className="user-field">
+                        <span>Invitation text</span>
+                        <select
+                          onChange={(changeEvent) =>
+                            updateLinkSetting(index, {
+                              fieldKey: changeEvent.target.value,
+                            })
+                          }
+                          value={link.fieldKey}
+                        >
+                          {linkableFields.map((field) => (
+                            <option
+                              disabled={
+                                field.key !== link.fieldKey &&
+                                selectedLinkFields.has(field.key)
+                              }
+                              key={field.key}
+                              value={field.key}
+                            >
+                              {field.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="user-field">
+                        <span>Destination URL</span>
+                        <input
+                          onChange={(changeEvent) =>
+                            updateLinkSetting(index, {
+                              url: changeEvent.target.value,
+                            })
+                          }
+                          placeholder="https://example.com"
+                          type="url"
+                          value={link.url}
+                        />
+                      </label>
+                      <label className="user-field">
+                        <span>Hover text</span>
+                        <input
+                          maxLength={80}
+                          onChange={(changeEvent) =>
+                            updateLinkSetting(index, {
+                              hoverText: changeEvent.target.value,
+                            })
+                          }
+                          placeholder="Follow link"
+                          type="text"
+                          value={link.hoverText ?? ""}
+                        />
+                        <small>
+                          Shown when a guest points to or focuses the linked text.
+                        </small>
+                      </label>
+                    </div>
+                  ))
+                ) : (
+                  <div className="event-links-empty">
+                    <strong>No field links yet</strong>
+                    <p>Choose Add link to make invitation text clickable.</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="event-feature-block">
+                <strong>No linkable text found</strong>
+                <p className="event-feature-muted">
+                  This template has no scanned linkable text fields.
+                </p>
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="event-device-switcher">
+              {(["mobile", "tablet", "desktop"] as const).map((option) => (
+                <button
+                  className={device === option ? "active" : ""}
+                  key={option}
+                  onClick={() => setDevice(option)}
+                  type="button"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <div className={`event-device-preview ${device}`}>
+              <iframe
+                sandbox="allow-scripts"
+                srcDoc={previewHtml}
+                title="Invitation field links preview"
+              />
+            </div>
+          </div>
+        </div>
+      </form>
+    );
   }
 
   return (
@@ -406,71 +580,6 @@ export function EventDesignEditor({
                 }))
               }
             />
-
-            {featureConfig.links.available ? (
-              <div className="event-feature-block">
-                <div className="event-feature-heading">
-                  <span>Field links</span>
-                  <button
-                    disabled={linkableFields.length <= selectedLinkFields.size}
-                    onClick={addLinkSetting}
-                    type="button"
-                  >
-                    Add link
-                  </button>
-                </div>
-                {linkableFields.length ? (
-                  (featureSettings.links ?? []).map((link, index) => (
-                    <div
-                      className="event-link-row"
-                      key={`${link.fieldKey}-${index}`}
-                    >
-                      <select
-                        onChange={(changeEvent) =>
-                          updateLinkSetting(index, {
-                            fieldKey: changeEvent.target.value,
-                          })
-                        }
-                        value={link.fieldKey}
-                      >
-                        {linkableFields.map((field) => (
-                          <option
-                            disabled={
-                              field.key !== link.fieldKey &&
-                              selectedLinkFields.has(field.key)
-                            }
-                            key={field.key}
-                            value={field.key}
-                          >
-                            {field.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        onChange={(changeEvent) =>
-                          updateLinkSetting(index, {
-                            url: changeEvent.target.value,
-                          })
-                        }
-                        placeholder="https://..."
-                        type="url"
-                        value={link.url}
-                      />
-                      <button
-                        onClick={() => removeLinkSetting(index)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="event-feature-muted">
-                    This template has no scanned linkable text fields.
-                  </p>
-                )}
-              </div>
-            ) : null}
 
             <FeatureToggleRow
               available={featureConfig.rsvp.available}
@@ -765,6 +874,10 @@ function applyFeaturePreview(
 ) {
   let result = applyThemePreview(html, settings.theme ?? {});
   result = applyLinkPreview(result, settings.links ?? []);
+  result = result.replace(
+    /<\/head>/i,
+    `<style>${fieldLinkStyles}</style></head>`,
+  );
   result = applySlotPreview(
     result,
     "data-nimto-additional-info-slot",
@@ -831,10 +944,17 @@ function applyLinkPreview(html: string, links: LinkSetting[]) {
       "gis",
     );
     return result.replace(pattern, (_match, open, _quote, content, close) => {
-      return `${open}<a data-nimto-linked-field="${escapeHtml(link.fieldKey)}" href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank">${content}</a>${close}`;
+      const hoverText = link.hoverText?.trim() || "Follow link";
+      return `${open}<a data-nimto-linked-field="${escapeHtml(link.fieldKey)}" data-nimto-link-tooltip="${escapeHtml(hoverText)}" href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank" title="${escapeHtml(hoverText)}">${content}</a>${close}`;
     });
   }, html);
 }
+
+const fieldLinkStyles = `
+  a[data-nimto-linked-field]{position:relative;color:inherit!important;font:inherit!important;font-family:inherit!important;font-size:inherit!important;font-style:inherit!important;font-weight:inherit!important;letter-spacing:inherit!important;line-height:inherit!important;text-decoration:none!important;text-transform:inherit!important;-webkit-text-fill-color:inherit;cursor:pointer}
+  a[data-nimto-linked-field]::after{content:attr(data-nimto-link-tooltip);position:absolute;z-index:2147483647;left:50%;bottom:calc(100% + 9px);width:max-content;max-width:220px;transform:translate(-50%,4px);border-radius:8px;background:#1f2024;color:#fff;-webkit-text-fill-color:#fff;padding:7px 9px;box-shadow:0 8px 24px rgba(0,0,0,.2);font:600 12px/1.3 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0;text-align:center;text-transform:none;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+  a[data-nimto-linked-field]:hover::after,a[data-nimto-linked-field]:focus-visible::after{transform:translate(-50%,0);opacity:1;visibility:visible}
+`;
 
 function applySlotPreview(
   html: string,
@@ -949,7 +1069,11 @@ function normalizeFeatureSettings(
     links: config.links.available
       ? (settings.links ?? [])
           .filter((link) => link.fieldKey)
-          .map((link) => ({ fieldKey: link.fieldKey, url: link.url ?? "" }))
+          .map((link) => ({
+            fieldKey: link.fieldKey,
+            url: link.url ?? "",
+            hoverText: link.hoverText ?? "Follow link",
+          }))
       : [],
     theme: Object.fromEntries(
       Object.entries(settings.theme ?? {}).filter(([key]) =>

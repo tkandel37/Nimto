@@ -54,6 +54,7 @@ type EventWorkspaceCache = {
 type EventTab =
   | "overview"
   | "invitation"
+  | "links"
   | "guests"
   | "rsvp"
   | "sharing"
@@ -72,6 +73,7 @@ type MobileAction = {
 const eventTabs: { id: EventTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "invitation", label: "Invitation" },
+  { id: "links", label: "Field links" },
   { id: "guests", label: "Guests" },
   { id: "rsvp", label: "RSVP" },
   { id: "sharing", label: "Sharing" },
@@ -1110,6 +1112,13 @@ function EventDetailContent({
             },
             disabled: false,
           }
+        : activeTab === "links"
+          ? {
+              label: "Save field links",
+              action: undefined,
+              disabled: false,
+              submitFormId: "event-field-links-form",
+            }
         : activeTab === "guests"
           ? {
               label: "Add guests",
@@ -1162,6 +1171,12 @@ function EventDetailContent({
               (!event.isPublished &&
                 (!event.eventDate || !event.venue || !event.designVersion?.id)),
           }
+        : activeTab === "links"
+          ? {
+              label: "Edit invitation",
+              action: () => setActiveTab("invitation"),
+              disabled: false,
+            }
         : activeTab === "guests"
           ? {
               label: "Copy all",
@@ -1479,6 +1494,19 @@ function EventDetailContent({
             </article>
           </section>
         </div>
+      ) : null}
+
+      {activeTab === "links" ? (
+        <EventDesignEditor
+          authHeaders={authHeaders}
+          designs={designs}
+          event={event}
+          onEvent={setEvent}
+          onRevisions={setRevisions}
+          revisions={revisions}
+          showToast={showToast}
+          view="links"
+        />
       ) : null}
 
       {activeTab === "invitation" ? (

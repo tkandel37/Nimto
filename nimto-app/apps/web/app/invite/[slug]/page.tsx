@@ -47,7 +47,7 @@ type InvitationFeatureSettings = {
   rsvp?: { enabled?: boolean };
   music?: { enabled?: boolean; url?: string };
   additionalInfo?: { enabled?: boolean; text?: string };
-  links?: { fieldKey: string; url: string }[];
+  links?: { fieldKey: string; url: string; hoverText?: string }[];
   theme?: Record<string, string>;
   sharePreview?: {
     title?: string;
@@ -339,13 +339,16 @@ function applyInvitationFeatures(
       .nimto-countdown span{display:grid;text-align:center;font-weight:800}
       .nimto-countdown small{font-size:.68em;text-transform:uppercase;letter-spacing:.08em;opacity:.72}
       .nimto-additional-info{white-space:pre-wrap}
+      a[data-nimto-linked-field]{position:relative;color:inherit!important;font:inherit!important;font-family:inherit!important;font-size:inherit!important;font-style:inherit!important;font-weight:inherit!important;letter-spacing:inherit!important;line-height:inherit!important;text-decoration:none!important;text-transform:inherit!important;-webkit-text-fill-color:inherit;cursor:pointer}
+      a[data-nimto-linked-field]::after{content:attr(data-nimto-link-tooltip);position:absolute;z-index:2147483647;left:50%;bottom:calc(100% + 9px);width:max-content;max-width:220px;transform:translate(-50%,4px);border-radius:8px;background:#1f2024;color:#fff;-webkit-text-fill-color:#fff;padding:7px 9px;box-shadow:0 8px 24px rgba(0,0,0,.2);font:600 12px/1.3 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0;text-align:center;text-transform:none;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+      a[data-nimto-linked-field]:hover::after,a[data-nimto-linked-field]:focus-visible::after{transform:translate(-50%,0);opacity:1;visibility:visible}
     </style>`,
   );
 }
 
 function applyFieldLinks(
   html: string,
-  links: { fieldKey: string; url: string }[],
+  links: { fieldKey: string; url: string; hoverText?: string }[],
 ) {
   return links.reduce((result, link) => {
     if (!link.fieldKey || !link.url) return result;
@@ -353,10 +356,10 @@ function applyFieldLinks(
       `(<[^>]*data-nimto-field=(["'])${escapeRegExp(link.fieldKey)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
       "gis",
     );
-    return result.replace(
-      pattern,
-      `$1<a href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank">$3</a>$4`,
-    );
+    return result.replace(pattern, (_match, open, _quote, content, close) => {
+      const hoverText = link.hoverText?.trim() || "Follow link";
+      return `${open}<a data-nimto-linked-field="${escapeHtml(link.fieldKey)}" data-nimto-link-tooltip="${escapeHtml(hoverText)}" href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank" title="${escapeHtml(hoverText)}">${content}</a>${close}`;
+    });
   }, html);
 }
 
