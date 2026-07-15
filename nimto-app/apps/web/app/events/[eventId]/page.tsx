@@ -190,6 +190,8 @@ function EventDetailContent({
   const [isRsvpDeadlineEnabled, setIsRsvpDeadlineEnabled] = useState(false);
   const [isRsvpNoteEnabled, setIsRsvpNoteEnabled] = useState(false);
   const [csvImport, setCsvImport] = useState<CsvImportState>(null);
+  const [shareGuestSearch, setShareGuestSearch] = useState("");
+  const [shareGuestPage, setShareGuestPage] = useState(1);
   const [deletedInvitee, setDeletedInvitee] =
     useState<InvitationInvitee | null>(null);
   const deleteTimer = useRef<number | null>(null);
@@ -481,10 +483,29 @@ function EventDetailContent({
     showToast("Guest link copied.");
   }
 
+  function shareInviteeLink(
+    invitee: InvitationInvitee,
+    channel: "whatsapp" | "email",
+  ) {
+    if (!event) return;
+    const url = `${window.location.origin}/invite/${invitee.slug}`;
+    const message = `${invitee.name}, you’re invited to ${event.title}. Open your personal invitation: ${url}`;
+    const phone = invitee.phone?.replace(/\D/g, "") ?? "";
+    const target =
+      channel === "whatsapp"
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+        : `mailto:${invitee.email ?? ""}?subject=${encodeURIComponent(event.title)}&body=${encodeURIComponent(message)}`;
+    window.open(target, "_blank", "noopener,noreferrer");
+    void logInviteeShare(
+      invitee,
+      channel === "whatsapp" ? "WHATSAPP" : "EMAIL",
+    );
+  }
+
   async function copyAllInviteeLinks() {
     const rows = invitees.map(
       (invitee) =>
-        `${invitee.name},${window.location.origin}/invite/${invitee.slug}`,
+        `${csvCell(invitee.name)},${csvCell(`${window.location.origin}/invite/${invitee.slug}`)}`,
     );
     await navigator.clipboard.writeText(
       ["Guest Name,Link", ...rows].join("\n"),
@@ -1129,6 +1150,21 @@ function EventDetailContent({
       ? `/invite/${event.slug}`
       : `${window.location.origin}/invite/${event.slug}`;
   const suggestedShareMessage = `You’re invited to ${event.title}. Open your invitation here: ${inviteUrl}`;
+  const normalizedShareGuestSearch = shareGuestSearch.trim().toLowerCase();
+  const sharingInvitees = invitees.filter((invitee) =>
+    [invitee.name, invitee.email, invitee.phone, invitee.groupName].some(
+      (value) => value?.toLowerCase().includes(normalizedShareGuestSearch),
+    ),
+  );
+  const shareGuestPageSize = 10;
+  const shareGuestPageCount = Math.max(
+    1,
+    Math.ceil(sharingInvitees.length / shareGuestPageSize),
+  );
+  const visibleSharingInvitees = sharingInvitees.slice(
+    (shareGuestPage - 1) * shareGuestPageSize,
+    shareGuestPage * shareGuestPageSize,
+  );
   const mobilePrimaryAction: MobileAction =
     activeTab === "overview"
       ? {
@@ -2215,6 +2251,140 @@ function EventDetailContent({
                 ) : null}
               </aside>
             </div>
+          </section>
+
+          <section className="user-panel share-guest-delivery">
+            <header className="share-section-title">
+              <div>
+                <p className="user-kicker">Personalized delivery</p>
+                <h2>Share with guests</h2>
+              </div>
+              <span>
+                {invitees.length} personal link{invitees.length === 1 ? "" : "s"}
+              </span>
+            </header>
+
+            {invitees.length ? (
+              <>
+                <div className="share-guest-toolbar">
+                  <label className="event-search">
+                    <span className="sr-only">Search guests to share with</span>
+                    <input
+                      onChange={(event) => {
+                        setShareGuestSearch(event.target.value);
+                        setShareGuestPage(1);
+                      }}
+                      placeholder="Search name, group, email, or phone"
+                      value={shareGuestSearch}
+                    />
+                  </label>
+                  <button
+                    className="user-secondary-button"
+                    onClick={() => void copyAllInviteeLinks()}
+                    type="button"
+                  >
+                    Copy all links
+                  </button>
+                </div>
+
+                <div className="share-guest-list">
+                  {visibleSharingInvitees.map((invitee) => {
+                    const unavailable =
+                      !event.isPublished || Boolean(invitee.linkDisabledAt);
+                    return (
+                      <article key={invitee.id}>
+                        <div className="share-guest-identity">
+                          <span>{invitee.name.slice(0, 1).toUpperCase()}</span>
+                          <div>
+                            <strong>{invitee.name}</strong>
+                            <small>
+                              {invitee.groupName || "Ungrouped"}
+                              {invitee.lastSharedAt
+                                ? ` · Shared ${new Date(invitee.lastSharedAt).toLocaleDateString()}`
+                                : " · Not shared"}
+                            </small>
+                          </div>
+                        </div>
+                        <div className="share-guest-actions">
+                          <button
+                            disabled={unavailable}
+                            onClick={() => void copyInviteeLink(invitee)}
+                            type="button"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            disabled={unavailable}
+                            onClick={() =>
+                              shareInviteeLink(invitee, "whatsapp")
+                            }
+                            type="button"
+                          >
+                            WhatsApp
+                          </button>
+                          <button
+                            disabled={unavailable}
+                            onClick={() => shareInviteeLink(invitee, "email")}
+                            type="button"
+                          >
+                            Email
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {!sharingInvitees.length ? (
+                  <div className="user-empty share-guest-empty">
+                    <h3>No matching guests</h3>
+                    <p>Try a different name, group, email, or phone.</p>
+                  </div>
+                ) : null}
+
+                {sharingInvitees.length > shareGuestPageSize ? (
+                  <div className="invitee-pagination share-guest-pagination">
+                    <button
+                      className="user-secondary-button"
+                      disabled={shareGuestPage === 1}
+                      onClick={() =>
+                        setShareGuestPage((current) => Math.max(1, current - 1))
+                      }
+                      type="button"
+                    >
+                      Previous
+                    </button>
+                    <span>
+                      {shareGuestPage} of {shareGuestPageCount}
+                    </span>
+                    <button
+                      className="user-secondary-button"
+                      disabled={shareGuestPage === shareGuestPageCount}
+                      onClick={() =>
+                        setShareGuestPage((current) =>
+                          Math.min(shareGuestPageCount, current + 1),
+                        )
+                      }
+                      type="button"
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="user-empty share-guest-empty">
+                <h3>No personalized links yet</h3>
+                <p>Add guests first, then share each person’s private link here.</p>
+                <button
+                  className="user-primary-button"
+                  onClick={() => setActiveTab("guests")}
+                  type="button"
+                >
+                  Add guests
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="user-panel event-message-templates share-message-library">
