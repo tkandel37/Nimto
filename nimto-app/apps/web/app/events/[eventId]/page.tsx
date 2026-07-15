@@ -1056,6 +1056,9 @@ function EventDetailContent({
     }
     return true;
   });
+  const primaryEventTabs = availableEventTabs.filter(
+    (tab) => tab.id !== "settings",
+  );
   const unavailableFeatureTabs = eventTabs.filter(
     (tab) =>
       (tab.id === "links" || tab.id === "music" || tab.id === "rsvp") &&
@@ -1386,7 +1389,7 @@ function EventDetailContent({
       </header>
 
       <nav className="event-tabs" aria-label="Event workspace">
-        {availableEventTabs.map((tab) => (
+        {primaryEventTabs.map((tab) => (
           <button
             aria-current={activeTab === tab.id ? "page" : undefined}
             className={activeTab === tab.id ? "active" : ""}
@@ -1397,33 +1400,54 @@ function EventDetailContent({
             {tab.label}
           </button>
         ))}
-        {unavailableFeatureTabs.length ? (
-          <div className="event-tab-overflow">
-            <button
-              aria-expanded={showFeatureMenu}
-              aria-label="Unavailable features"
-              className={showFeatureMenu ? "active" : ""}
-              onClick={() => setShowFeatureMenu((current) => !current)}
-              type="button"
-            >
-              •••
-            </button>
-            {showFeatureMenu ? (
-              <div className="event-tab-overflow-menu">
-                {unavailableFeatureTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    type="button"
-                  >
-                    {tab.label}
-                    <small>Unavailable</small>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="event-tab-actions">
+          {unavailableFeatureTabs.length ? (
+            <div className="event-tab-overflow">
+              <button
+                aria-expanded={showFeatureMenu}
+                aria-label="More features"
+                className={showFeatureMenu ? "active" : ""}
+                onClick={() => setShowFeatureMenu((current) => !current)}
+                title="More features"
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <circle cx="7" cy="7" r="2" />
+                  <circle cx="17" cy="7" r="2" />
+                  <circle cx="7" cy="17" r="2" />
+                  <circle cx="17" cy="17" r="2" />
+                </svg>
+              </button>
+              {showFeatureMenu ? (
+                <div className="event-tab-overflow-menu">
+                  {unavailableFeatureTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      type="button"
+                    >
+                      {tab.label}
+                      <small>Unavailable</small>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            aria-current={activeTab === "settings" ? "page" : undefined}
+            aria-label="Settings"
+            className={`event-tab-settings ${activeTab === "settings" ? "active" : ""}`}
+            onClick={() => setActiveTab("settings")}
+            title="Event settings"
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M9.7 3.3h4.6l.6 2.1c.5.2 1 .5 1.4.8l2.1-.6 2.3 4-1.5 1.5a7 7 0 0 1 0 1.8l1.5 1.5-2.3 4-2.1-.6c-.4.3-.9.6-1.4.8l-.6 2.1H9.7l-.6-2.1c-.5-.2-1-.5-1.4-.8l-2.1.6-2.3-4 1.5-1.5a7 7 0 0 1 0-1.8L3.3 9.6l2.3-4 2.1.6c.4-.3.9-.6 1.4-.8l.6-2.1Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
       </nav>
       <label className="event-tab-select">
         <span className="sr-only">Event section</span>

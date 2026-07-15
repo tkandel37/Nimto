@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { EventDesignRevision, UserEvent } from "./event-types";
 
@@ -496,30 +496,17 @@ export function EventDesignEditor({
                           Remove
                         </button>
                       </div>
-                      <label className="user-field">
+                      <div className="user-field">
                         <span>Invitation text</span>
-                        <select
-                          onChange={(changeEvent) =>
-                            updateLinkSetting(index, {
-                              fieldKey: changeEvent.target.value,
-                            })
+                        <FieldPicker
+                          currentKey={link.fieldKey}
+                          fields={linkableFields}
+                          onChange={(fieldKey) =>
+                            updateLinkSetting(index, { fieldKey })
                           }
-                          value={link.fieldKey}
-                        >
-                          {linkableFields.map((field) => (
-                            <option
-                              disabled={
-                                field.key !== link.fieldKey &&
-                                selectedLinkFields.has(field.key)
-                              }
-                              key={field.key}
-                              value={field.key}
-                            >
-                              {field.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          selectedKeys={selectedLinkFields}
+                        />
+                      </div>
                       <label className="user-field">
                         <span>Destination URL</span>
                         <input
@@ -888,6 +875,63 @@ export function EventDesignEditor({
         </div>
       </div>
     </section>
+  );
+}
+
+function FieldPicker({
+  currentKey,
+  fields,
+  onChange,
+  selectedKeys,
+}: {
+  currentKey: string;
+  fields: { key: string; label: string }[];
+  onChange: (fieldKey: string) => void;
+  selectedKeys: Set<string>;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const currentLabel =
+    fields.find((field) => field.key === currentKey)?.label ?? "Choose text";
+
+  return (
+    <details
+      className="event-field-picker"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          detailsRef.current?.removeAttribute("open");
+        }
+      }}
+      ref={detailsRef}
+    >
+      <summary>
+        <span>{currentLabel}</span>
+        <svg aria-hidden="true" viewBox="0 0 20 20">
+          <path d="m5 7.5 5 5 5-5" />
+        </svg>
+      </summary>
+      <div className="event-field-picker-menu" role="listbox">
+        {fields.map((field) => {
+          const disabled =
+            field.key !== currentKey && selectedKeys.has(field.key);
+          return (
+            <button
+              aria-selected={field.key === currentKey}
+              disabled={disabled}
+              key={field.key}
+              onClick={() => {
+                onChange(field.key);
+                detailsRef.current?.removeAttribute("open");
+              }}
+              role="option"
+              type="button"
+            >
+              <span>{field.label}</span>
+              {field.key === currentKey ? <span aria-hidden="true">✓</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
