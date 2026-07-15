@@ -1602,7 +1602,13 @@ function EventDetailContent({
         />
       ) : null}
 
-      {activeTab === "music" ? (
+      {activeTab === "music" && !featureAvailability.music ? (
+        <section className="user-panel event-feature-unavailable">
+          <h2>Music is not available for this template.</h2>
+        </section>
+      ) : null}
+
+      {activeTab === "music" && featureAvailability.music ? (
         <EventDesignEditor
           authHeaders={authHeaders}
           designs={designs}
