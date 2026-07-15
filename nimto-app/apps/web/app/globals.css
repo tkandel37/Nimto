@@ -6794,11 +6794,70 @@ button.user-design-preview {
   z-index: 30;
   display: flex;
   gap: 4px;
-  overflow-x: auto;
+  overflow: visible;
   border-bottom: 1px solid rgb(23 37 29 / 0.12);
   background: rgb(248 246 239 / 0.96);
   padding: 8px 4px 0;
   backdrop-filter: blur(12px);
+}
+
+.event-tab-overflow {
+  position: relative;
+  margin-left: auto;
+}
+
+.event-tab-overflow > button {
+  min-width: 46px;
+  letter-spacing: 0.08em;
+}
+
+.event-tab-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 80;
+  display: grid;
+  width: 205px;
+  border: 1px solid rgb(23 37 29 / 0.12);
+  border-radius: 10px;
+  background: white;
+  padding: 6px;
+  box-shadow: 0 18px 48px rgb(23 37 29 / 0.18);
+}
+
+.event-tabs .event-tab-overflow-menu button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.event-tab-overflow-menu button:hover {
+  background: #f4efe4;
+}
+
+.event-tab-overflow-menu small {
+  color: rgb(23 37 29 / 0.48);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.event-feature-unavailable {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  color: rgb(23 37 29 / 0.62);
+  text-align: center;
+}
+
+.event-feature-unavailable h2 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .event-tabs button {

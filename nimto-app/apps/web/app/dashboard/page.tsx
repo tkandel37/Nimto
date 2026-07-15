@@ -3477,7 +3477,8 @@ function defaultFeatureConfig(
   const capabilities = scanCapabilities(scanResult);
   return {
     countdown: {
-      available: capabilities.countdown,
+      available:
+        capabilities.countdown && config?.countdown?.available !== false,
       defaultEnabled: config?.countdown?.defaultEnabled ?? true,
       position:
         config?.countdown?.position ??
@@ -3485,25 +3486,30 @@ function defaultFeatureConfig(
         "bottom",
     },
     rsvp: {
-      available: capabilities.rsvp,
+      available: capabilities.rsvp && config?.rsvp?.available !== false,
       defaultEnabled: config?.rsvp?.defaultEnabled ?? false,
     },
     music: {
-      available: capabilities.music,
+      available: capabilities.music && config?.music?.available !== false,
       defaultEnabled: config?.music?.defaultEnabled ?? false,
     },
     additionalInfo: {
-      available: capabilities.additionalInfo,
+      available:
+        capabilities.additionalInfo &&
+        config?.additionalInfo?.available !== false,
       defaultEnabled: config?.additionalInfo?.defaultEnabled ?? false,
     },
     openingAnimation: {
-      available: capabilities.opening,
+      available:
+        capabilities.opening && config?.openingAnimation?.available !== false,
       defaultEnabled: config?.openingAnimation?.defaultEnabled ?? false,
     },
     theme: { available: capabilities.theme },
     sharePreview: { available: capabilities.sharePreview },
     print: { available: capabilities.print },
-    links: { available: capabilities.links },
+    links: {
+      available: capabilities.links && config?.links?.available !== false,
+    },
   };
 }
 
@@ -4491,34 +4497,47 @@ function TemplateCapabilityPanel({
   scanResult: InvitationTemplate["scanResult"] | undefined;
 }) {
   const config = defaultFeatureConfig(scanResult, featureConfig);
+  const capabilities = scanCapabilities(scanResult);
   const rows = [
     {
       key: "rsvp",
-      label: "RSVP entry",
+      label: "RSVP",
       detail: "Shows the RSVP button area on invitations.",
-      enabled: config.rsvp?.defaultEnabled,
-      available: config.rsvp?.available,
+      defaultEnabled: config.rsvp?.defaultEnabled,
+      allowed: config.rsvp?.available,
+      supported: capabilities.rsvp,
     },
     {
       key: "music",
-      label: "Music control",
-      detail: "Lets hosts add a music URL later.",
-      enabled: config.music?.defaultEnabled,
-      available: config.music?.available,
+      label: "Music",
+      detail: "Lets hosts add a public music URL.",
+      defaultEnabled: config.music?.defaultEnabled,
+      allowed: config.music?.available,
+      supported: capabilities.music,
     },
     {
       key: "additionalInfo",
       label: "Additional information",
       detail: "Optional footer area for contact or extra notes.",
-      enabled: config.additionalInfo?.defaultEnabled,
-      available: config.additionalInfo?.available,
+      defaultEnabled: config.additionalInfo?.defaultEnabled,
+      allowed: config.additionalInfo?.available,
+      supported: capabilities.additionalInfo,
     },
     {
       key: "openingAnimation",
       label: "Opening animation",
       detail: "Lets hosts pick or disable assigned opening animation.",
-      enabled: config.openingAnimation?.defaultEnabled,
-      available: config.openingAnimation?.available,
+      defaultEnabled: config.openingAnimation?.defaultEnabled,
+      allowed: config.openingAnimation?.available,
+      supported: capabilities.opening,
+    },
+    {
+      key: "links",
+      label: "Field links",
+      detail: "Lets hosts link eligible invitation text.",
+      defaultEnabled: undefined,
+      allowed: config.links?.available,
+      supported: capabilities.links,
     },
   ] as const;
 
@@ -4538,87 +4557,125 @@ function TemplateCapabilityPanel({
   }
 
   return (
-    <section className="grid gap-4 border-b border-ink/10 bg-white p-4">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[.14em] text-ink/45">
-            Template capabilities
-          </p>
-          <p className="mt-1 max-w-2xl text-sm text-ink/55">
-            These defaults control what hosts see when creating an invitation
-            from this template.
-          </p>
-        </div>
+    <section className="grid gap-3 border-b border-ink/10 bg-white p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <p
+          className="text-xs font-black uppercase tracking-[.14em] text-ink/45"
+          title="Allow controls whether hosts can use a scanned feature. Default controls its initial state for new events."
+        >
+          Template capabilities
+        </p>
         <FeatureBadges scanResult={scanResult} compact />
       </div>
 
-      {config.countdown?.available ? (
+      {capabilities.countdown ? (
         <div className="grid gap-3 rounded-lg border border-ink/10 bg-paper/60 p-3 md:grid-cols-[minmax(0,1fr)_160px_150px] md:items-center">
-          <div>
-            <p className="text-sm font-black text-ink">Countdown</p>
-            <p className="mt-1 text-xs font-bold text-ink/50">
-              Host can turn it off. Admin fixes the default position.
-            </p>
-          </div>
+          <p
+            className="text-sm font-black text-ink"
+            title="Hosts can turn the countdown on or off. Admin controls its position and initial state."
+          >
+            Countdown
+          </p>
           <select
             className="rounded-lg border border-ink/15 bg-white px-3 py-2 text-sm font-bold"
+            disabled={!config.countdown?.available}
             onChange={(event) =>
               updateFeature("countdown", { position: event.target.value })
             }
-            value={config.countdown.position ?? "bottom"}
+            value={config.countdown?.position ?? "bottom"}
           >
             <option value="top">Top</option>
             <option value="middle">Middle</option>
             <option value="bottom">Bottom</option>
           </select>
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-ink/10 bg-white px-3 py-2 text-sm font-black text-ink">
-            Enabled
-            <input
-              checked={Boolean(config.countdown.defaultEnabled)}
-              onChange={(event) =>
-                updateFeature("countdown", {
-                  defaultEnabled: event.target.checked,
-                })
-              }
-              type="checkbox"
-            />
-          </label>
-        </div>
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {rows.map((row) => (
-          <label
-            className={`grid gap-2 rounded-lg border p-3 ${
-              row.available
-                ? "border-ink/10 bg-paper/60"
-                : "border-ink/5 bg-ink/[0.03] text-ink/40"
-            }`}
-            key={row.key}
-          >
-            <span className="flex items-start justify-between gap-3">
-              <span>
-                <span className="block text-sm font-black">{row.label}</span>
-                <span className="mt-1 block text-xs font-bold opacity-70">
-                  {row.available
-                    ? row.detail
-                    : "No matching slot was scanned in this template."}
-                </span>
-              </span>
+          <div className="grid gap-2">
+            <label className="flex items-center justify-between gap-3 text-xs font-black text-ink">
+              Allow hosts
               <input
-                checked={Boolean(row.enabled)}
-                disabled={!row.available}
+                checked={Boolean(config.countdown?.available)}
                 onChange={(event) =>
-                  updateFeature(row.key, {
+                  updateFeature("countdown", { available: event.target.checked })
+                }
+                type="checkbox"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-xs font-black text-ink">
+              On by default
+              <input
+                checked={Boolean(config.countdown?.defaultEnabled)}
+                disabled={!config.countdown?.available}
+                onChange={(event) =>
+                  updateFeature("countdown", {
                     defaultEnabled: event.target.checked,
                   })
                 }
                 type="checkbox"
               />
+            </label>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {rows.filter((row) => row.supported).map((row) => (
+          <div
+            className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3"
+            key={row.key}
+          >
+            <span className="text-sm font-black" title={row.detail}>
+              {row.label}
             </span>
-          </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex items-center justify-between gap-3 text-xs font-black">
+                Allow hosts
+                <input
+                  checked={Boolean(row.allowed)}
+                  onChange={(event) =>
+                    updateFeature(row.key, { available: event.target.checked })
+                  }
+                  type="checkbox"
+                />
+              </label>
+              {row.defaultEnabled !== undefined ? (
+                <label className="flex items-center justify-between gap-3 text-xs font-black">
+                  On by default
+                  <input
+                    checked={Boolean(row.defaultEnabled)}
+                    disabled={!row.allowed}
+                    onChange={(event) =>
+                      updateFeature(row.key, {
+                        defaultEnabled: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                </label>
+              ) : null}
+            </div>
+          </div>
         ))}
       </div>
+      {rows.some((row) => !row.supported) ? (
+        <details className="rounded-lg border border-ink/10 bg-ink/[0.025] px-3 py-2">
+          <summary className="cursor-pointer text-xs font-black text-ink/55">
+            Unavailable features (
+            {rows.filter((row) => !row.supported).length})
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {rows
+              .filter((row) => !row.supported)
+              .map((row) => (
+                <span
+                  className="rounded-full border border-ink/10 bg-white px-2.5 py-1 text-xs font-bold text-ink/45"
+                  key={row.key}
+                  title="No matching slot was scanned in this template."
+                >
+                  {row.label}
+                </span>
+              ))}
+          </div>
+        </details>
+      ) : null}
     </section>
   );
 }

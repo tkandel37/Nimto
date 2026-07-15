@@ -1962,7 +1962,9 @@ export class TemplateDesignService {
 
     return {
       countdown: {
-        available: Boolean(capabilities?.supportsCountdown),
+        available:
+          Boolean(capabilities?.supportsCountdown) &&
+          this.booleanConfig(source, ["countdown", "available"], true),
         defaultEnabled: this.booleanConfig(
           source,
           ["countdown", "defaultEnabled"],
@@ -1974,7 +1976,9 @@ export class TemplateDesignService {
           "bottom",
       },
       rsvp: {
-        available: Boolean(capabilities?.supportsRsvp),
+        available:
+          Boolean(capabilities?.supportsRsvp) &&
+          this.booleanConfig(source, ["rsvp", "available"], true),
         defaultEnabled: this.booleanConfig(
           source,
           ["rsvp", "defaultEnabled"],
@@ -1982,7 +1986,9 @@ export class TemplateDesignService {
         ),
       },
       music: {
-        available: Boolean(capabilities?.supportsMusic),
+        available:
+          Boolean(capabilities?.supportsMusic) &&
+          this.booleanConfig(source, ["music", "available"], true),
         defaultEnabled: this.booleanConfig(
           source,
           ["music", "defaultEnabled"],
@@ -1990,7 +1996,9 @@ export class TemplateDesignService {
         ),
       },
       additionalInfo: {
-        available: Boolean(capabilities?.supportsAdditionalInfo),
+        available:
+          Boolean(capabilities?.supportsAdditionalInfo) &&
+          this.booleanConfig(source, ["additionalInfo", "available"], true),
         defaultEnabled: this.booleanConfig(
           source,
           ["additionalInfo", "defaultEnabled"],
@@ -1998,7 +2006,9 @@ export class TemplateDesignService {
         ),
       },
       openingAnimation: {
-        available: Boolean(capabilities?.supportsOpeningAnimation),
+        available:
+          Boolean(capabilities?.supportsOpeningAnimation) &&
+          this.booleanConfig(source, ["openingAnimation", "available"], true),
         defaultEnabled: this.booleanConfig(
           source,
           ["openingAnimation", "defaultEnabled"],
@@ -2015,7 +2025,9 @@ export class TemplateDesignService {
         available: Boolean(capabilities?.supportsPrintLayout),
       },
       links: {
-        available: Boolean(capabilities?.supportsLinkedFields),
+        available:
+          Boolean(capabilities?.supportsLinkedFields) &&
+          this.booleanConfig(source, ["links", "available"], true),
       },
     };
   }

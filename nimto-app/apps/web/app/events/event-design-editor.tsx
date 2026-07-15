@@ -81,7 +81,7 @@ export function EventDesignEditor({
   onRevisions: (revisions: EventDesignRevision[]) => void;
   revisions: EventDesignRevision[];
   showToast: (message: string, tone?: "success" | "error") => void;
-  view?: "design" | "links";
+  view?: "design" | "links" | "music";
 }) {
   const initialVersion =
     event.draftDesignVersion ?? event.designVersion ?? designs[0]?.versions[0];
@@ -284,7 +284,13 @@ export function EventDesignEditor({
       onEvent({ ...event, ...updated });
       localStorage.removeItem(`nimto_event_design_draft_${event.id}`);
       setDraftStatus("Saved to event draft");
-      showToast("Design draft saved. Guests still see the published version.");
+      showToast(
+        view === "music"
+          ? "Music settings saved."
+          : view === "links"
+            ? "Field links saved."
+            : "Invitation draft saved.",
+      );
     } finally {
       setSaving(false);
     }
@@ -316,6 +322,112 @@ export function EventDesignEditor({
     showToast("Older design restored as an unpublished draft.");
   }
 
+  if (view === "music") {
+    return (
+      <form
+        className="user-panel event-design-editor"
+        id="event-music-form"
+        onSubmit={(submitEvent) => {
+          submitEvent.preventDefault();
+          void saveDraft();
+        }}
+      >
+        <div className="event-section-heading">
+          <div>
+            <p className="user-kicker">Invitation</p>
+            <h2 title="Add a public audio URL. Music files are not uploaded to Nimto.">
+              Music
+            </h2>
+            <p className="design-draft-status">
+              {connectionState} · {draftStatus}
+            </p>
+          </div>
+          <button
+            className="user-secondary-button event-action-desktop"
+            disabled={saving || !featureConfig.music.available}
+            type="submit"
+          >
+            {saving ? "Saving..." : "Save music"}
+          </button>
+        </div>
+        <div className="event-design-layout">
+          <div className="event-design-controls">
+            {featureConfig.music.available ? (
+              <div className="event-feature-block">
+                <FeatureToggleRow
+                  available
+                  checked={Boolean(featureSettings.music?.enabled)}
+                  detail="Turn music on for this invitation."
+                  label="Play music on invitation"
+                  onChange={(enabled) =>
+                    updateFeatureSettings((current) => ({
+                      ...current,
+                      music: { ...(current.music ?? {}), enabled },
+                    }))
+                  }
+                />
+                <label className="user-field">
+                  <span title="Use a direct, public audio URL that guests can access.">
+                    Music URL
+                  </span>
+                  <div className="event-feature-inline">
+                    <input
+                      disabled={!featureSettings.music?.enabled}
+                      onChange={(changeEvent) =>
+                        updateFeatureSettings((current) => ({
+                          ...current,
+                          music: {
+                            ...(current.music ?? {}),
+                            url: changeEvent.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="https://example.com/music.mp3"
+                      type="url"
+                      value={featureSettings.music?.url ?? ""}
+                    />
+                    <button
+                      disabled={!featureSettings.music?.enabled}
+                      onClick={testMusic}
+                      type="button"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <div className="event-feature-block event-feature-unavailable">
+                <strong>Music is not available for this template.</strong>
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="event-device-switcher">
+              {(["mobile", "tablet", "desktop"] as const).map((option) => (
+                <button
+                  className={device === option ? "active" : ""}
+                  key={option}
+                  onClick={() => setDevice(option)}
+                  type="button"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <div className={`event-device-preview ${device}`}>
+              <iframe
+                sandbox="allow-scripts"
+                srcDoc={previewHtml}
+                title="Invitation music preview"
+              />
+            </div>
+          </div>
+        </div>
+      </form>
+    );
+  }
+
   if (view === "links") {
     return (
       <form
@@ -329,8 +441,9 @@ export function EventDesignEditor({
         <div className="event-section-heading">
           <div>
             <p className="user-kicker">Invitation</p>
-            <h2>Field links</h2>
-            <p>Link eligible text without changing how it looks.</p>
+            <h2 title="Link eligible text without changing its design.">
+              Field links
+            </h2>
             <p className="design-draft-status">
               {connectionState} · {draftStatus}
             </p>
@@ -358,9 +471,6 @@ export function EventDesignEditor({
                 <div className="event-feature-heading">
                   <div>
                     <strong>Linked text</strong>
-                    <p className="event-feature-muted">
-                      Add one destination per eligible invitation field.
-                    </p>
                   </div>
                   <button
                     disabled={linkableFields.length <= selectedLinkFields.size}
@@ -489,11 +599,9 @@ export function EventDesignEditor({
       <div className="event-section-heading">
         <div>
           <p className="user-kicker">Invitation</p>
-          <h2>Edit safely, then review</h2>
-          <p>
-            Draft changes are private. Use the main Publish button when the
-            preview is ready.
-          </p>
+          <h2 title="Changes remain private until you publish them.">
+            Invitation design
+          </h2>
           <p className="design-draft-status">
             {connectionState} · {draftStatus}
           </p>
@@ -563,85 +671,39 @@ export function EventDesignEditor({
             </details>
           ) : null}
           <div className="event-feature-setup">
-            <div>
-              <strong>Feature setup</strong>
-              <p>Only features allowed by this template are shown as usable.</p>
-            </div>
+            <strong title="Only features allowed by this template can be enabled.">
+              Feature setup
+            </strong>
 
-            <FeatureToggleRow
-              available={featureConfig.countdown.available}
-              checked={Boolean(featureSettings.countdown?.enabled)}
-              detail={`Position fixed by admin: ${featureConfig.countdown.position}`}
-              label="Countdown"
-              onChange={(enabled) =>
-                updateFeatureSettings((current) => ({
-                  ...current,
-                  countdown: { enabled },
-                }))
-              }
-            />
-
-            <FeatureToggleRow
-              available={featureConfig.rsvp.available}
-              checked={Boolean(featureSettings.rsvp?.enabled)}
-              detail="Shows an RSVP button on the invitation. Form setup is in RSVP."
-              label="RSVP button"
-              onChange={(enabled) =>
-                updateFeatureSettings((current) => ({
-                  ...current,
-                  rsvp: { enabled },
-                }))
-              }
-            />
-
-            {featureConfig.music.available ? (
-              <div className="event-feature-block">
-                <FeatureToggleRow
-                  available
-                  checked={Boolean(featureSettings.music?.enabled)}
-                  detail="Use a public music URL. No upload needed."
-                  label="Music"
-                  onChange={(enabled) =>
-                    updateFeatureSettings((current) => ({
-                      ...current,
-                      music: { ...(current.music ?? {}), enabled },
-                    }))
-                  }
-                />
-                <div className="event-feature-inline">
-                  <input
-                    disabled={!featureSettings.music?.enabled}
-                    onChange={(changeEvent) =>
-                      updateFeatureSettings((current) => ({
-                        ...current,
-                        music: {
-                          ...(current.music ?? {}),
-                          url: changeEvent.target.value,
-                        },
-                      }))
-                    }
-                    placeholder="https://music.example/song.mp3"
-                    type="url"
-                    value={featureSettings.music?.url ?? ""}
-                  />
-                  <button
-                    disabled={!featureSettings.music?.enabled}
-                    onClick={testMusic}
-                    type="button"
-                  >
-                    Test
-                  </button>
-                </div>
-              </div>
-            ) : (
+            {featureConfig.countdown.available ? (
               <FeatureToggleRow
-                available={false}
-                checked={false}
-                detail="No music slot was scanned in this template."
-                label="Music"
-                onChange={() => undefined}
+                available
+                checked={Boolean(featureSettings.countdown?.enabled)}
+                detail={`Position fixed by admin: ${featureConfig.countdown.position}`}
+                label="Countdown"
+                onChange={(enabled) =>
+                  updateFeatureSettings((current) => ({
+                    ...current,
+                    countdown: { enabled },
+                  }))
+                }
               />
-            )}
+            ) : null}
+
+            {featureConfig.rsvp.available ? (
+              <FeatureToggleRow
+                available
+                checked={Boolean(featureSettings.rsvp?.enabled)}
+                detail="Shows the RSVP button. Form setup remains in the RSVP tab."
+                label="RSVP button"
+                onChange={(enabled) =>
+                  updateFeatureSettings((current) => ({
+                    ...current,
+                    rsvp: { enabled },
+                  }))
+                }
+              />
+            ) : null}
 
             {featureConfig.additionalInfo.available ? (
               <div className="event-feature-block">
@@ -678,18 +740,20 @@ export function EventDesignEditor({
               </div>
             ) : null}
 
-            <FeatureToggleRow
-              available={featureConfig.openingAnimation.available}
-              checked={Boolean(featureSettings.openingAnimation?.enabled)}
-              detail="Opening animation is separate from the HTML template."
-              label="Opening animation"
-              onChange={(enabled) =>
-                updateFeatureSettings((current) => ({
-                  ...current,
-                  openingAnimation: { enabled },
-                }))
-              }
-            />
+            {featureConfig.openingAnimation.available ? (
+              <FeatureToggleRow
+                available
+                checked={Boolean(featureSettings.openingAnimation?.enabled)}
+                detail="Opening animation stays inside Invitation setup."
+                label="Opening animation"
+                onChange={(enabled) =>
+                  updateFeatureSettings((current) => ({
+                    ...current,
+                    openingAnimation: { enabled },
+                  }))
+                }
+              />
+            ) : null}
 
             {featureConfig.theme.available && styleSlots.length ? (
               <div className="event-feature-block">
@@ -841,10 +905,12 @@ function FeatureToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={`event-feature-toggle ${available ? "" : "disabled"}`}>
+    <label
+      className={`event-feature-toggle ${available ? "" : "disabled"}`}
+      title={available ? detail : "Not available in this template."}
+    >
       <span>
         <strong>{label}</strong>
-        <small>{available ? detail : "Not available in this template."}</small>
       </span>
       <input
         checked={available && checked}

@@ -55,6 +55,7 @@ type EventTab =
   | "overview"
   | "invitation"
   | "links"
+  | "music"
   | "guests"
   | "rsvp"
   | "sharing"
@@ -74,6 +75,7 @@ const eventTabs: { id: EventTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "invitation", label: "Invitation" },
   { id: "links", label: "Field links" },
+  { id: "music", label: "Music" },
   { id: "guests", label: "Guests" },
   { id: "rsvp", label: "RSVP" },
   { id: "sharing", label: "Sharing" },
@@ -169,6 +171,7 @@ function EventDetailContent({
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<EventTab>("overview");
   const [showEventMenu, setShowEventMenu] = useState(false);
+  const [showFeatureMenu, setShowFeatureMenu] = useState(false);
   const [showCreatedSuccess, setShowCreatedSuccess] = useState(
     searchParams.get("created") === "1",
   );
@@ -286,6 +289,7 @@ function EventDetailContent({
 
   useEffect(() => {
     setShowEventMenu(false);
+    setShowFeatureMenu(false);
   }, [activeTab]);
 
   const draftInvitees = useMemo(
@@ -297,14 +301,24 @@ function EventDetailContent({
     [inviteeInput, inviteePaste, invitees],
   );
   const readiness = useMemo(
-    () => [
-      { label: "Event title", ready: (event?.title.trim().length ?? 0) >= 2 },
-      { label: "Date", ready: Boolean(event?.eventDate) },
-      { label: "Venue", ready: Boolean(event?.venue) },
-      { label: "Invitation design", ready: Boolean(event?.designVersion?.id) },
-      { label: "Guests", ready: invitees.length > 0 },
-      { label: "RSVP deadline", ready: Boolean(event?.rsvpDeadline) },
-    ],
+    () => {
+      const items = [
+        { label: "Event title", ready: (event?.title.trim().length ?? 0) >= 2 },
+        { label: "Date", ready: Boolean(event?.eventDate) },
+        { label: "Venue", ready: Boolean(event?.venue) },
+        {
+          label: "Invitation design",
+          ready: Boolean(event?.designVersion?.id),
+        },
+        { label: "Guests", ready: invitees.length > 0 },
+      ];
+      return eventFeatureAvailability(event).rsvp
+        ? [
+            ...items,
+            { label: "RSVP deadline", ready: Boolean(event?.rsvpDeadline) },
+          ]
+        : items;
+    },
     [event, invitees.length],
   );
 
@@ -1035,6 +1049,18 @@ function EventDetailContent({
   }
 
   const invitationDraft = hasInvitationDraft(event);
+  const featureAvailability = eventFeatureAvailability(event);
+  const availableEventTabs = eventTabs.filter((tab) => {
+    if (tab.id === "links" || tab.id === "music" || tab.id === "rsvp") {
+      return featureAvailability[tab.id];
+    }
+    return true;
+  });
+  const unavailableFeatureTabs = eventTabs.filter(
+    (tab) =>
+      (tab.id === "links" || tab.id === "music" || tab.id === "rsvp") &&
+      !featureAvailability[tab.id],
+  );
   const rsvpClosed = Boolean(
     event.rsvpDeadline && new Date(event.rsvpDeadline).getTime() < Date.now(),
   );
@@ -1083,11 +1109,15 @@ function EventDetailContent({
       ready: event.isPublished,
       tab: "sharing" as EventTab,
     },
-    {
-      label: "Track RSVPs",
-      ready: Boolean(statistics?.invitationOpens),
-      tab: "rsvp" as EventTab,
-    },
+    ...(featureAvailability.rsvp
+      ? [
+          {
+            label: "Track RSVPs",
+            ready: Boolean(statistics?.invitationOpens),
+            tab: "rsvp" as EventTab,
+          },
+        ]
+      : []),
   ];
   const nextStep =
     journey.find((step) => !step.ready) ?? journey[journey.length - 1];
@@ -1114,11 +1144,30 @@ function EventDetailContent({
           }
         : activeTab === "links"
           ? {
-              label: "Save field links",
-              action: undefined,
+              label: featureAvailability.links
+                ? "Save field links"
+                : "Open invitation",
+              action: featureAvailability.links
+                ? undefined
+                : () => setActiveTab("invitation"),
               disabled: false,
-              submitFormId: "event-field-links-form",
+              submitFormId: featureAvailability.links
+                ? "event-field-links-form"
+                : undefined,
             }
+          : activeTab === "music"
+            ? {
+                label: featureAvailability.music
+                  ? "Save music"
+                  : "Open invitation",
+                action: featureAvailability.music
+                  ? undefined
+                  : () => setActiveTab("invitation"),
+                disabled: false,
+                submitFormId: featureAvailability.music
+                  ? "event-music-form"
+                  : undefined,
+              }
         : activeTab === "guests"
           ? {
               label: "Add guests",
@@ -1177,6 +1226,12 @@ function EventDetailContent({
               action: () => setActiveTab("invitation"),
               disabled: false,
             }
+          : activeTab === "music"
+            ? {
+                label: "Edit invitation",
+                action: () => setActiveTab("invitation"),
+                disabled: false,
+              }
         : activeTab === "guests"
           ? {
               label: "Copy all",
@@ -1331,7 +1386,7 @@ function EventDetailContent({
       </header>
 
       <nav className="event-tabs" aria-label="Event workspace">
-        {eventTabs.map((tab) => (
+        {availableEventTabs.map((tab) => (
           <button
             aria-current={activeTab === tab.id ? "page" : undefined}
             className={activeTab === tab.id ? "active" : ""}
@@ -1342,6 +1397,33 @@ function EventDetailContent({
             {tab.label}
           </button>
         ))}
+        {unavailableFeatureTabs.length ? (
+          <div className="event-tab-overflow">
+            <button
+              aria-expanded={showFeatureMenu}
+              aria-label="Unavailable features"
+              className={showFeatureMenu ? "active" : ""}
+              onClick={() => setShowFeatureMenu((current) => !current)}
+              type="button"
+            >
+              •••
+            </button>
+            {showFeatureMenu ? (
+              <div className="event-tab-overflow-menu">
+                {unavailableFeatureTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    type="button"
+                  >
+                    {tab.label}
+                    <small>Unavailable</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </nav>
       <label className="event-tab-select">
         <span className="sr-only">Event section</span>
@@ -1349,11 +1431,22 @@ function EventDetailContent({
           value={activeTab}
           onChange={(change) => setActiveTab(change.target.value as EventTab)}
         >
-          {eventTabs.map((tab) => (
-            <option key={tab.id} value={tab.id}>
-              {tab.label}
-            </option>
-          ))}
+          <optgroup label="Event sections">
+            {availableEventTabs.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label}
+              </option>
+            ))}
+          </optgroup>
+          {unavailableFeatureTabs.length ? (
+            <optgroup label="Unavailable features">
+              {unavailableFeatureTabs.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.label} — unavailable
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
       </label>
 
@@ -1509,6 +1602,19 @@ function EventDetailContent({
         />
       ) : null}
 
+      {activeTab === "music" ? (
+        <EventDesignEditor
+          authHeaders={authHeaders}
+          designs={designs}
+          event={event}
+          onEvent={setEvent}
+          onRevisions={setRevisions}
+          revisions={revisions}
+          showToast={showToast}
+          view="music"
+        />
+      ) : null}
+
       {activeTab === "invitation" ? (
         <div
           className={
@@ -1596,7 +1702,13 @@ function EventDetailContent({
         />
       ) : null}
 
-      {activeTab === "rsvp" ? (
+      {activeTab === "rsvp" && !featureAvailability.rsvp ? (
+        <section className="user-panel event-feature-unavailable">
+          <h2>RSVP is not available for this template.</h2>
+        </section>
+      ) : null}
+
+      {activeTab === "rsvp" && featureAvailability.rsvp ? (
         <div className="event-tab-content">
           <section className="rsvp-workspace">
             <header className="rsvp-workspace-header">
@@ -2425,6 +2537,19 @@ function hasInvitationDraft(event: UserEvent) {
     JSON.stringify(event.draftDesignFieldValues ?? {}) !==
     JSON.stringify(event.designFieldValues ?? {})
   );
+}
+
+function eventFeatureAvailability(event?: UserEvent | null) {
+  const design = event?.draftDesignVersion ?? event?.designVersion;
+  const config = (design?.featureConfig ?? {}) as Record<
+    string,
+    { available?: boolean } | undefined
+  >;
+  return {
+    links: config.links?.available === true,
+    music: config.music?.available === true,
+    rsvp: config.rsvp?.available === true,
+  };
 }
 
 function statusClass(status: string) {

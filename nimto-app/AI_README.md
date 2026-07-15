@@ -36,6 +36,10 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Public design catalogue.
 - Opening and background animation-component catalogue.
 - User event creation, update, deletion, and design-field values.
+- Capability-aware event navigation: RSVP, music URL, and field-link tabs stay
+  primary when allowed by the template and move to an unavailable-features
+  overflow when disabled. Admins control host availability separately from the
+  default enabled state.
 - Persistent per-user design history with usage counts, last-used version
   previews, active-event counts, and reuse links.
 - Invitee creation, unique personalized slugs, slug regeneration, deletion, and
