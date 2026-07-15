@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { UserWorkspace } from "../user-workspace";
 import { formatEventDate, UserEvent } from "./event-types";
+import styles from "./events-page.module.css";
 
 let eventCache: { expiresAt: number; items: UserEvent[] } | null = null;
 let eventCacheToken = "";
@@ -44,12 +45,9 @@ function EventsContent({
       eventCache.expiresAt > Date.now() &&
       eventCacheToken === latestCacheToken
     ) {
-      setEvents(eventCache.items);
-      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
     apiRequest<UserEvent[]>("/events", { headers: authHeaders })
       .then((items) => {
         if (!isActive) return;
@@ -109,6 +107,15 @@ function EventsContent({
     (total, event) => total + (event._count?.invitees ?? 0),
     0,
   );
+  const eventCounts = {
+    all: events.filter((event) => !event.archivedAt).length,
+    published: events.filter(
+      (event) => event.isPublished && !event.archivedAt,
+    ).length,
+    draft: events.filter((event) => !event.isPublished && !event.archivedAt)
+      .length,
+    archived: events.filter((event) => Boolean(event.archivedAt)).length,
+  };
 
   function clearEventFilters() {
     setQuery("");
@@ -117,32 +124,60 @@ function EventsContent({
   }
 
   return (
-    <div className="grid gap-5">
-      <section className="user-panel event-overview-hero">
-        <div>
-          <p className="user-kicker">Event management</p>
-          <h1 className="mt-2 text-3xl font-black text-ink">
-            Events
-          </h1>
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.heroHeading}>
+          <div>
+            <p className={styles.eyebrow}>Event management</p>
+            <h1>Events</h1>
+            <p className={styles.heroCopy}>
+              Create invitations, manage guests, and keep every celebration in
+              one place.
+            </p>
+          </div>
+          <Link className={`user-primary-button ${styles.createButton}`} href="/designs">
+            <span aria-hidden="true">＋</span>
+            Create event
+          </Link>
         </div>
-        <Link className="user-primary-button" href="/designs">
-          Create event
-        </Link>
-      </section>
 
-      <section className="event-summary-grid" aria-label="Event summary">
-        <article>
-          <span>Events</span>
-          <strong>{events.filter((event) => !event.archivedAt).length}</strong>
-        </article>
-        <article>
-          <span>Published</span>
-          <strong>{events.filter((event) => event.isPublished).length}</strong>
-        </article>
-        <article>
-          <span>Personalized links</span>
-          <strong>{inviteeCount}</strong>
-        </article>
+        <div className={styles.summary} aria-label="Event summary">
+          <article>
+            <span className={`${styles.summaryIcon} ${styles.calendarIcon}`} aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
+              </svg>
+            </span>
+            <div>
+              <strong>{eventCounts.all}</strong>
+              <span>Active events</span>
+            </div>
+          </article>
+          <article>
+            <span className={`${styles.summaryIcon} ${styles.liveIcon}`} aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="m7 12 3 3 7-7" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            </span>
+            <div>
+              <strong>{eventCounts.published}</strong>
+              <span>Published</span>
+            </div>
+          </article>
+          <article>
+            <span className={`${styles.summaryIcon} ${styles.guestIcon}`} aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="9" cy="8" r="3" />
+                <path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 11a3 3 0 0 1 0 6M17 7a3 3 0 0 1 0 6" />
+              </svg>
+            </span>
+            <div>
+              <strong>{inviteeCount}</strong>
+              <span>Guest links</span>
+            </div>
+          </article>
+        </div>
       </section>
 
       {!isLoading && !events.length ? (
@@ -172,22 +207,37 @@ function EventsContent({
         </section>
       ) : null}
 
-      <section className="user-panel">
-        <div className="event-filter-row">
-          <label className="event-search">
+      <section className={styles.workspace}>
+        <div className={styles.workspaceHeading}>
+          <div>
+            <h2>Your events</h2>
+            <p>
+              {isLoading
+                ? "Loading your invitations…"
+                : `${eventCounts.all} active ${eventCounts.all === 1 ? "event" : "events"}`}
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.controls}>
+          <label className={styles.search}>
             <span className="sr-only">Search events</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m16.5 16.5 4 4" />
+            </svg>
             <input
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search event, venue, or design"
+              placeholder="Search by event, venue, or design…"
               value={query}
             />
           </label>
-          <div className="event-status-filter" aria-label="Filter events">
+          <div className={styles.statusFilter} aria-label="Filter events">
             {(["all", "published", "draft", "archived"] as const).map(
               (option) => (
                 <button
                   aria-pressed={status === option}
-                  className={status === option ? "active" : ""}
+                  className={status === option ? styles.active : ""}
                   key={option}
                   onClick={() => setStatus(option)}
                   type="button"
@@ -199,19 +249,22 @@ function EventsContent({
                       : option === "draft"
                         ? "Drafts"
                         : "Archived"}
+                  <span>{eventCounts[option]}</span>
                 </button>
               ),
             )}
           </div>
-          <select
-            className="event-sort-select"
-            onChange={(event) => setSort(event.target.value as typeof sort)}
-            value={sort}
-          >
-            <option value="updated">Recently updated</option>
-            <option value="date">Event date</option>
-            <option value="title">Event name</option>
-          </select>
+          <label className={styles.sort}>
+            <span>Sort by</span>
+            <select
+              onChange={(event) => setSort(event.target.value as typeof sort)}
+              value={sort}
+            >
+              <option value="updated">Recently updated</option>
+              <option value="date">Event date</option>
+              <option value="title">Event name</option>
+            </select>
+          </label>
         </div>
 
         {isLoading && !events.length ? (
@@ -224,8 +277,8 @@ function EventsContent({
 
         {visibleEvents.length ? (
           <>
-            <div className="event-table-wrap event-desktop-list">
-              <table className="user-table event-overview-table">
+            <div className={styles.desktopList}>
+              <table className={styles.eventTable}>
                 <thead>
                   <tr>
                     <th>Event</th>
@@ -250,20 +303,32 @@ function EventsContent({
                       }}
                       tabIndex={0}
                     >
-                      <td>
-                        <strong>{event.title}</strong>
-                        <span>{event.venue || event.type}</span>
+                      <td className={styles.eventIdentity}>
+                        <span className={styles.eventMonogram} aria-hidden="true">
+                          {event.title.trim().charAt(0).toUpperCase() || "E"}
+                        </span>
+                        <span>
+                          <strong>{event.title}</strong>
+                          <small>{event.venue || event.type}</small>
+                        </span>
                       </td>
-                      <td>{event.designVersion?.design?.name ?? "Custom"}</td>
-                      <td>{formatEventDate(event.eventDate)}</td>
-                      <td>{event._count?.invitees ?? 0}</td>
+                      <td className={styles.mutedCell}>
+                        {event.designVersion?.design?.name ?? "Custom"}
+                      </td>
+                      <td className={styles.dateCell}>{formatEventDate(event.eventDate)}</td>
+                      <td className={styles.guestCell}>
+                        <strong>{event._count?.invitees ?? 0}</strong>
+                        <span>guests</span>
+                      </td>
                       <td>
                         <span
-                          className={
-                            event.isPublished && !event.archivedAt
-                              ? "user-status published"
-                              : "user-status"
-                          }
+                          className={`${styles.statusPill} ${
+                            event.archivedAt
+                              ? styles.archived
+                              : event.isPublished
+                                ? styles.published
+                                : styles.draft
+                          }`}
                         >
                           {event.archivedAt
                             ? "Archived"
@@ -272,8 +337,10 @@ function EventsContent({
                               : "Draft"}
                         </span>
                       </td>
-                      <td>{formatEventDate(event.updatedAt)}</td>
-                      <td className="event-table-open" aria-hidden="true">
+                      <td className={styles.updatedCell}>
+                        {formatEventDate(event.updatedAt)}
+                      </td>
+                      <td className={styles.openCell} aria-hidden="true">
                         →
                       </td>
                     </tr>
@@ -281,17 +348,23 @@ function EventsContent({
                 </tbody>
               </table>
             </div>
-            <div className="event-mobile-list">
+            <div className={styles.mobileList}>
               {visibleEvents.map((event) => (
                 <button
-                  className="event-mobile-card"
+                  className={styles.mobileCard}
                   key={event.id}
                   onClick={() => router.push(`/events/${event.id}`)}
                   type="button"
                 >
-                  <div className="event-mobile-card-top">
+                  <div className={styles.mobileCardTop}>
                     <span
-                      className={`user-status ${event.isPublished ? "published" : ""}`}
+                      className={`${styles.statusPill} ${
+                        event.archivedAt
+                          ? styles.archived
+                          : event.isPublished
+                            ? styles.published
+                            : styles.draft
+                      }`}
                     >
                       {event.archivedAt
                         ? "Archived"
@@ -306,7 +379,7 @@ function EventsContent({
                     {formatEventDate(event.eventDate)} ·{" "}
                     {event.venue || event.type}
                   </p>
-                  <div className="event-mobile-card-meta">
+                  <div className={styles.mobileCardMeta}>
                     <span>
                       <strong>{event._count?.invitees ?? 0}</strong> guests
                     </span>
@@ -321,7 +394,7 @@ function EventsContent({
         ) : null}
 
         {!isLoading && !events.length ? (
-          <div className="user-empty user-first-invitation">
+          <div className={`user-empty user-first-invitation ${styles.emptyState}`}>
             <div className="first-invitation-art" aria-hidden="true">
               ✦
             </div>
@@ -353,7 +426,7 @@ function EventsContent({
         ) : null}
 
         {!isLoading && events.length && !visibleEvents.length ? (
-          <div className="user-empty">
+          <div className={`user-empty ${styles.emptyState}`}>
             <h2>No matching events</h2>
             <p>
               Nothing matches this search or status. Your events are still safe;
