@@ -63,6 +63,8 @@ export function InviteeManager({
   const [actionInviteeId, setActionInviteeId] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [isDraggingCsv, setIsDraggingCsv] = useState(false);
+  const activeFilterCount =
+    Number(rsvpFilter !== "ALL") + Number(groupFilter !== "ALL");
   const pageSize = 15;
   const filteredInvitees = useMemo(
     () =>
@@ -173,64 +175,99 @@ export function InviteeManager({
               value={inviteeSearch}
             />
           </label>
-          <button
-            className="user-secondary-button invitee-filter-toggle"
-            onClick={() => setShowFilters((value) => !value)}
-            type="button"
-          >
-            Filters {rsvpFilter !== "ALL" || groupFilter !== "ALL" ? "•" : ""}
-          </button>
-          <div
-            className={
-              showFilters
-                ? "invitee-advanced-filters open"
-                : "invitee-advanced-filters"
-            }
-          >
-            <select
-              aria-label="Filter RSVP status"
-              onChange={(event) => {
-                setRsvpFilter(event.target.value);
-                setPage(1);
-              }}
-              value={rsvpFilter}
+          <div className="invitee-filter-menu">
+            <button
+              aria-controls="guest-filter-menu"
+              aria-expanded={showFilters}
+              className="user-secondary-button invitee-filter-toggle"
+              onClick={() => setShowFilters((value) => !value)}
+              type="button"
             >
-              <option value="ALL">All responses</option>
-              <option value="PENDING">Pending</option>
-              <option value="ATTENDING">Attending</option>
-              <option value="DECLINED">Declined</option>
-            </select>
-            <select
-              aria-label="Filter guest group"
-              onChange={(event) => {
-                setGroupFilter(event.target.value);
-                setPage(1);
-              }}
-              value={groupFilter}
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M4 7h16M7 12h10M10 17h4" />
+              </svg>
+              Filters
+              {activeFilterCount ? (
+                <span className="invitee-filter-count">{activeFilterCount}</span>
+              ) : null}
+            </button>
+            <div
+              className={
+                showFilters
+                  ? "invitee-advanced-filters open"
+                  : "invitee-advanced-filters"
+              }
+              id="guest-filter-menu"
             >
-              <option value="ALL">All groups</option>
-              {Array.from(
-                new Set(
-                  invitees.map((invitee) => invitee.groupName ?? "Ungrouped"),
-                ),
-              ).map((group) => (
-                <option key={group} value={group}>
-                  {group}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Sort invitees"
-              onChange={(event) => {
-                setSort(event.target.value);
-                setPage(1);
-              }}
-              value={sort}
-            >
-              <option value="name">Name A–Z</option>
-              <option value="recent">Recently updated</option>
-              <option value="opened">Most opened</option>
-            </select>
+              <div className="invitee-filter-heading">
+                <strong>Filter guests</strong>
+                {activeFilterCount || sort !== "name" ? (
+                  <button
+                    onClick={() => {
+                      setRsvpFilter("ALL");
+                      setGroupFilter("ALL");
+                      setSort("name");
+                      setPage(1);
+                    }}
+                    type="button"
+                  >
+                    Reset
+                  </button>
+                ) : null}
+              </div>
+              <label>
+                <span>Response</span>
+                <select
+                  onChange={(event) => {
+                    setRsvpFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  value={rsvpFilter}
+                >
+                  <option value="ALL">All responses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="ATTENDING">Attending</option>
+                  <option value="DECLINED">Declined</option>
+                </select>
+              </label>
+              <label>
+                <span>Group</span>
+                <select
+                  onChange={(event) => {
+                    setGroupFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  value={groupFilter}
+                >
+                  <option value="ALL">All groups</option>
+                  {Array.from(
+                    new Set(
+                      invitees.map(
+                        (invitee) => invitee.groupName ?? "Ungrouped",
+                      ),
+                    ),
+                  ).map((group) => (
+                    <option key={group} value={group}>
+                      {group}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Sort by</span>
+                <select
+                  onChange={(event) => {
+                    setSort(event.target.value);
+                    setPage(1);
+                  }}
+                  value={sort}
+                >
+                  <option value="name">Name A–Z</option>
+                  <option value="recent">Recently updated</option>
+                  <option value="opened">Most opened</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
