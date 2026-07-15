@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
+import { StableInvitationPreview } from "../events/stable-invitation-preview";
 
 type Permission = {
   id: string;
@@ -3303,10 +3304,10 @@ function AnimationLibraryPanel({
               ))}
             </div>
             {animation.rawHtml ? (
-              <iframe
+              <StableInvitationPreview
                 className="mt-3 h-44 w-full rounded-lg border border-ink/10 bg-white"
+                html={animation.rawHtml}
                 sandbox="allow-scripts"
-                srcDoc={animation.rawHtml}
                 title={`${animation.name} preview`}
               />
             ) : null}
@@ -4241,10 +4242,10 @@ function TemplateCreatePanel({
               value={activeHtml}
             />
           ) : activeHtml && !activeValidationErrors.length ? (
-            <iframe
+            <StableInvitationPreview
               className="h-full min-h-[58vh] w-full border-0 bg-white md:min-h-[672px]"
+              html={activeHtml}
               sandbox={activeTab === "template" ? "allow-scripts" : ""}
-              srcDoc={activeHtml}
               title={`${activeTab === "template" ? "Template" : "Thumbnail"} preview`}
             />
           ) : activeValidationErrors.length ? (
@@ -4754,8 +4755,8 @@ function TemplateEditorPanel({
     onSelectField(editorFields[nextIndex].key);
   }
 
-  const syncPreview = useCallback(() => {
-    previewRef.current?.contentWindow?.postMessage(
+  const syncPreview = useCallback((frame?: HTMLIFrameElement) => {
+    (frame ?? previewRef.current)?.contentWindow?.postMessage(
       {
         source: "nimto-template-editor",
         type: "syncFields",
@@ -4967,12 +4968,12 @@ function TemplateEditorPanel({
                 value={editorRawHtml}
               />
             ) : (
-              <iframe
+              <StableInvitationPreview
                 className="h-[calc(100vh-150px)] min-h-[620px] w-full border-0 bg-white"
-                onLoad={syncPreview}
+                html={previewHtml}
+                onReady={syncPreview}
                 ref={previewRef}
                 sandbox="allow-scripts allow-same-origin"
-                srcDoc={previewHtml}
                 title={`${selectedTemplate.name} preview`}
               />
             )}
@@ -5229,10 +5230,10 @@ function TemplateEditorPanel({
                 value={editorThumbnailHtml}
               />
             ) : editorThumbnailHtml && !thumbnailValidationErrors.length ? (
-              <iframe
+              <StableInvitationPreview
                 className="h-[calc(100vh-205px)] min-h-[620px] w-full border-0 bg-white"
+                html={editorThumbnailHtml}
                 sandbox=""
-                srcDoc={editorThumbnailHtml}
                 title={`${selectedTemplate.name} thumbnail preview`}
               />
             ) : (

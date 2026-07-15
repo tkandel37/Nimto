@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/api";
+import { StableInvitationPreview } from "../events/stable-invitation-preview";
 import { UserWorkspace } from "../user-workspace";
 
 type PublicCategory = {
@@ -682,13 +683,10 @@ function DesignsContent({
                 </header>
                 <div className="design-preview-canvas">
                   <div className={`design-preview-stage ${previewDevice}`}>
-                    <iframe
-                      key={`${previewDesign.id}-${previewDevice}`}
-                      onLoad={(event) =>
-                        event.currentTarget.contentWindow?.scrollTo(0, 0)
-                      }
+                    <StableInvitationPreview
+                      html={previewDesign.versions[0]?.rawHtml ?? ""}
+                      onReady={(frame) => frame.contentWindow?.scrollTo(0, 0)}
                       sandbox="allow-scripts allow-same-origin"
-                      srcDoc={previewDesign.versions[0]?.rawHtml ?? ""}
                       title={`${previewDesign.name} full preview`}
                     />
                   </div>
@@ -1042,14 +1040,14 @@ function DesignEditor({
 
       <div className="user-editor-grid">
         <div className={`user-live-preview ${device}`}>
-          <iframe
+          <StableInvitationPreview
+            html={previewHtml}
             ref={previewRef}
             sandbox="allow-scripts allow-same-origin"
-            srcDoc={previewHtml}
             title={`${design.name} live preview`}
-            onLoad={() => {
+            onReady={(frame) => {
               updatePreviewFrame(
-                previewRef.current,
+                frame,
                 values,
                 selectedFieldKey,
                 fields,
@@ -1057,16 +1055,16 @@ function DesignEditor({
                   shouldScroll: false,
                 },
               );
-              previewRef.current?.contentWindow?.scrollTo(0, 0);
+              frame.contentWindow?.scrollTo(0, 0);
               window.setTimeout(() => {
                 updatePreviewFrame(
-                  previewRef.current,
+                  frame,
                   valuesRef.current,
                   activeFieldKeyRef.current,
                   fieldsRef.current,
                   { shouldScroll: false },
                 );
-                previewRef.current?.contentWindow?.scrollTo(0, 0);
+                frame.contentWindow?.scrollTo(0, 0);
               }, 80);
             }}
           />

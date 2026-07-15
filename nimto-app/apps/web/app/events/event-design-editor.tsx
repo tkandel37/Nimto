@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { EventDesignRevision, UserEvent } from "./event-types";
+import { StableInvitationPreview } from "./stable-invitation-preview";
 
 type PublicDesign = {
   id: string;
@@ -416,9 +417,9 @@ export function EventDesignEditor({
               ))}
             </div>
             <div className={`event-device-preview ${device}`}>
-              <iframe
+              <StableInvitationPreview
+                html={previewHtml}
                 sandbox="allow-scripts"
-                srcDoc={previewHtml}
                 title="Invitation music preview"
               />
             </div>
@@ -569,9 +570,9 @@ export function EventDesignEditor({
               ))}
             </div>
             <div className={`event-device-preview ${device}`}>
-              <iframe
+              <StableInvitationPreview
+                html={previewHtml}
                 sandbox="allow-scripts"
-                srcDoc={previewHtml}
                 title="Invitation field links preview"
               />
             </div>
@@ -866,9 +867,9 @@ export function EventDesignEditor({
             ))}
           </div>
           <div className={`event-device-preview ${device}`}>
-            <iframe
+            <StableInvitationPreview
+              html={previewHtml}
               sandbox="allow-scripts"
-              srcDoc={previewHtml}
               title="Invitation design draft preview"
             />
           </div>
