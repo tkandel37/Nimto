@@ -7426,6 +7426,12 @@ button.user-design-preview {
   display: inline-flex;
 }
 
+.event-action-mobile-primary,
+.event-mobile-feature-tab,
+.event-tab-settings-label {
+  display: none;
+}
+
 .event-save-state {
   margin-right: 4px;
   color: rgb(23 37 29 / 0.52);
@@ -10342,5 +10348,198 @@ table tbody tr:hover,
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Phone event workspace: keep the complete desktop navigation accessible. */
+@media (max-width: 768px) {
+  .event-detail-page {
+    display: grid;
+    gap: 12px;
+    padding-bottom: 148px;
+  }
+
+  .event-workspace-header {
+    position: relative;
+    top: auto;
+    gap: 14px;
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .event-detail-title {
+    width: 100%;
+  }
+
+  .event-workspace-header .event-detail-title > a {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    margin: -5px 0 5px;
+    font-size: 0.78rem;
+  }
+
+  .event-workspace-header .event-title-line {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .event-workspace-header .event-title-line > div {
+    min-width: 0;
+  }
+
+  .event-workspace-header .event-title-line h1 {
+    overflow-wrap: anywhere;
+    font-size: clamp(1.4rem, 7vw, 1.85rem);
+    line-height: 1.08;
+  }
+
+  .event-workspace-header .user-status {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    padding: 6px 8px;
+    font-size: 0.65rem;
+  }
+
+  .event-workspace-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+    gap: 8px;
+  }
+
+  .event-save-state,
+  .event-workspace-actions .event-action-desktop,
+  .event-workspace-actions .event-share-desktop {
+    display: none;
+  }
+
+  .event-workspace-actions .event-action-mobile-primary {
+    display: inline-flex;
+  }
+
+  .event-workspace-actions .user-secondary-button,
+  .event-workspace-actions .user-primary-button {
+    min-width: 0;
+    width: 100%;
+    min-height: 42px;
+    padding-inline: 9px;
+    font-size: 0.76rem;
+  }
+
+  .event-workspace-actions .event-action-menu {
+    grid-column: auto;
+  }
+
+  .event-workspace-actions .event-menu-trigger {
+    width: 44px;
+    padding: 0;
+  }
+
+  .event-menu-popover {
+    right: 0;
+    left: auto;
+    width: min(250px, calc(100vw - 56px));
+  }
+
+  .event-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid rgb(23 37 29 / 0.09);
+    border-radius: 14px;
+    background: rgb(255 253 248 / 0.97);
+    padding: 5px;
+    box-shadow: 0 10px 28px rgb(23 37 29 / 0.08);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .event-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .event-tabs > button,
+  .event-tabs .event-tab-settings {
+    display: inline-flex;
+    min-width: max-content;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 13px;
+    font-size: 0.76rem;
+  }
+
+  .event-tabs > button.active,
+  .event-tabs .event-tab-settings.active {
+    border: 0;
+    background: rgb(129 39 216 / 0.1);
+    color: var(--leaf);
+  }
+
+  .event-tabs .event-mobile-feature-tab {
+    display: inline-flex;
+  }
+
+  .event-mobile-feature-tab small {
+    border-radius: 999px;
+    background: rgb(23 37 29 / 0.07);
+    padding: 2px 5px;
+    color: rgb(23 37 29 / 0.48);
+    font-size: 0.56rem;
+    font-weight: 900;
+  }
+
+  .event-tab-actions {
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+
+  .event-tab-overflow {
+    display: none;
+  }
+
+  .event-tabs .event-tab-settings-label {
+    display: inline;
+  }
+
+  .event-tabs .event-tab-settings svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .event-tab-select {
+    display: none;
+  }
+
+  .event-mobile-progress {
+    margin: 0;
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .event-tab-content,
+  .event-invitation-workspace,
+  .event-manager-stack,
+  .share-workspace {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 390px) {
+  .event-workspace-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 42px;
+  }
+
+  .event-workspace-actions .event-menu-trigger {
+    width: 42px;
   }
 }

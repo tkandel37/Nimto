@@ -195,6 +195,7 @@ function EventDetailContent({
   const [deletedInvitee, setDeletedInvitee] =
     useState<InvitationInvitee | null>(null);
   const deleteTimer = useRef<number | null>(null);
+  const eventTabsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -292,6 +293,18 @@ function EventDetailContent({
   useEffect(() => {
     setShowEventMenu(false);
     setShowFeatureMenu(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 768px)").matches) return;
+    const activeTabButton = eventTabsRef.current?.querySelector<HTMLElement>(
+      '[aria-current="page"]',
+    );
+    activeTabButton?.scrollIntoView({
+      behavior: "auto",
+      block: "nearest",
+      inline: "center",
+    });
   }, [activeTab]);
 
   const draftInvitees = useMemo(
@@ -1370,7 +1383,7 @@ function EventDetailContent({
             Duplicate
           </button>
           <button
-            className="user-secondary-button"
+            className="user-secondary-button event-share-desktop"
             disabled={!event.isPublished}
             onClick={() => {
               setActiveTab("sharing");
@@ -1379,6 +1392,29 @@ function EventDetailContent({
             type="button"
           >
             Share
+          </button>
+          <button
+            className="user-primary-button event-action-mobile-primary"
+            disabled={
+              isSaving ||
+              Boolean(event.archivedAt) ||
+              (event.isPublished && !invitationDraft
+                ? false
+                : !event.eventDate ||
+                  !event.venue ||
+                  !event.designVersion?.id)
+            }
+            onClick={() => {
+              if (event.isPublished && !invitationDraft) {
+                setActiveTab("sharing");
+                void nativeShareEvent();
+                return;
+              }
+              void publishEvent();
+            }}
+            type="button"
+          >
+            {event.isPublished && !invitationDraft ? "Share" : "Publish"}
           </button>
           <div className="event-action-menu">
             <button
@@ -1424,7 +1460,11 @@ function EventDetailContent({
         </div>
       </header>
 
-      <nav className="event-tabs" aria-label="Event workspace">
+      <nav
+        className="event-tabs"
+        aria-label="Event workspace"
+        ref={eventTabsRef}
+      >
         {primaryEventTabs.map((tab) => (
           <button
             aria-current={activeTab === tab.id ? "page" : undefined}
@@ -1434,6 +1474,18 @@ function EventDetailContent({
             type="button"
           >
             {tab.label}
+          </button>
+        ))}
+        {unavailableFeatureTabs.map((tab) => (
+          <button
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            className={`event-mobile-feature-tab ${activeTab === tab.id ? "active" : ""}`}
+            key={`mobile-${tab.id}`}
+            onClick={() => setActiveTab(tab.id)}
+            type="button"
+          >
+            {tab.label}
+            <small>Off</small>
           </button>
         ))}
         <div className="event-tab-actions">
@@ -1482,33 +1534,10 @@ function EventDetailContent({
               <path d="M9.7 3.3h4.6l.6 2.1c.5.2 1 .5 1.4.8l2.1-.6 2.3 4-1.5 1.5a7 7 0 0 1 0 1.8l1.5 1.5-2.3 4-2.1-.6c-.4.3-.9.6-1.4.8l-.6 2.1H9.7l-.6-2.1c-.5-.2-1-.5-1.4-.8l-2.1.6-2.3-4 1.5-1.5a7 7 0 0 1 0-1.8L3.3 9.6l2.3-4 2.1.6c.4-.3.9-.6 1.4-.8l.6-2.1Z" />
               <circle cx="12" cy="12" r="3" />
             </svg>
+            <span className="event-tab-settings-label">Settings</span>
           </button>
         </div>
       </nav>
-      <label className="event-tab-select">
-        <span className="sr-only">Event section</span>
-        <select
-          value={activeTab}
-          onChange={(change) => setActiveTab(change.target.value as EventTab)}
-        >
-          <optgroup label="Event sections">
-            {availableEventTabs.map((tab) => (
-              <option key={tab.id} value={tab.id}>
-                {tab.label}
-              </option>
-            ))}
-          </optgroup>
-          {unavailableFeatureTabs.length ? (
-            <optgroup label="Unavailable features">
-              {unavailableFeatureTabs.map((tab) => (
-                <option key={tab.id} value={tab.id}>
-                  {tab.label} — unavailable
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-        </select>
-      </label>
 
       <div className="event-mobile-progress" aria-label="Event progress">
         <span>
