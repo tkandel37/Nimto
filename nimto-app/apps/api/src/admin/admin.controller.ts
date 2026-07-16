@@ -26,6 +26,7 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get("summary")
+  @RequirePermissions(PERMISSIONS.staffView)
   summary(@Req() request: AuthenticatedRequest) {
     return this.adminService.dashboardSummary(request.user!.sub);
   }

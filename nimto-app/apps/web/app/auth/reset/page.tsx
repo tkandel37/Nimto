@@ -1,20 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { BrandLogo } from "../../brand-logo";
 
 function ResetPasswordContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    setToken(hash.get("token") ?? "");
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}`,
+    );
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,18 +98,17 @@ function ResetPasswordContent() {
           <p className="text-sm font-bold uppercase tracking-[0.3em] text-leaf">
             New password
           </p>
-          <h1 className="mt-4 text-4xl font-black text-ink">
-            Reset password
-          </h1>
+          <h1 className="mt-4 text-4xl font-black text-ink">Reset password</h1>
           <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
             <label className="field">
               <span className="text-sm font-bold text-ink">New password</span>
               <input
                 autoComplete="new-password"
-                minLength={6}
+                minLength={12}
+                maxLength={128}
                 name="password"
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="12+ chars with upper, lower, number & symbol"
                 required
                 type="password"
                 value={password}
@@ -112,7 +120,8 @@ function ResetPasswordContent() {
               </span>
               <input
                 autoComplete="new-password"
-                minLength={6}
+                minLength={12}
+                maxLength={128}
                 name="confirmPassword"
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="Repeat your new password"
@@ -131,7 +140,11 @@ function ResetPasswordContent() {
                 {error}
               </p>
             ) : null}
-            <button className="primary-button" disabled={isSubmitting} type="submit">
+            <button
+              className="primary-button"
+              disabled={isSubmitting}
+              type="submit"
+            >
               {isSubmitting ? "Saving..." : "Update password"}
             </button>
           </form>

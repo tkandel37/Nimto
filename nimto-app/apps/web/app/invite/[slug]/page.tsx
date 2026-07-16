@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { randomBytes } from "crypto";
 import { serverApiUrl } from "@/lib/server-api";
 import { RsvpConfig, RsvpFieldConfig } from "../../events/event-types";
 import { RsvpForm } from "./rsvp-form";
@@ -231,8 +232,33 @@ function renderInvitationHtml(
   event: InvitationEvent,
   slug: string,
 ) {
-  const withValues = applyFieldValuesToHtml(rawHtml, event);
-  return applyInvitationFeatures(withValues, event, slug);
+  const scriptNonce = randomBytes(18).toString("base64");
+  const withValues = applyFieldValuesToHtml(
+    neutralizeLegacyExecutableHtml(rawHtml),
+    event,
+  );
+  const withFeatures = applyInvitationFeatures(
+    withValues,
+    event,
+    slug,
+    scriptNonce,
+  );
+  return prependHeadHtml(
+    withFeatures,
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${scriptNonce}'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src https: data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">`,
+  );
+}
+
+function neutralizeLegacyExecutableHtml(html: string) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<script\b[^>]*>/gi, "")
+    .replace(/\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(
+      /\s+(href|src|action|formaction)\s*=\s*(["'])\s*(?:javascript|vbscript):[^"']*\2/gi,
+      "",
+    )
+    .replace(/<meta\b[^>]*http-equiv\s*=\s*(["']?)refresh\1[^>]*>/gi, "");
 }
 
 function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
@@ -252,7 +278,11 @@ function applyFieldValuesToHtml(rawHtml: string, event: InvitationEvent) {
       `(<[^>]*data-nimto-field=(["'])${escapeRegExp(key)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
       "gis",
     );
-    return html.replace(pattern, `$1${escapeHtml(value)}$4`);
+    return html.replace(
+      pattern,
+      (_match, open, _quote, _content, close) =>
+        `${open}${escapeHtml(String(value))}${close}`,
+    );
   }, rawHtml);
 }
 
@@ -260,6 +290,7 @@ function applyInvitationFeatures(
   rawHtml: string,
   event: InvitationEvent,
   slug: string,
+  scriptNonce: string,
 ) {
   const config = event.designVersion?.featureConfig ?? {};
   const settings = event.featureSettings ?? {};
@@ -294,7 +325,7 @@ function applyInvitationFeatures(
       html,
       "data-nimto-countdown-slot",
       settings.countdown?.enabled !== false && event.eventDate
-        ? countdownHtml(event.eventDate)
+        ? countdownHtml(event.eventDate, scriptNonce)
         : "",
     );
   }
@@ -310,7 +341,7 @@ function applyInvitationFeatures(
   }
 
   if (config.music?.available) {
-    const musicUrl = settings.music?.url?.trim();
+    const musicUrl = safeUrl(settings.music?.url, ["https:"]);
     html = applySlotHtml(
       html,
       "data-nimto-music-slot",
@@ -351,14 +382,15 @@ function applyFieldLinks(
   links: { fieldKey: string; url: string; hoverText?: string }[],
 ) {
   return links.reduce((result, link) => {
-    if (!link.fieldKey || !link.url) return result;
+    const safeLink = safeUrl(link.url, ["https:", "mailto:", "tel:"]);
+    if (!link.fieldKey || !safeLink) return result;
     const pattern = new RegExp(
       `(<[^>]*data-nimto-field=(["'])${escapeRegExp(link.fieldKey)}\\2[^>]*>)(.*?)(<\\/[^>]+>)`,
       "gis",
     );
     return result.replace(pattern, (_match, open, _quote, content, close) => {
       const hoverText = link.hoverText?.trim() || "Follow link";
-      return `${open}<a data-nimto-linked-field="${escapeHtml(link.fieldKey)}" data-nimto-link-tooltip="${escapeHtml(hoverText)}" href="${escapeHtml(link.url)}" rel="noopener noreferrer" target="_blank" title="${escapeHtml(hoverText)}">${content}</a>${close}`;
+      return `${open}<a data-nimto-linked-field="${escapeHtml(link.fieldKey)}" data-nimto-link-tooltip="${escapeHtml(hoverText)}" href="${escapeHtml(safeLink)}" rel="noopener noreferrer" target="_blank" title="${escapeHtml(hoverText)}">${content}</a>${close}`;
     });
   }, html);
 }
@@ -368,17 +400,20 @@ function applySlotHtml(html: string, attribute: string, replacement: string) {
     `(<[^>]*${attribute}(?:=(["'])[^"']*\\2)?[^>]*>)(.*?)(<\\/[^>]+>)`,
     "gis",
   );
-  return html.replace(pattern, `$1${replacement}$4`);
+  return html.replace(
+    pattern,
+    (_match, open, _quote, _content, close) => `${open}${replacement}${close}`,
+  );
 }
 
-function countdownHtml(eventDate: string) {
+function countdownHtml(eventDate: string, scriptNonce: string) {
   const target = escapeHtml(eventDate);
   return `<div class="nimto-countdown" data-nimto-countdown-target="${target}">
     <span><b data-nimto-countdown-days>0</b><small>Days</small></span>
     <span><b data-nimto-countdown-hours>0</b><small>Hours</small></span>
     <span><b data-nimto-countdown-minutes>0</b><small>Minutes</small></span>
   </div>
-  <script>
+  <script nonce="${escapeHtml(scriptNonce)}">
     (function(){
       var root=document.currentScript.previousElementSibling;
       if(!root)return;
@@ -405,11 +440,29 @@ function injectHeadHtml(html: string, injection: string) {
   return `${injection}${html}`;
 }
 
+function prependHeadHtml(html: string, injection: string) {
+  if (!injection.trim()) return html;
+  if (/<head(?:\s[^>]*)?>/i.test(html)) {
+    return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${injection}`);
+  }
+  return `${injection}${html}`;
+}
+
 function cssName(value: string) {
   return value
     .replace(/([a-z])([A-Z])/g, "$1-$2")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .toLowerCase();
+}
+
+function safeUrl(value: string | undefined, protocols: string[]) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    return protocols.includes(parsed.protocol) ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizeRsvpConfig(

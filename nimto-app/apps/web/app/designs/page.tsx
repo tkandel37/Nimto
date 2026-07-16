@@ -286,7 +286,12 @@ function DesignsContent({
           collectionKeys.includes(collection.key) &&
           collection.terms.some((term) => haystack.includes(term)),
       );
-      if ((categoryIds.length || collectionKeys.length) && !matchesCategory && !matchesCollection) return false;
+      if (
+        (categoryIds.length || collectionKeys.length) &&
+        !matchesCategory &&
+        !matchesCollection
+      )
+        return false;
       if (!query) return true;
       return haystack.includes(query);
     });
@@ -407,51 +412,59 @@ function DesignsContent({
           </div>
         </div>
         <div className="design-discovery-bar">
+          <button
+            className={
+              !categoryIds.length && !collectionKeys.length && !showFavourites
+                ? "active"
+                : ""
+            }
+            onClick={() => {
+              setCategoryIds([]);
+              setShowFavourites(false);
+              setCollectionKeys([]);
+            }}
+            type="button"
+          >
+            All invitations
+          </button>
+          {designCollections.map((collection) => (
             <button
               className={
-                !categoryIds.length && !collectionKeys.length && !showFavourites ? "active" : ""
+                collectionKeys.includes(collection.key) ? "active" : ""
               }
+              key={collection.key}
               onClick={() => {
-                setCategoryIds([]);
+                setCollectionKeys((current) =>
+                  current.includes(collection.key)
+                    ? current.filter((key) => key !== collection.key)
+                    : [...current, collection.key],
+                );
                 setShowFavourites(false);
-                setCollectionKeys([]);
               }}
               type="button"
             >
-              All invitations
+              {collection.label}
+              {collectionKeys.includes(collection.key) ? <span>×</span> : null}
             </button>
-            {designCollections.map((collection) => (
-              <button
-                className={collectionKeys.includes(collection.key) ? "active" : ""}
-                key={collection.key}
-                onClick={() => {
-                  setCollectionKeys((current) => current.includes(collection.key)
-                    ? current.filter((key) => key !== collection.key)
-                    : [...current, collection.key]);
-                  setShowFavourites(false);
-                }}
-                type="button"
-              >
-                {collection.label}
-                {collectionKeys.includes(collection.key) ? <span>×</span> : null}
-              </button>
-            ))}
-            {categories.slice(0, 7).map((category) => (
-              <button
-                className={categoryIds.includes(category.id) ? "active" : ""}
-                key={category.id}
-                onClick={() => {
-                  setCategoryIds((current) => current.includes(category.id)
+          ))}
+          {categories.slice(0, 7).map((category) => (
+            <button
+              className={categoryIds.includes(category.id) ? "active" : ""}
+              key={category.id}
+              onClick={() => {
+                setCategoryIds((current) =>
+                  current.includes(category.id)
                     ? current.filter((id) => id !== category.id)
-                    : [...current, category.id]);
-                  setShowFavourites(false);
-                }}
-                type="button"
-              >
-                {category.name}
-                {categoryIds.includes(category.id) ? <span>×</span> : null}
-              </button>
-            ))}
+                    : [...current, category.id],
+                );
+                setShowFavourites(false);
+              }}
+              type="button"
+            >
+              {category.name}
+              {categoryIds.includes(category.id) ? <span>×</span> : null}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -482,7 +495,11 @@ function DesignsContent({
         </div>
       </div>
 
-      {recentlyViewedIds.length && !search && !categoryIds.length && !collectionKeys.length && !showFavourites ? (
+      {recentlyViewedIds.length &&
+      !search &&
+      !categoryIds.length &&
+      !collectionKeys.length &&
+      !showFavourites ? (
         <section className="recently-viewed-strip">
           <div>
             <p className="user-kicker">Recently viewed</p>
@@ -547,7 +564,9 @@ function DesignsContent({
                 className={
                   favourite ? "design-favourite active" : "design-favourite"
                 }
-                data-tooltip={favourite ? "Remove from favourites" : "Add to favourites"}
+                data-tooltip={
+                  favourite ? "Remove from favourites" : "Add to favourites"
+                }
                 onClick={() => toggleFavourite(design.id)}
                 type="button"
               >
@@ -746,7 +765,8 @@ function DesignEditor({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const saved = localStorage.getItem(draftKey);
+      localStorage.removeItem(draftKey);
+      const saved = sessionStorage.getItem(draftKey);
       if (!saved) return;
       try {
         const restored = JSON.parse(saved) as Record<string, string>;
@@ -754,7 +774,7 @@ function DesignEditor({
         setValues(restored);
         setDraftStatus("Draft restored");
       } catch {
-        localStorage.removeItem(draftKey);
+        sessionStorage.removeItem(draftKey);
       }
     });
     return () => window.cancelAnimationFrame(frame);
@@ -762,7 +782,7 @@ function DesignEditor({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      localStorage.setItem(draftKey, JSON.stringify(values));
+      sessionStorage.setItem(draftKey, JSON.stringify(values));
       setDraftStatus(
         `Saved ${new Date().toLocaleTimeString([], {
           hour: "2-digit",
@@ -1046,15 +1066,9 @@ function DesignEditor({
             sandbox="allow-scripts allow-same-origin"
             title={`${design.name} live preview`}
             onReady={(frame) => {
-              updatePreviewFrame(
-                frame,
-                values,
-                selectedFieldKey,
-                fields,
-                {
-                  shouldScroll: false,
-                },
-              );
+              updatePreviewFrame(frame, values, selectedFieldKey, fields, {
+                shouldScroll: false,
+              });
               frame.contentWindow?.scrollTo(0, 0);
               window.setTimeout(() => {
                 updatePreviewFrame(

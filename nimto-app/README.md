@@ -46,16 +46,16 @@ the event information and the name of the person or family being invited.
 
 ## Architecture
 
-| Area | Technology |
-| --- | --- |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
-| Backend | NestJS 10, TypeScript |
-| Database | PostgreSQL 16 |
-| ORM and migrations | Prisma 6 |
-| Authentication | JWT, email/password, optional Google OAuth |
-| Local email | Mailpit |
-| Database browser | Adminer |
-| Local runtime | Docker Compose using Colima or Docker Desktop |
+| Area               | Technology                                     |
+| ------------------ | ---------------------------------------------- |
+| Frontend           | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Backend            | NestJS 11, TypeScript                          |
+| Database           | PostgreSQL 16                                  |
+| ORM and migrations | Prisma 6                                       |
+| Authentication     | JWT, email/password, optional Google OAuth     |
+| Local email        | Mailpit                                        |
+| Database browser   | Adminer                                        |
+| Local runtime      | Docker Compose using Colima or Docker Desktop  |
 
 The repository is an npm workspace:
 
@@ -91,21 +91,23 @@ colima start --cpu 4 --memory 6 --disk 40
 git clone https://github.com/tkandel37/Nimto.git
 cd Nimto/nimto-app
 cp .env.docker.example .env.docker
+# Set JWT_SECRET and SUPER_ADMIN_PASSWORD in .env.docker first.
 npm run docker:up
 ```
 
 Open:
 
-| Service | URL |
-| --- | --- |
-| myNimto | http://localhost:3000 |
-| API health check | http://localhost:4000/health |
-| Local email inbox | http://localhost:8025 |
-| Database manager | http://localhost:8080 |
+| Service           | URL                          |
+| ----------------- | ---------------------------- |
+| myNimto           | http://localhost:3000        |
+| API health check  | http://localhost:4000/health |
+| Local email inbox | http://localhost:8025        |
+| Database manager  | http://localhost:8080        |
 
-The API container automatically applies Prisma migrations and seeds the local
-Super Admin. Development credentials are configured in `.env.docker`; change
-them before sharing your local environment.
+The API container automatically applies Prisma migrations. The local Compose
+configuration also opts into the seed with `RUN_DATABASE_SEED=true`; production
+must leave that flag disabled. Replace the example JWT and Super Admin secrets
+before the first startup.
 
 ### Useful commands
 
@@ -157,10 +159,10 @@ npm run dev --workspace @nimto/web
 
 ## HTML invitation design format
 
-Templates are complete HTML documents containing their own CSS and optional
-vanilla JavaScript. Editable content is marked with `data-nimto-field`, and
-template metadata is stored in a JSON block with the ID
-`nimto-template-meta`.
+Templates are complete HTML documents containing their own CSS. Executable
+template JavaScript is rejected; the renderer adds only its nonce-protected
+feature scripts. Editable content is marked with `data-nimto-field`, and
+template metadata is stored in a JSON block with the ID `nimto-template-meta`.
 
 The complete authoring specification is in
 [`docs/module-2-template-and-design-epics.md`](docs/module-2-template-and-design-epics.md).
@@ -196,3 +198,6 @@ Render, or equivalent providers through environment variables.
 Before changing the project, read [`AI_README.md`](AI_README.md). It explains
 the architecture, implemented features, important invariants, environment
 variables, verification steps, and current limitations.
+
+Production hardening and secret/database/WAF requirements are documented in
+[`SECURITY.md`](SECURITY.md).

@@ -555,8 +555,15 @@ async function main() {
   const password = requiredEnv("SUPER_ADMIN_PASSWORD");
   const name = requiredEnv("SUPER_ADMIN_NAME");
 
-  if (password.length < 8) {
-    throw new Error("SUPER_ADMIN_PASSWORD must be at least 8 characters.");
+  if (
+    password.length < 12 ||
+    password.length > 128 ||
+    /(change.?me|replace.?with|password123|example)/i.test(password) ||
+    !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/.test(password)
+  ) {
+    throw new Error(
+      "SUPER_ADMIN_PASSWORD must be a non-placeholder 12-128 character secret with uppercase, lowercase, number, and symbol characters.",
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -586,27 +593,32 @@ async function main() {
     },
   });
 
-  const user = await prisma.user.upsert({
-    where: {
-      email,
-    },
-    update: {
-      name,
-      passwordHash,
-      status: UserStatus.ACTIVE,
-      blockedAt: null,
-      deactivatedAt: null,
-      deletionRequestedAt: null,
-      emailVerifiedAt: new Date(),
-    },
-    create: {
-      name,
-      email,
-      passwordHash,
-      status: UserStatus.ACTIVE,
-      emailVerifiedAt: new Date(),
-    },
+  let user = await prisma.user.findFirst({
+    where: { roles: { some: { roleId: role.id } } },
+    orderBy: { createdAt: "asc" },
   });
+
+  if (!user) {
+    const existingEmailOwner = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingEmailOwner) {
+      throw new Error(
+        "Refusing to promote an existing account during Super Admin bootstrap.",
+      );
+    }
+
+    user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        status: UserStatus.ACTIVE,
+        emailVerifiedAt: new Date(),
+      },
+    });
+  }
 
   await prisma.userRole.upsert({
     where: {
@@ -774,7 +786,7 @@ async function main() {
   });
   const publishedHtml = templateHtml.replace(
     /(<[^>]+data-nimto-opening-slot=["']corporate-reveal["'][^>]*>)/i,
-    `$1${animationHtml}`,
+    (_match, openingTag) => `${openingTag}${animationHtml}`,
   );
   const corporatePublishedScan = scanner.scanTemplateHtml(
     publishedHtml,

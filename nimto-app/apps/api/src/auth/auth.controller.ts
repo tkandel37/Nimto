@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,8 +8,10 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AuthGuard } from "@nestjs/passport";
-import { Response } from "express";
+import { minutes, Throttle } from "@nestjs/throttler";
+import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -20,10 +21,20 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
 import { ResendVerificationDto } from "./dto/resend-verification.dto";
 import { AuthenticatedRequest, JwtAuthGuard } from "./jwt-auth.guard";
+import { ConfirmEmailChangeDto } from "./dto/confirm-email-change.dto";
+import {
+  AUTH_COOKIE_SENTINEL,
+  clearSessionCookie,
+  setSessionCookie,
+} from "./session-cookie";
+import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
 
 @Controller()
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Get("health")
   health() {
@@ -35,31 +46,56 @@ export class AuthController {
   }
 
   @Post("auth/register")
+  @Throttle({
+    default: { limit: 5, ttl: minutes(15), blockDuration: minutes(15) },
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post("auth/login")
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @Throttle({
+    default: { limit: 8, ttl: minutes(15), blockDuration: minutes(15) },
+  })
+  async login(
+    @Body() dto: LoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const auth = await this.authService.login(dto, this.context(request));
+    setSessionCookie(response, auth.token, this.config);
+    response.setHeader("Cache-Control", "no-store");
+    return { user: auth.user, token: AUTH_COOKIE_SENTINEL };
   }
 
   @Post("auth/forgot-password")
+  @Throttle({
+    default: { limit: 3, ttl: minutes(15), blockDuration: minutes(30) },
+  })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
 
   @Post("auth/reset-password")
+  @Throttle({
+    default: { limit: 5, ttl: minutes(15), blockDuration: minutes(30) },
+  })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
 
   @Post("auth/verify-email")
+  @Throttle({
+    default: { limit: 10, ttl: minutes(15), blockDuration: minutes(30) },
+  })
   verifyEmailCode(@Body() dto: VerifyEmailDto) {
     return this.authService.verifyEmailCode(dto);
   }
 
   @Post("auth/verify-email/resend")
+  @Throttle({
+    default: { limit: 3, ttl: minutes(15), blockDuration: minutes(30) },
+  })
   resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto);
   }
@@ -72,6 +108,9 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Patch("auth/profile")
+  @Throttle({
+    default: { limit: 10, ttl: minutes(15), blockDuration: minutes(15) },
+  })
   updateProfile(
     @Body() dto: UpdateProfileDto,
     @Req() request: AuthenticatedRequest,
@@ -79,35 +118,54 @@ export class AuthController {
     return this.authService.updateProfile(request.user!.sub, dto);
   }
 
-  @Get("auth/verify-email")
-  verifyEmail(@Req() request: any) {
-    const token = request.query.token as string;
-    if (!token) {
-      throw new BadRequestException("Token is required.");
-    }
-    return this.authService.verifyEmail(token);
+  @UseGuards(JwtAuthGuard)
+  @Post("auth/profile/email/confirm")
+  @Throttle({
+    default: { limit: 8, ttl: minutes(15), blockDuration: minutes(30) },
+  })
+  async confirmEmailChange(
+    @Body() dto: ConfirmEmailChangeDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.confirmEmailChange(
+      request.user!.sub,
+      dto,
+    );
+    clearSessionCookie(response, this.config);
+    return result;
   }
 
   @UseGuards(JwtAuthGuard)
   @Post("auth/logout")
-  logout(@Req() request: AuthenticatedRequest) {
+  async logout(
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    clearSessionCookie(response, this.config);
     if (request.user?.sessionId) {
-      return this.authService.logout(request.user.sessionId);
+      await this.authService.logout(request.user.sessionId);
     }
     return { success: true };
   }
 
   @Get("auth/google")
-  @UseGuards(AuthGuard("google"))
+  @Throttle({
+    default: { limit: 10, ttl: minutes(15), blockDuration: minutes(15) },
+  })
+  @UseGuards(GoogleConfiguredGuard, AuthGuard("google"))
   async googleAuth() {
     // Initiates the Google OAuth2 login flow
   }
 
   @Get("auth/google/callback")
-  @UseGuards(AuthGuard("google"))
+  @Throttle({
+    default: { limit: 20, ttl: minutes(15), blockDuration: minutes(15) },
+  })
+  @UseGuards(GoogleConfiguredGuard, AuthGuard("google"))
   googleAuthRedirect(@Req() req: any, @Res() res: Response) {
     const { token } = req.user;
-    // Redirect back to frontend with the token
+    setSessionCookie(res, token, this.config);
     const frontendUrl =
       process.env.FRONTEND_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -116,6 +174,14 @@ export class AuthController {
       .split(",")[0]
       .trim()
       .replace(/\/$/, "");
-    res.redirect(`${primaryFrontendUrl}/auth/oauth-success?token=${token}`);
+    res.setHeader("Cache-Control", "no-store");
+    res.redirect(303, `${primaryFrontendUrl}/auth/oauth-success`);
+  }
+
+  private context(request: Request) {
+    return {
+      ipAddress: request.ip,
+      userAgent: request.headers["user-agent"],
+    };
   }
 }

@@ -367,24 +367,29 @@ export function UserFrame({ children }: { children: ReactNode }) {
                 </span>
                 <span className="user-account-name">{user.name}</span>
               </button>
-                <div
-                  aria-hidden={!isAccountMenuOpen}
-                  className={
-                    isAccountMenuOpen
-                      ? "user-account-popover open"
-                      : "user-account-popover"
-                  }
-                  inert={!isAccountMenuOpen}
-                >
-                  <div>
-                    <strong>{user.name}</strong>
-                    <span>{user.email}</span>
-                  </div>
-                  <Link href="/profile" onClick={() => setIsAccountMenuOpen(false)}>
-                    Profile
-                  </Link>
-                  <button onClick={logout} type="button">Log out</button>
+              <div
+                aria-hidden={!isAccountMenuOpen}
+                className={
+                  isAccountMenuOpen
+                    ? "user-account-popover open"
+                    : "user-account-popover"
+                }
+                inert={!isAccountMenuOpen}
+              >
+                <div>
+                  <strong>{user.name}</strong>
+                  <span>{user.email}</span>
                 </div>
+                <Link
+                  href="/profile"
+                  onClick={() => setIsAccountMenuOpen(false)}
+                >
+                  Profile
+                </Link>
+                <button onClick={logout} type="button">
+                  Log out
+                </button>
+              </div>
             </div>
           </header>
           <div className="user-page">{children}</div>
@@ -544,7 +549,11 @@ export function ProfileForm({
   const [name, setName] = useState(user.name ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isConfirmingEmail, setIsConfirmingEmail] = useState(false);
 
   useEffect(() => {
     setName(user.name ?? "");
@@ -556,14 +565,27 @@ export function ProfileForm({
     event.preventDefault();
     setIsSaving(true);
     try {
-      const response = await apiRequest<{ user: AuthUser }>("/auth/profile", {
+      const response = await apiRequest<{
+        user: AuthUser;
+        emailChangePending?: boolean;
+        message?: string;
+      }>("/auth/profile", {
         method: "PATCH",
         headers: authHeaders,
-        body: JSON.stringify({ name, email, phone }),
+        body: JSON.stringify({ name, email, phone, currentPassword }),
       });
-      saveAuthSession(localStorage.getItem("nimto_token") ?? "", response.user);
+      saveAuthSession(
+        localStorage.getItem("nimto_session") ?? "",
+        response.user,
+      );
       await refreshUser();
-      showToast("Profile updated.");
+      setCurrentPassword("");
+      if (response.emailChangePending) {
+        setPendingEmail(email.trim().toLowerCase());
+        showToast(response.message ?? "Verification code sent.");
+      } else {
+        showToast("Profile updated.");
+      }
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Profile update failed.",
@@ -571,6 +593,31 @@ export function ProfileForm({
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function confirmEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsConfirmingEmail(true);
+    try {
+      const response = await apiRequest<{ message: string }>(
+        "/auth/profile/email/confirm",
+        {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ email: pendingEmail, code: emailCode }),
+        },
+      );
+      clearAuthSession();
+      showToast(response.message);
+      window.location.assign("/auth?mode=login");
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Email confirmation failed.",
+        "error",
+      );
+    } finally {
+      setIsConfirmingEmail(false);
     }
   }
 
@@ -585,7 +632,13 @@ export function ProfileForm({
           <h1>{user.name}</h1>
           <p>{user.email}</p>
         </div>
-        <span className={user.emailVerifiedAt ? "profile-verified" : "profile-verified pending"}>
+        <span
+          className={
+            user.emailVerifiedAt
+              ? "profile-verified"
+              : "profile-verified pending"
+          }
+        >
           {user.emailVerifiedAt ? "Verified account" : "Verification pending"}
         </span>
       </header>
@@ -602,34 +655,115 @@ export function ProfileForm({
           <div className="profile-fields-grid">
             <label className="user-field">
               <span>Full name</span>
-              <input minLength={2} onChange={(event) => setName(event.target.value)} value={name} />
+              <input
+                minLength={2}
+                onChange={(event) => setName(event.target.value)}
+                value={name}
+              />
             </label>
             <label className="user-field">
               <span>Phone number</span>
-              <input onChange={(event) => setPhone(event.target.value)} placeholder="Add phone number" value={phone} />
+              <input
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="Add phone number"
+                value={phone}
+              />
             </label>
             <label className="user-field profile-email-field">
               <span>Email address</span>
-              <input onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+              <input
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                type="email"
+                value={email}
+              />
             </label>
+            {email.trim().toLowerCase() !== user.email.toLowerCase() ? (
+              <label className="user-field profile-email-field">
+                <span>Current password</span>
+                <input
+                  autoComplete="current-password"
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={currentPassword}
+                />
+              </label>
+            ) : null}
           </div>
           <div className="profile-form-actions">
             <span>Changes apply across your myNimto account.</span>
-            <button className="user-primary-button" disabled={isSaving} type="submit">
+            <button
+              className="user-primary-button"
+              disabled={isSaving}
+              type="submit"
+            >
               {isSaving ? "Saving..." : "Save changes"}
             </button>
           </div>
         </form>
 
+        {pendingEmail ? (
+          <form className="user-panel profile-form" onSubmit={confirmEmail}>
+            <div className="profile-section-heading">
+              <div>
+                <p className="user-kicker">Confirm new email</p>
+                <h2>Enter the code sent to {pendingEmail}</h2>
+              </div>
+            </div>
+            <label className="user-field">
+              <span>6-digit verification code</span>
+              <input
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                onChange={(event) =>
+                  setEmailCode(event.target.value.replace(/\D/g, ""))
+                }
+                pattern="[0-9]{6}"
+                required
+                value={emailCode}
+              />
+            </label>
+            <div className="profile-form-actions">
+              <span>You will sign in again after the email changes.</span>
+              <button
+                className="user-primary-button"
+                disabled={isConfirmingEmail}
+                type="submit"
+              >
+                {isConfirmingEmail ? "Confirming..." : "Confirm email"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
         <aside className="user-panel profile-account-card">
           <p className="user-kicker">Account</p>
           <h2>Profile status</h2>
           <dl>
-            <div><dt>Email</dt><dd>{user.emailVerifiedAt ? "Verified" : "Pending"}</dd></div>
-            <div><dt>Member since</dt><dd>{new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(new Date(user.createdAt))}</dd></div>
-            <div><dt>Account status</dt><dd>{user.status?.toLowerCase() || "active"}</dd></div>
+            <div>
+              <dt>Email</dt>
+              <dd>{user.emailVerifiedAt ? "Verified" : "Pending"}</dd>
+            </div>
+            <div>
+              <dt>Member since</dt>
+              <dd>
+                {new Intl.DateTimeFormat("en", {
+                  month: "short",
+                  year: "numeric",
+                }).format(new Date(user.createdAt))}
+              </dd>
+            </div>
+            <div>
+              <dt>Account status</dt>
+              <dd>{user.status?.toLowerCase() || "active"}</dd>
+            </div>
           </dl>
-          <p>Your account details are used only for managing invitations and communication.</p>
+          <p>
+            Your account details are used only for managing invitations and
+            communication.
+          </p>
         </aside>
       </div>
     </section>

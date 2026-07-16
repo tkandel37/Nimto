@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -14,6 +14,8 @@ type AuditInput = {
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: AuditInput) {
@@ -29,8 +31,8 @@ export class AuditService {
           userAgent: input.userAgent,
         },
       });
-    } catch (error) {
-      console.error("Failed to record audit log", error);
+    } catch {
+      this.logger.error("Failed to record an audit log entry.");
       return null;
     }
   }

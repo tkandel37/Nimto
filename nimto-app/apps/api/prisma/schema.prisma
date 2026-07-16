@@ -23,6 +23,7 @@ enum SessionRevocationReason {
   USER_LOGOUT
   ADMIN_FORCE_LOGOUT
   PASSWORD_CHANGED
+  EMAIL_CHANGED
   ACCOUNT_BLOCKED
   ACCOUNT_DEACTIVATED
   ACCOUNT_PENDING_DELETION
@@ -73,34 +74,41 @@ enum RsvpStatus {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  name                String
-  email               String               @unique
-  phone               String?
-  passwordHash        String?
-  status              UserStatus           @default(ACTIVE)
-  emailVerifiedAt     DateTime?
-  blockedAt           DateTime?
-  deactivatedAt       DateTime?
-  deletionRequestedAt DateTime?
-  lastLoginAt         DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  oauthAccounts       OAuthAccount[]
-  roles               UserRole[]
-  sessions            UserSession[]
-  verificationTokens  VerificationToken[]
-  passwordResetTokens PasswordResetToken[]
-  events              Event[]
-  blogPosts           BlogPost[]
-  auditLogs           AuditLog[]
-  designCategories    DesignCategory[]     @relation("DesignCategoriesCreated")
-  designSubcategories DesignSubcategory[]  @relation("DesignSubcategoriesCreated")
-  invitationTemplates InvitationTemplate[] @relation("InvitationTemplatesCreated")
-  invitationDesigns   InvitationDesign[]   @relation("InvitationDesignsCreated")
-  designVersions      DesignVersion[]      @relation("DesignVersionsPublished")
-  animationComponents AnimationComponent[] @relation("AnimationComponentsCreated")
-  designUsageHistory  UserDesignUsage[]
+  id                     String               @id @default(cuid())
+  name                   String
+  email                  String               @unique
+  phone                  String?
+  passwordHash           String?
+  status                 UserStatus           @default(ACTIVE)
+  emailVerifiedAt        DateTime?
+  pendingEmail           String?              @unique
+  pendingEmailCodeHash   String?
+  pendingEmailExpiresAt  DateTime?
+  pendingEmailAttempts   Int                  @default(0)
+  pendingEmailLastSentAt DateTime?
+  failedLoginAttempts    Int                  @default(0)
+  loginLockedUntil       DateTime?
+  blockedAt              DateTime?
+  deactivatedAt          DateTime?
+  deletionRequestedAt    DateTime?
+  lastLoginAt            DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  oauthAccounts          OAuthAccount[]
+  roles                  UserRole[]
+  sessions               UserSession[]
+  verificationTokens     VerificationToken[]
+  passwordResetTokens    PasswordResetToken[]
+  events                 Event[]
+  blogPosts              BlogPost[]
+  auditLogs              AuditLog[]
+  designCategories       DesignCategory[]     @relation("DesignCategoriesCreated")
+  designSubcategories    DesignSubcategory[]  @relation("DesignSubcategoriesCreated")
+  invitationTemplates    InvitationTemplate[] @relation("InvitationTemplatesCreated")
+  invitationDesigns      InvitationDesign[]   @relation("InvitationDesignsCreated")
+  designVersions         DesignVersion[]      @relation("DesignVersionsPublished")
+  animationComponents    AnimationComponent[] @relation("AnimationComponentsCreated")
+  designUsageHistory     UserDesignUsage[]
 
   @@index([status])
   @@index([createdAt])
@@ -296,8 +304,6 @@ model OAuthAccount {
   provider          OAuthProvider
   providerAccountId String
   email             String?
-  accessToken       String?
-  refreshToken      String?
   expiresAt         DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -311,24 +317,26 @@ model OAuthAccount {
 model VerificationToken {
   id        String   @id @default(cuid())
   userId    String
-  token     String   @unique
+  tokenHash String   @unique
+  attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([token])
 }
 
 model PendingRegistration {
-  id               String   @id @default(cuid())
-  name             String
-  email            String   @unique
-  passwordHash     String
-  verificationCode String
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  name                 String
+  email                String   @unique
+  passwordHash         String
+  verificationCodeHash String
+  verificationAttempts Int      @default(0)
+  lastSentAt           DateTime @default(now())
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([email])
   @@index([expiresAt])
@@ -337,13 +345,12 @@ model PendingRegistration {
 model PasswordResetToken {
   id        String   @id @default(cuid())
   userId    String
-  token     String   @unique
+  tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([token])
 }
 
 model Event {

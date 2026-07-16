@@ -158,7 +158,8 @@ export function EventDesignEditor({
   useEffect(() => {
     const key = `nimto_event_design_draft_${event.id}`;
     const frame = window.requestAnimationFrame(() => {
-      const saved = localStorage.getItem(key);
+      localStorage.removeItem(key);
+      const saved = sessionStorage.getItem(key);
       setConnectionState(
         navigator.onLine ? "Online" : "Offline — draft is safe here",
       );
@@ -173,7 +174,7 @@ export function EventDesignEditor({
           setValues(draft.values);
           if (draft.featureSettings) setFeatureSettings(draft.featureSettings);
         } catch {
-          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
         }
       }
     });
@@ -190,7 +191,7 @@ export function EventDesignEditor({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      localStorage.setItem(
+      sessionStorage.setItem(
         `nimto_event_design_draft_${event.id}`,
         JSON.stringify({ versionId, values, featureSettings }),
       );
@@ -284,6 +285,7 @@ export function EventDesignEditor({
       );
       onEvent({ ...event, ...updated });
       localStorage.removeItem(`nimto_event_design_draft_${event.id}`);
+      sessionStorage.removeItem(`nimto_event_design_draft_${event.id}`);
       setDraftStatus("Saved to event draft");
       showToast(
         view === "music"
@@ -535,7 +537,8 @@ export function EventDesignEditor({
                           value={link.hoverText ?? ""}
                         />
                         <small>
-                          Shown when a guest points to or focuses the linked text.
+                          Shown when a guest points to or focuses the linked
+                          text.
                         </small>
                       </label>
                     </div>
@@ -927,7 +930,9 @@ function FieldPicker({
               type="button"
             >
               <span>{field.label}</span>
-              {field.key === currentKey ? <span aria-hidden="true">✓</span> : null}
+              {field.key === currentKey ? (
+                <span aria-hidden="true">✓</span>
+              ) : null}
             </button>
           );
         })}

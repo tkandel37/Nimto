@@ -81,14 +81,14 @@ export class CmsService {
     return this.prisma.blogPost.findMany({
       where: { status: PublishStatus.PUBLISHED },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      include: { author: { select: { id: true, name: true } } },
+      include: { author: { select: { name: true } } },
     });
   }
 
   async getPublicPost(slug: string) {
     const post = await this.prisma.blogPost.findUnique({
       where: { slug },
-      include: { author: { select: { id: true, name: true } } },
+      include: { author: { select: { name: true } } },
     });
     if (!post || post.status !== PublishStatus.PUBLISHED) {
       throw new NotFoundException("Blog post not found.");

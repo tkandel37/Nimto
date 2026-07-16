@@ -5,35 +5,23 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import crypto from "crypto";
 import { Request } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { PrismaService } from "../prisma/prisma.service";
+import { AUTH_COOKIE_SENTINEL, readSessionCookie } from "./session-cookie";
 
 export type AuthenticatedRequest = Request & {
   user?: {
     sub: string;
     email: string;
-    sessionId?: string;
+    sessionId: string;
   };
 };
 
-import { PrismaService } from "../prisma/prisma.service";
-
-const SESSION_AUTH_CACHE_MS = 30_000;
-const sessionAuthCache = new Map<
-  string,
-  { expiresAt: number; sessionExpiresAt: Date; userStatus: string }
->();
-
-export function invalidateSessionAuthCache(sessionIds?: Iterable<string>) {
-  if (!sessionIds) {
-    sessionAuthCache.clear();
-    return;
-  }
-
-  for (const sessionId of sessionIds) {
-    sessionAuthCache.delete(sessionId);
-  }
-}
+// Session validity is deliberately read from PostgreSQL on every protected
+// request, so revocation works immediately across every API instance.
+export function invalidateSessionAuthCache(_sessionIds?: Iterable<string>) {}
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -44,72 +32,108 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const token = this.extractToken(request);
+    const bearerToken = this.extractBearerToken(request);
+    const cookieToken = readSessionCookie(request);
+    const token =
+      bearerToken && bearerToken !== AUTH_COOKIE_SENTINEL
+        ? bearerToken
+        : cookieToken;
 
     if (!token) {
-      throw new UnauthorizedException("Missing bearer token.");
+      throw new UnauthorizedException("Authentication is required.");
+    }
+
+    if (
+      cookieToken &&
+      token === cookieToken &&
+      !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+      bearerToken !== AUTH_COOKIE_SENTINEL
+    ) {
+      throw new UnauthorizedException("Cross-site request validation failed.");
     }
 
     try {
       const secret = this.config.get<string>("JWT_SECRET");
       if (!secret) {
-        throw new UnauthorizedException("JWT secret is not configured.");
+        throw new UnauthorizedException("Authentication is unavailable.");
       }
 
-      const payload = jwt.verify(token, secret) as JwtPayload & {
-        sub: string;
-        email: string;
-        sessionId?: string;
+      const payload = jwt.verify(token, secret, {
+        algorithms: ["HS256"],
+        audience: this.config.get<string>("JWT_AUDIENCE") ?? "nimto-web",
+        issuer: this.config.get<string>("JWT_ISSUER") ?? "nimto-api",
+      }) as JwtPayload & {
+        sub?: unknown;
+        email?: unknown;
+        sessionId?: unknown;
       };
 
-      if (payload.sessionId) {
-        const cached = sessionAuthCache.get(payload.sessionId);
-        const session =
-          cached && cached.expiresAt > Date.now()
-            ? {
-                expiresAt: cached.sessionExpiresAt,
-                revokedAt: null,
-                user: { status: cached.userStatus },
-              }
-            : await this.prisma.userSession.findUnique({
-                where: { id: payload.sessionId },
-                select: {
-                  expiresAt: true,
-                  revokedAt: true,
-                  user: { select: { status: true } },
-                },
-              });
+      if (
+        typeof payload.sub !== "string" ||
+        typeof payload.email !== "string" ||
+        typeof payload.sessionId !== "string" ||
+        !payload.sub ||
+        !payload.sessionId
+      ) {
+        throw new UnauthorizedException("Invalid session token.");
+      }
 
-        if (!session || session.revokedAt || session.expiresAt < new Date()) {
-          throw new UnauthorizedException("Session revoked or invalid.");
-        }
+      const session = await this.prisma.userSession.findUnique({
+        where: { id: payload.sessionId },
+        select: {
+          tokenHash: true,
+          expiresAt: true,
+          revokedAt: true,
+          userId: true,
+          user: {
+            select: {
+              email: true,
+              emailVerifiedAt: true,
+              status: true,
+            },
+          },
+        },
+      });
 
-        if (session.user.status !== "ACTIVE") {
-          throw new UnauthorizedException("This account is not active.");
-        }
+      const presentedHash = crypto.createHash("sha256").update(token).digest();
+      const storedHash = session?.tokenHash
+        ? Buffer.from(session.tokenHash, "hex")
+        : Buffer.alloc(0);
+      const tokenMatches =
+        storedHash.length === presentedHash.length &&
+        crypto.timingSafeEqual(storedHash, presentedHash);
 
-        if (!cached || cached.expiresAt <= Date.now()) {
-          sessionAuthCache.set(payload.sessionId, {
-            expiresAt: Date.now() + SESSION_AUTH_CACHE_MS,
-            sessionExpiresAt: session.expiresAt,
-            userStatus: session.user.status,
-          });
-        }
+      if (
+        !session ||
+        !tokenMatches ||
+        session.userId !== payload.sub ||
+        session.user.email !== payload.email ||
+        session.revokedAt ||
+        session.expiresAt <= new Date()
+      ) {
+        throw new UnauthorizedException("Session revoked or invalid.");
+      }
+
+      if (session.user.status !== "ACTIVE" || !session.user.emailVerifiedAt) {
+        throw new UnauthorizedException("This account cannot authenticate.");
       }
 
       request.user = {
-        sub: payload.sub,
-        email: payload.email,
+        sub: session.userId,
+        email: session.user.email,
         sessionId: payload.sessionId,
       };
       return true;
-    } catch (e) {
-      throw new UnauthorizedException("Invalid or expired token.");
+    } catch {
+      throw new UnauthorizedException("Invalid or expired session.");
     }
   }
 
-  private extractToken(request: Request): string | undefined {
-    const [type, token] = request.headers.authorization?.split(" ") ?? [];
-    return type === "Bearer" ? token : undefined;
+  private extractBearerToken(request: Request) {
+    const [type, token, extra] =
+      request.headers.authorization?.trim().split(/\s+/) ?? [];
+    return type?.toLowerCase() === "bearer" && token && !extra
+      ? token
+      : undefined;
   }
 }

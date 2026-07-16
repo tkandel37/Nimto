@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -11,6 +12,7 @@ import {
   Prisma,
   RsvpStatus,
 } from "@prisma/client";
+import crypto from "crypto";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEventDto } from "./dto/create-event.dto";
@@ -54,8 +56,37 @@ type NormalizedRsvpConfig = {
   fields: NormalizedRsvpField[];
 };
 
+const publicEventSelect = {
+  id: true,
+  title: true,
+  type: true,
+  eventDate: true,
+  venue: true,
+  description: true,
+  slug: true,
+  coverImage: true,
+  isPublished: true,
+  archivedAt: true,
+  firstOpenedAt: true,
+  lastOpenedAt: true,
+  rsvpDeadline: true,
+  designFieldValues: true,
+  featureSettings: true,
+  rsvpConfig: true,
+  user: { select: { name: true } },
+  designVersion: {
+    select: {
+      rawHtml: true,
+      featureConfig: true,
+      design: { select: { name: true, slug: true } },
+    },
+  },
+} satisfies Prisma.EventSelect;
+
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -1076,12 +1107,7 @@ export class EventsService {
   ) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      include: {
-        user: { select: { id: true, name: true } },
-        designVersion: {
-          include: { design: { select: { id: true, name: true, slug: true } } },
-        },
-      },
+      select: publicEventSelect,
     });
 
     if (!event || !event.isPublished || event.archivedAt) {
@@ -1089,14 +1115,7 @@ export class EventsService {
         where: { slug },
         include: {
           event: {
-            include: {
-              user: { select: { id: true, name: true } },
-              designVersion: {
-                include: {
-                  design: { select: { id: true, name: true, slug: true } },
-                },
-              },
-            },
+            select: publicEventSelect,
           },
         },
       });
@@ -1109,36 +1128,51 @@ export class EventsService {
         throw new NotFoundException("Invitation not found.");
       }
 
-      if (context?.track !== false) {
+      const trackingCutoff = new Date(Date.now() - 60_000);
+      if (
+        context?.track !== false &&
+        (!invitee.lastOpenedAt || invitee.lastOpenedAt < trackingCutoff)
+      ) {
         const openedAt = new Date();
-        await this.prisma.$transaction([
-          this.prisma.event.update({
+        const tracked = await this.prisma.$transaction(async (transaction) => {
+          const inviteeUpdate = await transaction.invitationInvitee.updateMany({
+            where: {
+              id: invitee.id,
+              OR: [
+                { lastOpenedAt: null },
+                { lastOpenedAt: { lt: trackingCutoff } },
+              ],
+            },
+            data: {
+              openCount: { increment: 1 },
+              firstOpenedAt: invitee.firstOpenedAt ?? openedAt,
+              lastOpenedAt: openedAt,
+            },
+          });
+          if (!inviteeUpdate.count) return false;
+
+          await transaction.event.update({
             where: { id: invitee.eventId },
             data: {
               openCount: { increment: 1 },
               firstOpenedAt: invitee.event.firstOpenedAt ?? openedAt,
               lastOpenedAt: openedAt,
             },
-          }),
-          this.prisma.invitationInvitee.update({
-            where: { id: invitee.id },
-            data: {
-              openCount: { increment: 1 },
-              firstOpenedAt: invitee.firstOpenedAt ?? openedAt,
-              lastOpenedAt: openedAt,
-            },
-          }),
-        ]);
-        await this.activity(
-          invitee.eventId,
-          "INVITATION_OPENED",
-          `${invitee.name} opened the invitation`,
-          invitee.id,
-        );
+          });
+          return true;
+        });
+        if (tracked && !invitee.firstOpenedAt) {
+          await this.activity(
+            invitee.eventId,
+            "INVITATION_OPENED",
+            `${invitee.name} opened the invitation`,
+            invitee.id,
+          );
+        }
       }
 
       return {
-        ...invitee.event,
+        ...this.toPublicEvent(invitee.event),
         inviteeName: invitee.name,
         inviteeSlug: invitee.slug,
         rsvpStatus: invitee.rsvpStatus,
@@ -1148,10 +1182,20 @@ export class EventsService {
       };
     }
 
-    if (context?.track !== false) {
+    const trackingCutoff = new Date(Date.now() - 60_000);
+    if (
+      context?.track !== false &&
+      (!event.lastOpenedAt || event.lastOpenedAt < trackingCutoff)
+    ) {
       const openedAt = new Date();
-      await this.prisma.event.update({
-        where: { id: event.id },
+      await this.prisma.event.updateMany({
+        where: {
+          id: event.id,
+          OR: [
+            { lastOpenedAt: null },
+            { lastOpenedAt: { lt: trackingCutoff } },
+          ],
+        },
         data: {
           openCount: { increment: 1 },
           firstOpenedAt: event.firstOpenedAt ?? openedAt,
@@ -1159,7 +1203,7 @@ export class EventsService {
         },
       });
     }
-    return event;
+    return this.toPublicEvent(event);
   }
 
   async submitRsvp(slug: string, dto: SubmitRsvpDto) {
@@ -1294,6 +1338,26 @@ export class EventsService {
     return updated;
   }
 
+  private toPublicEvent<
+    T extends {
+      id: string;
+      isPublished: boolean;
+      archivedAt: Date | null;
+      firstOpenedAt: Date | null;
+      lastOpenedAt: Date | null;
+    },
+  >(event: T) {
+    const {
+      id: _id,
+      isPublished: _isPublished,
+      archivedAt: _archivedAt,
+      firstOpenedAt: _firstOpenedAt,
+      lastOpenedAt: _lastOpenedAt,
+      ...safeEvent
+    } = event;
+    return safeEvent;
+  }
+
   private eventData(dto: CreateEventDto | UpdateEventDto) {
     return {
       title: dto.title?.trim(),
@@ -1342,7 +1406,9 @@ export class EventsService {
       config && typeof config === "object" && !Array.isArray(config)
         ? (config as Record<string, unknown>)
         : {};
-    const providedFields = Array.isArray(source.fields) ? source.fields : [];
+    const providedFields = Array.isArray(source.fields)
+      ? source.fields.slice(0, 50)
+      : [];
     const defaults: NormalizedRsvpField[] = [
       {
         id: "attendance_status",
@@ -1422,7 +1488,7 @@ export class EventsService {
         ...field,
         label:
           typeof provided?.label === "string" && provided.label.trim()
-            ? provided.label.trim()
+            ? provided.label.trim().slice(0, 120)
             : field.label,
         required:
           typeof provided?.required === "boolean"
@@ -1464,7 +1530,7 @@ export class EventsService {
           key,
           label:
             typeof field.label === "string" && field.label.trim()
-              ? field.label.trim()
+              ? field.label.trim().slice(0, 120)
               : this.labelizeRsvpKey(key),
           type,
           required: Boolean(field.required),
@@ -1475,7 +1541,9 @@ export class EventsService {
               ? this.normalizeChoiceOptions(field.options, ["Option 1"])
               : undefined,
           placeholder:
-            typeof field.placeholder === "string" ? field.placeholder : null,
+            typeof field.placeholder === "string"
+              ? field.placeholder.slice(0, 180)
+              : null,
         } satisfies NormalizedRsvpField,
       ];
     });
@@ -1498,10 +1566,10 @@ export class EventsService {
     );
 
     return {
-      note: typeof source.note === "string" ? source.note : "",
+      note: typeof source.note === "string" ? source.note.slice(0, 800) : "",
       closedMessage:
         typeof source.closedMessage === "string" && source.closedMessage.trim()
-          ? source.closedMessage
+          ? source.closedMessage.slice(0, 800)
           : "Sorry, RSVP is closed for this event.",
       fields,
     };
@@ -1526,8 +1594,9 @@ export class EventsService {
     const options = Array.isArray(value)
       ? value
           .filter((item): item is string => typeof item === "string")
-          .map((item) => item.trim())
+          .map((item) => item.trim().slice(0, 120))
           .filter(Boolean)
+          .slice(0, 30)
       : [];
     return options.length ? options : fallback;
   }
@@ -1563,7 +1632,10 @@ export class EventsService {
             ? rawValue
             : Number(String(rawValue ?? "").trim() || "0");
         if (Number.isFinite(value) && value > 0) {
-          answers[field.key] = value;
+          answers[field.key] = Math.min(
+            value,
+            field.key === "number_of_guests" ? 20 : 1_000_000,
+          );
         }
         continue;
       }
@@ -1572,11 +1644,14 @@ export class EventsService {
           ? rawValue
               .map((value) => String(value).trim())
               .filter((value) => field.options?.includes(value))
+              .slice(0, 20)
           : [];
         if (values.length) answers[field.key] = values;
         continue;
       }
-      const text = String(rawValue ?? "").trim();
+      const text = String(rawValue ?? "")
+        .trim()
+        .slice(0, 800);
       if (text) answers[field.key] = text;
     }
 
@@ -1746,17 +1821,15 @@ export class EventsService {
     return candidate;
   }
 
-  private async uniqueInviteeSlug(eventSlug: string, name: string) {
-    const base = this.slugify(`${eventSlug}-${name}`);
-    let candidate = base;
-    let suffix = 2;
-
-    while (await this.slugExists(candidate)) {
-      candidate = `${base}-${suffix}`;
-      suffix += 1;
+  private async uniqueInviteeSlug(_eventSlug: string, _name: string) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = `invite-${crypto.randomBytes(24).toString("base64url")}`;
+      if (!(await this.slugExists(candidate))) {
+        return candidate;
+      }
     }
 
-    return candidate;
+    throw new Error("Could not generate a unique invitation link.");
   }
 
   private async slugExists(slug: string) {
@@ -1794,8 +1867,8 @@ export class EventsService {
   }
 
   private runAfterResponse(work: Promise<unknown>, label: string) {
-    void work.catch((error) => {
-      console.error(`Failed to complete ${label}`, error);
+    void work.catch(() => {
+      this.logger.error(`Failed to complete ${label}.`);
     });
   }
 

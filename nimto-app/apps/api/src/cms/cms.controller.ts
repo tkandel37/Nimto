@@ -14,6 +14,9 @@ import { CmsService } from "./cms.service";
 import { CreateBlogPostDto } from "./dto/create-blog-post.dto";
 import { UpdateBlogPostDto } from "./dto/update-blog-post.dto";
 import { UpsertPageContentDto } from "./dto/upsert-page-content.dto";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
+import { PERMISSIONS } from "../auth/permissions";
 
 @Controller("cms")
 export class CmsController {
@@ -40,13 +43,15 @@ export class CmsController {
   }
 
   @Get("admin/pages")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.contentManage)
   listAdminPages() {
     return this.cmsService.listAdminPages();
   }
 
   @Patch("admin/pages/:key")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.contentManage)
   upsertPage(
     @Param("key") key: string,
     @Body() dto: UpsertPageContentDto,

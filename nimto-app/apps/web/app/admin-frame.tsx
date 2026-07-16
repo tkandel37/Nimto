@@ -165,12 +165,12 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAdmin) return;
 
-    const savedUser = localStorage.getItem("nimto_user");
+    const savedUser = sessionStorage.getItem("nimto_user");
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser) as AuthUser);
       } catch {
-        localStorage.removeItem("nimto_user");
+        sessionStorage.removeItem("nimto_user");
       }
     }
   }, [isAdmin, pathname]);

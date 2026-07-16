@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AuthUser } from "@/lib/api";
+import { purgeLegacyPersistentAuthData } from "@/lib/auth-session";
 
 type AccountLinkState = {
   href: string;
@@ -22,8 +23,9 @@ export function AuthAwareAccountLink({
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("nimto_token");
-    const storedUser = localStorage.getItem("nimto_user");
+    purgeLegacyPersistentAuthData();
+    const token = localStorage.getItem("nimto_session");
+    const storedUser = sessionStorage.getItem("nimto_user");
     if (!token || !storedUser) {
       setLink({ href: "/auth?mode=login", label: loggedOutLabel });
       return;
@@ -37,8 +39,8 @@ export function AuthAwareAccountLink({
       }
       setLink({ href: "/events", label: "My workspace" });
     } catch {
-      localStorage.removeItem("nimto_token");
-      localStorage.removeItem("nimto_user");
+      localStorage.removeItem("nimto_session");
+      sessionStorage.removeItem("nimto_user");
       setLink({ href: "/auth?mode=login", label: loggedOutLabel });
     }
   }, [loggedOutLabel]);
@@ -53,16 +55,16 @@ export function AuthAwareAccountLink({
 function isAdminUser(user: AuthUser) {
   return Boolean(
     user.permissions?.includes("*") ||
-      user.permissions?.some((permission) =>
-        [
-          "template:",
-          "design:",
-          "content:",
-          "blog:",
-          "staff:",
-          "category:",
-          "subcategory:",
-        ].some((prefix) => permission.startsWith(prefix)),
-      ),
+    user.permissions?.some((permission) =>
+      [
+        "template:",
+        "design:",
+        "content:",
+        "blog:",
+        "staff:",
+        "category:",
+        "subcategory:",
+      ].some((prefix) => permission.startsWith(prefix)),
+    ),
   );
 }

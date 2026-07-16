@@ -5,11 +5,18 @@ import { JwtAuthGuard } from "./jwt-auth.guard";
 import { PermissionsGuard } from "./guards/permissions.guard";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { AuditModule } from "../audit/audit.module";
+import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
 
 @Module({
   imports: [AuditModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, PermissionsGuard, GoogleStrategy],
+  providers: [
+    AuthService,
+    JwtAuthGuard,
+    PermissionsGuard,
+    GoogleConfiguredGuard,
+    GoogleStrategy,
+  ],
   exports: [AuthService, JwtAuthGuard, PermissionsGuard],
 })
 export class AuthModule {}

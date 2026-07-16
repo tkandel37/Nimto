@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { minutes, Throttle } from "@nestjs/throttler";
 import { AuthenticatedRequest, JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { CreateInviteesDto } from "./dto/create-invitees.dto";
@@ -26,6 +27,9 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get("public/:slug")
+  @Throttle({
+    default: { limit: 60, ttl: minutes(1), blockDuration: minutes(5) },
+  })
   findPublished(
     @Param("slug") slug: string,
     @Query("track") track: string | undefined,
@@ -39,6 +43,9 @@ export class EventsController {
   }
 
   @Post("public/:slug/rsvp")
+  @Throttle({
+    default: { limit: 5, ttl: minutes(10), blockDuration: minutes(30) },
+  })
   submitRsvp(@Param("slug") slug: string, @Body() dto: SubmitRsvpDto) {
     return this.eventsService.submitRsvp(slug, dto);
   }

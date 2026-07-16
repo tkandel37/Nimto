@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
+import { clearAuthSession } from "@/lib/auth-session";
 import { StableInvitationPreview } from "../events/stable-invitation-preview";
 
 type Permission = {
@@ -639,17 +640,20 @@ export function DashboardClient({
 
   function hydrateDashboardCache(userId: string) {
     try {
-      const cached = localStorage.getItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      const cached = sessionStorage.getItem(
+        `${DASHBOARD_CACHE_PREFIX}${userId}`,
+      );
       if (!cached) return;
       applyDashboardSnapshot(JSON.parse(cached) as DashboardDataSnapshot);
     } catch {
-      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      sessionStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
     }
   }
 
   function storeDashboardCache(snapshot: DashboardDataSnapshot) {
     try {
-      localStorage.setItem(
+      sessionStorage.setItem(
         `${DASHBOARD_CACHE_PREFIX}${snapshot.userId}`,
         JSON.stringify(snapshot),
       );
@@ -714,26 +718,27 @@ export function DashboardClient({
 
   useEffect(() => {
     function redirectIfMissingToken() {
-      if (!localStorage.getItem("nimto_token")) {
+      if (!localStorage.getItem("nimto_session")) {
         router.replace("/auth?mode=login");
       }
     }
 
-    const savedToken = localStorage.getItem("nimto_token");
+    const savedToken = localStorage.getItem("nimto_session");
 
     if (!savedToken) {
       router.replace("/auth?mode=login");
       return;
     }
 
-    const savedUser = localStorage.getItem("nimto_user");
+    localStorage.removeItem("nimto_user");
+    const savedUser = sessionStorage.getItem("nimto_user");
     if (savedUser) {
       try {
         const cachedUser = JSON.parse(savedUser) as AuthUser;
         setUser(cachedUser);
         hydrateDashboardCache(cachedUser.id);
       } catch {
-        localStorage.removeItem("nimto_user");
+        sessionStorage.removeItem("nimto_user");
       }
     }
 
@@ -747,15 +752,15 @@ export function DashboardClient({
       .then((response) => {
         setUser(response.user);
         hydrateDashboardCache(response.user.id);
-        localStorage.setItem("nimto_user", JSON.stringify(response.user));
+        sessionStorage.setItem("nimto_user", JSON.stringify(response.user));
       })
       .catch((caughtError) => {
         if (
           caughtError instanceof ApiError &&
           (caughtError.status === 401 || caughtError.status === 403)
         ) {
-          localStorage.removeItem("nimto_token");
-          localStorage.removeItem("nimto_user");
+          localStorage.removeItem("nimto_session");
+          sessionStorage.removeItem("nimto_user");
           router.replace("/auth?mode=login");
           return;
         }
@@ -774,7 +779,7 @@ export function DashboardClient({
 
   const request = useCallback(
     async <T,>(path: string, options: RequestInit = {}) => {
-      const savedToken = localStorage.getItem("nimto_token");
+      const savedToken = localStorage.getItem("nimto_session");
       if (!savedToken) {
         throw new Error("Missing auth token.");
       }
@@ -792,7 +797,7 @@ export function DashboardClient({
 
   const refreshAdminData = useCallback(
     async (authUser = user, options: { force?: boolean } = {}) => {
-      const savedToken = localStorage.getItem("nimto_token");
+      const savedToken = localStorage.getItem("nimto_session");
       if (!savedToken || !authUser) {
         return;
       }
@@ -1074,13 +1079,13 @@ export function DashboardClient({
   );
 
   async function logout() {
-    const savedToken = localStorage.getItem("nimto_token");
+    const savedToken = localStorage.getItem("nimto_session");
     const userId = user?.id;
 
-    localStorage.removeItem("nimto_token");
-    localStorage.removeItem("nimto_user");
+    clearAuthSession();
     if (userId) {
       localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      sessionStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
     }
     setUser(null);
     router.replace("/");
@@ -1159,7 +1164,7 @@ export function DashboardClient({
   }
 
   async function loadMoreAccounts(kind: "staff" | "users") {
-    const savedToken = localStorage.getItem("nimto_token");
+    const savedToken = localStorage.getItem("nimto_session");
     const nextSkip = kind === "staff" ? staffNextSkip : usersNextSkip;
     if (!savedToken || nextSkip === null) return;
 
@@ -1190,7 +1195,7 @@ export function DashboardClient({
   }
 
   async function loadAccessCatalog(force = false) {
-    const savedToken = localStorage.getItem("nimto_token");
+    const savedToken = localStorage.getItem("nimto_session");
     if (!savedToken || !user) return;
 
     const canUseCache =
@@ -4595,7 +4600,9 @@ function TemplateCapabilityPanel({
               <input
                 checked={Boolean(config.countdown?.available)}
                 onChange={(event) =>
-                  updateFeature("countdown", { available: event.target.checked })
+                  updateFeature("countdown", {
+                    available: event.target.checked,
+                  })
                 }
                 type="checkbox"
               />
@@ -4618,49 +4625,52 @@ function TemplateCapabilityPanel({
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
-        {rows.filter((row) => row.supported).map((row) => (
-          <div
-            className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3"
-            key={row.key}
-          >
-            <span className="text-sm font-black" title={row.detail}>
-              {row.label}
-            </span>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex items-center justify-between gap-3 text-xs font-black">
-                Allow hosts
-                <input
-                  checked={Boolean(row.allowed)}
-                  onChange={(event) =>
-                    updateFeature(row.key, { available: event.target.checked })
-                  }
-                  type="checkbox"
-                />
-              </label>
-              {row.defaultEnabled !== undefined ? (
+        {rows
+          .filter((row) => row.supported)
+          .map((row) => (
+            <div
+              className="grid gap-2 rounded-lg border border-ink/10 bg-paper/60 p-3"
+              key={row.key}
+            >
+              <span className="text-sm font-black" title={row.detail}>
+                {row.label}
+              </span>
+              <div className="grid gap-2 sm:grid-cols-2">
                 <label className="flex items-center justify-between gap-3 text-xs font-black">
-                  On by default
+                  Allow hosts
                   <input
-                    checked={Boolean(row.defaultEnabled)}
-                    disabled={!row.allowed}
+                    checked={Boolean(row.allowed)}
                     onChange={(event) =>
                       updateFeature(row.key, {
-                        defaultEnabled: event.target.checked,
+                        available: event.target.checked,
                       })
                     }
                     type="checkbox"
                   />
                 </label>
-              ) : null}
+                {row.defaultEnabled !== undefined ? (
+                  <label className="flex items-center justify-between gap-3 text-xs font-black">
+                    On by default
+                    <input
+                      checked={Boolean(row.defaultEnabled)}
+                      disabled={!row.allowed}
+                      onChange={(event) =>
+                        updateFeature(row.key, {
+                          defaultEnabled: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                  </label>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
       {rows.some((row) => !row.supported) ? (
         <details className="rounded-lg border border-ink/10 bg-ink/[0.025] px-3 py-2">
           <summary className="cursor-pointer text-xs font-black text-ink/55">
-            Unavailable features (
-            {rows.filter((row) => !row.supported).length})
+            Unavailable features ({rows.filter((row) => !row.supported).length})
           </summary>
           <div className="mt-2 flex flex-wrap gap-2">
             {rows
@@ -4755,17 +4765,20 @@ function TemplateEditorPanel({
     onSelectField(editorFields[nextIndex].key);
   }
 
-  const syncPreview = useCallback((frame?: HTMLIFrameElement) => {
-    (frame ?? previewRef.current)?.contentWindow?.postMessage(
-      {
-        source: "nimto-template-editor",
-        type: "syncFields",
-        fields: editorFields,
-        selectedFieldKey,
-      },
-      "*",
-    );
-  }, [editorFields, selectedFieldKey]);
+  const syncPreview = useCallback(
+    (frame?: HTMLIFrameElement) => {
+      (frame ?? previewRef.current)?.contentWindow?.postMessage(
+        {
+          source: "nimto-template-editor",
+          type: "syncFields",
+          fields: editorFields,
+          selectedFieldKey,
+        },
+        "*",
+      );
+    },
+    [editorFields, selectedFieldKey],
+  );
 
   useEffect(() => {
     syncPreview();
@@ -7922,7 +7935,8 @@ function StaffPanel({
                 <span className="text-sm font-bold text-ink">Password</span>
                 <input
                   disabled={protectedAccount}
-                  minLength={8}
+                  minLength={12}
+                  maxLength={128}
                   name="password"
                   placeholder="Leave unchanged"
                   type="password"
@@ -8058,7 +8072,13 @@ function StaffPanel({
             </label>
             <label className="field">
               <span className="text-sm font-bold text-ink">Password</span>
-              <input minLength={8} name="password" required type="password" />
+              <input
+                minLength={12}
+                maxLength={128}
+                name="password"
+                required
+                type="password"
+              />
             </label>
           </div>
           <div className="mt-4">

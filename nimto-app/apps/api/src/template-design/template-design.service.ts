@@ -622,6 +622,13 @@ export class TemplateDesignService {
       where: { id: templateId },
     });
     if (!template) throw new NotFoundException("Template not found.");
+    const access = await this.templateAccess(context.actorId);
+    if (
+      !access.updateAll &&
+      !(access.updateOwn && template.createdById === context.actorId)
+    ) {
+      throw new ForbiddenException("You cannot update this template.");
+    }
     const animation = await this.prisma.animationComponent.findUnique({
       where: { id: dto.animationComponentId },
     });
@@ -656,6 +663,18 @@ export class TemplateDesignService {
     assignmentId: string,
     context: ActorContext,
   ) {
+    const template = await this.prisma.invitationTemplate.findUnique({
+      where: { id: templateId },
+      select: { createdById: true },
+    });
+    if (!template) throw new NotFoundException("Template not found.");
+    const access = await this.templateAccess(context.actorId);
+    if (
+      !access.updateAll &&
+      !(access.updateOwn && template.createdById === context.actorId)
+    ) {
+      throw new ForbiddenException("You cannot update this template.");
+    }
     const assignment = await this.prisma.templateAnimationAssignment.findFirst({
       where: { id: assignmentId, templateId },
     });
@@ -1316,7 +1335,10 @@ export class TemplateDesignService {
   }
 
   private assertNimtoHtml(rawHtml: string) {
-    this.assertSafeUploadedHtml(rawHtml, { requireCompleteDocument: true });
+    this.assertSafeUploadedHtml(rawHtml, {
+      requireCompleteDocument: true,
+      allowMetadataScript: true,
+    });
 
     if (!/<html[\s>]/i.test(rawHtml)) {
       throw new BadRequestException("Template must be a complete HTML file.");
@@ -1460,7 +1482,10 @@ export class TemplateDesignService {
 
   private assertSafeUploadedHtml(
     rawHtml: string,
-    options: { requireCompleteDocument: boolean },
+    options: {
+      requireCompleteDocument: boolean;
+      allowMetadataScript?: boolean;
+    },
   ) {
     if (options.requireCompleteDocument && !/<html[\s>]/i.test(rawHtml)) {
       throw new BadRequestException("Template must be a complete HTML file.");
@@ -1468,11 +1493,34 @@ export class TemplateDesignService {
 
     for (const tag of rawHtml.matchAll(/<script\b[^>]*>/gis)) {
       const attrs = this.attributes(tag[0]);
+      if (!options.allowMetadataScript || !this.isTemplateMetaScript(attrs)) {
+        throw new BadRequestException(
+          "Executable scripts are not allowed in uploaded HTML.",
+        );
+      }
       if (attrs.src) {
         throw new BadRequestException(
           "External scripts are not allowed in uploaded HTML.",
         );
       }
+    }
+
+    if (
+      /\bon\w+\s*=/i.test(rawHtml) ||
+      /\b(?:javascript|vbscript):/i.test(rawHtml)
+    ) {
+      throw new BadRequestException(
+        "Uploaded HTML contains an unsafe event handler or URL.",
+      );
+    }
+
+    if (
+      !options.requireCompleteDocument &&
+      /<(?:iframe|form|object|embed|base|frame|frameset)\b/i.test(rawHtml)
+    ) {
+      throw new BadRequestException(
+        "Animation HTML cannot contain frames, forms, or embedded objects.",
+      );
     }
 
     for (const tag of rawHtml.matchAll(/<iframe\b[^>]*>/gis)) {
@@ -2286,7 +2334,10 @@ export class TemplateDesignService {
         `(<[^>]+${attribute}\\s*=\\s*(["'])${slot}\\2[^>]*>)`,
         "i",
       );
-      return html.replace(pattern, `$1${assignment.rawHtml}`);
+      return html.replace(
+        pattern,
+        (_match, openingTag) => `${openingTag}${assignment.rawHtml}`,
+      );
     }, templateHtml);
   }
 

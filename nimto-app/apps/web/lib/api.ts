@@ -31,12 +31,22 @@ export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (options.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (
+    typeof window !== "undefined" &&
+    localStorage.getItem("nimto_session") === "cookie" &&
+    !headers.has("Authorization")
+  ) {
+    headers.set("Authorization", "Bearer cookie");
+  }
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    credentials: "include",
+    headers,
   });
 
   const data = await response.json().catch(() => ({}));
