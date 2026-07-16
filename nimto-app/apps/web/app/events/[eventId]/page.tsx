@@ -1570,21 +1570,27 @@ function EventDetailContent({
             </article>
           </section>
           <section className="user-panel event-next-action">
-            <div>
-              <p className="user-kicker">Next best action</p>
-              <h2>{nextStep.label}</h2>
-              <p>
-                {readyCount}/{readiness.length} basics are ready. You can save
-                changes anytime; guests only see the published invitation.
-              </p>
+            <div className="event-next-action-copy">
+              <p className="user-kicker">Save status</p>
+              <div className="event-next-action-summary">
+                <strong>
+                  {readyCount}/{readiness.length} ready
+                </strong>
+                <span>
+                  Save anytime. Guests only see the published invitation.
+                </span>
+              </div>
             </div>
-            <button
-              className="user-primary-button"
-              onClick={() => setActiveTab(nextStep.tab)}
-              type="button"
-            >
-              Continue
-            </button>
+            <div className="event-next-action-controls">
+              <span className="event-next-action-pill">{nextStep.label}</span>
+              <button
+                className="user-primary-button"
+                onClick={() => setActiveTab(nextStep.tab)}
+                type="button"
+              >
+                Continue
+              </button>
+            </div>
           </section>
           <section className="user-panel">
             <div className="event-section-heading">
