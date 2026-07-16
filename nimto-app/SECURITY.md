@@ -34,6 +34,11 @@ Use two PostgreSQL credentials:
   only while `prisma migrate deploy` runs. The hardening migration must be able
   to create the `nimto_runtime` role.
 
+The container prefers `MIGRATION_DATABASE_URL` and falls back to Prisma's
+`DIRECT_URL` for deployments that already use that variable for their direct
+owner connection. Keep `DATABASE_URL` assigned to the restricted runtime role;
+do not point it at either owner credential.
+
 After creating the application login, grant it the runtime group role once:
 
 ```sql
