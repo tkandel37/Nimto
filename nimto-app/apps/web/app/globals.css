@@ -7648,65 +7648,129 @@ button.user-design-preview {
 }
 
 .event-next-action {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: linear-gradient(120deg, #fffdf8, #eef5ec);
-  padding-block: 16px;
-}
-
-.event-next-action-copy {
+  position: relative;
   display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.event-next-action-summary {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px 14px;
+  gap: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.82);
+  padding: 10px 10px 10px 12px;
+  box-shadow: 0 10px 28px rgb(59 39 58 / 0.045);
 }
 
-.event-next-action-summary strong {
-  font-size: 0.98rem;
-  font-weight: 900;
+.event-next-action::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--brand-gradient);
+  content: "";
 }
 
-.event-next-action-summary span {
-  color: rgb(23 37 29 / 0.55);
-  line-height: 1.45;
+.event-next-action-count {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-content: center;
+  border: 1px solid rgb(129 39 216 / 0.12);
+  border-radius: 12px;
+  background: var(--brand-wash);
+  color: var(--brand-plum-deep);
+  text-align: center;
+  line-height: 1;
 }
 
-.event-next-action-controls {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+.event-next-action-count strong {
+  font-size: 1.05rem;
+  font-weight: 950;
 }
 
-.event-next-action-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  border: 1px solid rgb(23 37 29 / 0.1);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.7);
-  padding: 0 12px;
-  color: rgb(23 37 29 / 0.72);
-  font-size: 0.78rem;
-  font-weight: 900;
+.event-next-action-count span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  font-weight: 850;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.event-next-action .user-primary-button {
-  width: auto;
-  min-width: 132px;
-  min-height: 40px;
+.event-next-action-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.event-next-action-copy > span {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.event-next-action-copy > strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-next-action-track {
+  display: block;
+  width: min(280px, 100%);
+  height: 3px;
+  overflow: hidden;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: rgb(83 49 73 / 0.1);
+}
+
+.event-next-action-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-gradient);
+}
+
+.event-next-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  padding: 0 8px 0 13px;
+  color: var(--brand-plum-deep);
+  font-size: 0.8rem;
+  font-weight: 900;
+  box-shadow: 0 5px 14px rgb(59 39 58 / 0.05);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.event-next-action-link svg {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--brand-wash);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.event-next-action-link:hover {
+  border-color: rgb(129 39 216 / 0.3);
+  box-shadow: 0 8px 20px rgb(129 39 216 / 0.1);
+  transform: translateY(-1px);
 }
 
 .event-journey {
@@ -9230,12 +9294,7 @@ button.user-design-preview {
   }
 
   .event-next-action {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .event-next-action-controls {
-    justify-content: space-between;
+    display: none;
   }
 
   .event-journey {

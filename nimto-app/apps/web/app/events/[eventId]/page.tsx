@@ -1569,28 +1569,37 @@ function EventDetailContent({
               <strong>{statistics?.pending ?? 0}</strong>
             </article>
           </section>
-          <section className="user-panel event-next-action">
+          <section className="event-next-action" aria-label="Setup progress">
+            <div className="event-next-action-count" aria-hidden="true">
+              <strong>{readyCount}</strong>
+              <span>of {readiness.length}</span>
+            </div>
             <div className="event-next-action-copy">
-              <p className="user-kicker">Save status</p>
-              <div className="event-next-action-summary">
-                <strong>
-                  {readyCount}/{readiness.length} ready
-                </strong>
-                <span>
-                  Save anytime. Guests only see the published invitation.
-                </span>
+              <span>Up next</span>
+              <strong>{nextStep.label}</strong>
+              <div
+                aria-label={`${readyCount} of ${readiness.length} setup steps ready`}
+                aria-valuemax={readiness.length}
+                aria-valuemin={0}
+                aria-valuenow={readyCount}
+                className="event-next-action-track"
+                role="progressbar"
+              >
+                <span
+                  style={{ width: `${(readyCount / readiness.length) * 100}%` }}
+                />
               </div>
             </div>
-            <div className="event-next-action-controls">
-              <span className="event-next-action-pill">{nextStep.label}</span>
-              <button
-                className="user-primary-button"
-                onClick={() => setActiveTab(nextStep.tab)}
-                type="button"
-              >
-                Continue
-              </button>
-            </div>
+            <button
+              className="event-next-action-link"
+              onClick={() => setActiveTab(nextStep.tab)}
+              type="button"
+            >
+              <span>Continue setup</span>
+              <svg aria-hidden="true" viewBox="0 0 20 20">
+                <path d="m7.5 4.5 5.5 5.5-5.5 5.5" />
+              </svg>
+            </button>
           </section>
           <section className="user-panel">
             <div className="event-section-heading">
