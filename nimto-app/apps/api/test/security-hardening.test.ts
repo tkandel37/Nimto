@@ -68,6 +68,16 @@ test("session cookies are HttpOnly and Secure in production", () => {
   assert.equal(captured?.value, "signed-token");
   assert.equal(captured?.options.httpOnly, true);
   assert.equal(captured?.options.secure, true);
+  assert.equal(captured?.options.sameSite, "none");
+
+  setSessionCookie(
+    response as never,
+    "same-site-token",
+    new ConfigService({
+      NODE_ENV: "production",
+      AUTH_COOKIE_SAME_SITE: "lax",
+    }),
+  );
   assert.equal(captured?.options.sameSite, "lax");
 });
 

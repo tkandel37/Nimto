@@ -71,8 +71,11 @@ links after deployment.
 
 The session JWT is held only in an `HttpOnly` cookie. Keep the frontend and API
 same-site and use `AUTH_COOKIE_SAME_SITE=lax` whenever possible. If a genuinely
-cross-site deployment requires `none`, HTTPS is mandatory. `FRONTEND_URL` must
-contain exact comma-separated HTTPS origins; wildcards are not accepted.
+cross-site deployment requires `none`, HTTPS is mandatory. Production defaults
+to `none` so split hosts such as `www.mynimto.com` and `*.onrender.com` can
+complete authentication; explicitly set `AUTH_COOKIE_SAME_SITE=lax` after
+moving the API onto the same site. `FRONTEND_URL` must contain exact
+comma-separated HTTPS origins; wildcards are not accepted.
 
 Terminate TLS at a trusted reverse proxy and set `TRUST_PROXY` only to the
 proxy networks or hop count actually in use. Never trust arbitrary forwarded

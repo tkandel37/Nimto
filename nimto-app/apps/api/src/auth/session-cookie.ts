@@ -8,8 +8,14 @@ function cookieOptions(config: ConfigService): CookieOptions {
   const configuredSameSite = config
     .get<string>("AUTH_COOKIE_SAME_SITE")
     ?.toLowerCase();
-  const sameSite = configuredSameSite === "none" ? "none" : "lax";
   const production = config.get<string>("NODE_ENV") === "production";
+  const sameSite = configuredSameSite
+    ? configuredSameSite === "none"
+      ? "none"
+      : "lax"
+    : production
+      ? "none"
+      : "lax";
 
   return {
     httpOnly: true,
