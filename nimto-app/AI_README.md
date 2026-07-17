@@ -120,12 +120,11 @@ Developer utilities
   └── Adminer → http://localhost:8080
 ```
 
-The web app uses two API addresses:
-
-- `NEXT_PUBLIC_API_URL`: browser-visible URL, normally
-  `http://localhost:4000`.
-- `INTERNAL_API_URL`: server-rendering URL inside Docker, normally
-  `http://api:4000`.
+The web app uses a same-origin `/api` gateway for every browser request.
+`INTERNAL_API_URL` selects the server-side upstream and is normally
+`http://api:4000` in Docker or the private/HTTPS API address in production.
+`NEXT_PUBLIC_API_URL` remains a development/build compatibility fallback; it
+is no longer compiled into browser fetches or the Google sign-in link.
 
 Do not replace the internal URL with `localhost` inside the web container;
 `localhost` there means the web container itself.

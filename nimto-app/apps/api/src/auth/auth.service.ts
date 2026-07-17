@@ -206,6 +206,82 @@ export class AuthService {
     };
   }
 
+  async createOAuthSessionBridge(token: string) {
+    const payload = this.verifySessionToken(token);
+    const expiresAt = new Date(Date.now() + 2 * 60_000);
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv(
+      "aes-256-gcm",
+      this.oauthBridgeKey(),
+      iv,
+    );
+    const plaintext = Buffer.from(
+      JSON.stringify({ token, expiresAt: expiresAt.getTime() }),
+      "utf8",
+    );
+    const ciphertext = Buffer.concat([
+      cipher.update(plaintext),
+      cipher.final(),
+    ]);
+    const bridge = Buffer.concat([
+      iv,
+      cipher.getAuthTag(),
+      ciphertext,
+    ]).toString("base64url");
+
+    await this.prisma.userSession.update({
+      where: { id: payload.sessionId },
+      data: {
+        oauthClaimHash: this.hashOAuthBridge(bridge),
+        oauthClaimExpiresAt: expiresAt,
+      },
+    });
+    return bridge;
+  }
+
+  async consumeOAuthSessionBridge(bridge: string) {
+    try {
+      const packed = Buffer.from(bridge, "base64url");
+      if (packed.length < 29) throw new Error("Invalid bridge.");
+      const decipher = crypto.createDecipheriv(
+        "aes-256-gcm",
+        this.oauthBridgeKey(),
+        packed.subarray(0, 12),
+      );
+      decipher.setAuthTag(packed.subarray(12, 28));
+      const plaintext = Buffer.concat([
+        decipher.update(packed.subarray(28)),
+        decipher.final(),
+      ]).toString("utf8");
+      const parsed = JSON.parse(plaintext) as {
+        token?: unknown;
+        expiresAt?: unknown;
+      };
+      if (
+        typeof parsed.token !== "string" ||
+        typeof parsed.expiresAt !== "number" ||
+        parsed.expiresAt <= Date.now()
+      ) {
+        throw new Error("Expired bridge.");
+      }
+
+      const payload = this.verifySessionToken(parsed.token);
+      const claimed = await this.prisma.userSession.updateMany({
+        where: {
+          id: payload.sessionId,
+          oauthClaimHash: this.hashOAuthBridge(bridge),
+          oauthClaimExpiresAt: { gt: new Date() },
+          revokedAt: null,
+        },
+        data: { oauthClaimHash: null, oauthClaimExpiresAt: null },
+      });
+      if (claimed.count !== 1) throw new Error("Bridge already used.");
+      return parsed.token;
+    } catch {
+      throw new UnauthorizedException("Invalid or expired sign-in handoff.");
+    }
+  }
+
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -989,6 +1065,33 @@ export class AuthService {
       .createHmac("sha256", secret)
       .update(`${purpose}\0${value}`)
       .digest("hex");
+  }
+
+  private oauthBridgeKey() {
+    const secret = this.config.get<string>("JWT_SECRET");
+    if (!secret) throw new Error("JWT_SECRET is required.");
+    return crypto
+      .createHash("sha256")
+      .update(`oauth-session-bridge\0${secret}`)
+      .digest();
+  }
+
+  private hashOAuthBridge(bridge: string) {
+    return crypto.createHash("sha256").update(bridge).digest("hex");
+  }
+
+  private verifySessionToken(token: string) {
+    const secret = this.config.get<string>("JWT_SECRET");
+    if (!secret) throw new Error("JWT_SECRET is required.");
+    const payload = jwt.verify(token, secret, {
+      algorithms: ["HS256"],
+      audience: this.config.get<string>("JWT_AUDIENCE") ?? "nimto-web",
+      issuer: this.config.get<string>("JWT_ISSUER") ?? "nimto-api",
+    }) as { sessionId?: unknown };
+    if (typeof payload.sessionId !== "string" || !payload.sessionId) {
+      throw new UnauthorizedException("Invalid session token.");
+    }
+    return { sessionId: payload.sessionId };
   }
 
   private credentialMatches(

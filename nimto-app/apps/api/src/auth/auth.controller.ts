@@ -28,6 +28,7 @@ import {
   setSessionCookie,
 } from "./session-cookie";
 import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
+import { ClaimOAuthSessionDto } from "./dto/claim-oauth-session.dto";
 
 @Controller()
 export class AuthController {
@@ -106,6 +107,20 @@ export class AuthController {
     return this.authService.me(request.user!.sub);
   }
 
+  @Post("auth/oauth/session")
+  @Throttle({
+    default: { limit: 10, ttl: minutes(15), blockDuration: minutes(15) },
+  })
+  async claimOAuthSession(
+    @Body() dto: ClaimOAuthSessionDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const token = await this.authService.consumeOAuthSessionBridge(dto.bridge);
+    setSessionCookie(response, token, this.config);
+    response.setHeader("Cache-Control", "no-store");
+    return { success: true };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch("auth/profile")
   @Throttle({
@@ -163,9 +178,10 @@ export class AuthController {
     default: { limit: 20, ttl: minutes(15), blockDuration: minutes(15) },
   })
   @UseGuards(GoogleConfiguredGuard, AuthGuard("google"))
-  googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+  async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
     const { token } = req.user;
     setSessionCookie(res, token, this.config);
+    const bridge = await this.authService.createOAuthSessionBridge(token);
     const frontendUrl =
       process.env.FRONTEND_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -175,7 +191,10 @@ export class AuthController {
       .trim()
       .replace(/\/$/, "");
     res.setHeader("Cache-Control", "no-store");
-    res.redirect(303, `${primaryFrontendUrl}/auth/oauth-success`);
+    res.redirect(
+      303,
+      `${primaryFrontendUrl}/auth/oauth-success#bridge=${encodeURIComponent(bridge)}`,
+    );
   }
 
   private context(request: Request) {

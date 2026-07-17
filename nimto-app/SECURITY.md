@@ -77,6 +77,14 @@ complete authentication; explicitly set `AUTH_COOKIE_SAME_SITE=lax` after
 moving the API onto the same site. `FRONTEND_URL` must contain exact
 comma-separated HTTPS origins; wildcards are not accepted.
 
+The deployed web app sends browser API traffic through its same-origin `/api`
+gateway, whose upstream is configured with server-only `INTERNAL_API_URL`.
+Google OAuth returns an encrypted, two-minute, single-use claim in the URL
+fragment; the gateway exchanges it for the first-party `HttpOnly` cookie. The
+claim hash is cleared atomically, and the session JWT is never placed in the
+URL or browser storage. Production builds reject loopback API targets by using
+the known hosted upstream instead.
+
 Terminate TLS at a trusted reverse proxy and set `TRUST_PROXY` only to the
 proxy networks or hop count actually in use. Never trust arbitrary forwarded
 IP headers from the public internet.

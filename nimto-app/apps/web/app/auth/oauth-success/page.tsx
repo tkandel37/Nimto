@@ -15,15 +15,35 @@ export default function OAuthSuccessPage() {
   const [status, setStatus] = useState<"loading" | "error">("loading");
 
   useEffect(() => {
-    apiRequest<{ user: AuthUser }>("/auth/me")
-      .then((response) => {
+    let cancelled = false;
+
+    async function completeSignIn() {
+      try {
+        const fragment = new URLSearchParams(window.location.hash.slice(1));
+        const bridge = fragment.get("bridge");
+        window.history.replaceState(null, "", window.location.pathname);
+        if (bridge) {
+          await apiRequest<{ success: true }>("/auth/oauth/session", {
+            method: "POST",
+            body: JSON.stringify({ bridge }),
+          });
+        }
+
+        const response = await verifySessionWithRetry();
+        if (cancelled) return;
         saveAuthSession(AUTH_SESSION_MARKER, response.user);
         router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
-      })
-      .catch(() => {
+      } catch {
+        if (cancelled) return;
         clearAuthSession();
         setStatus("error");
-      });
+      }
+    }
+
+    void completeSignIn();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return (
@@ -67,6 +87,21 @@ export default function OAuthSuccessPage() {
       </div>
     </main>
   );
+}
+
+async function verifySessionWithRetry() {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await apiRequest<{ user: AuthUser }>("/auth/me");
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 600 * 2 ** attempt));
+      }
+    }
+  }
+  throw lastError;
 }
 
 function isAdminUser(user: AuthUser) {

@@ -8,8 +8,19 @@ function origin(value: string | undefined) {
   }
 }
 
-const apiOrigin = origin(process.env.NEXT_PUBLIC_API_URL);
 const isProduction = process.env.NODE_ENV === "production";
+const configuredApiOrigin = origin(
+  process.env.INTERNAL_API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    (isProduction
+      ? "https://nimto-4pop.onrender.com"
+      : "http://localhost:4000"),
+);
+const apiHostname = new URL(configuredApiOrigin).hostname;
+const apiOrigin =
+  isProduction && ["localhost", "127.0.0.1", "[::1]"].includes(apiHostname)
+    ? "https://nimto-4pop.onrender.com"
+    : configuredApiOrigin;
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
@@ -29,6 +40,23 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/auth/google/start",
+        destination: `${apiOrigin}/auth/google`,
+        permanent: false,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${apiOrigin}/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {

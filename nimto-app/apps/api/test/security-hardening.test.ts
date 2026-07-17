@@ -170,6 +170,50 @@ test("verified Google login repairs legacy accounts without an email verificatio
   assert.ok(updatedData?.emailVerifiedAt instanceof Date);
 });
 
+test("OAuth session handoff is encrypted, short-lived, and single-use", async () => {
+  const sessionId = crypto.randomBytes(32).toString("hex");
+  const token = jwt.sign(
+    { email: "user@example.com", sessionId },
+    strongSecret,
+    {
+      algorithm: "HS256",
+      audience: "nimto-web",
+      issuer: "nimto-api",
+      subject: "user-id",
+      expiresIn: "5m",
+    },
+  );
+  let storedClaimHash = "";
+  let used = false;
+  const prisma = {
+    userSession: {
+      update: async ({ data }: { data: { oauthClaimHash: string } }) => {
+        storedClaimHash = data.oauthClaimHash;
+      },
+      updateMany: async ({ where }: { where: { oauthClaimHash: string } }) => {
+        const matches = !used && where.oauthClaimHash === storedClaimHash;
+        used = true;
+        return { count: matches ? 1 : 0 };
+      },
+    },
+  };
+  const service = new AuthService(
+    prisma as never,
+    new ConfigService({
+      JWT_SECRET: strongSecret,
+      JWT_ISSUER: "nimto-api",
+      JWT_AUDIENCE: "nimto-web",
+    }),
+    {} as never,
+    {} as never,
+  );
+
+  const bridge = await service.createOAuthSessionBridge(token);
+  assert.equal(bridge.includes(token), false);
+  assert.equal(await service.consumeOAuthSessionBridge(bridge), token);
+  await assert.rejects(() => service.consumeOAuthSessionBridge(bridge));
+});
+
 test("cookie-authenticated writes require the browser sentinel and a live DB session", async () => {
   const config = new ConfigService({
     JWT_SECRET: strongSecret,
