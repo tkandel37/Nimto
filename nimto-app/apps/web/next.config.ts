@@ -40,15 +40,6 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  async redirects() {
-    return [
-      {
-        source: "/auth/google/start",
-        destination: `${apiOrigin}/auth/google`,
-        permanent: false,
-      },
-    ];
-  },
   async rewrites() {
     return [
       {
