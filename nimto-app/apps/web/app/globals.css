@@ -4473,6 +4473,183 @@ button.user-design-preview {
   }
 }
 
+/* Branded OAuth hand-off: a calm invitation opening while the session settles. */
+.oauth-completion-shell {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 18%, rgb(239 47 118 / 0.1), transparent 30rem),
+    radial-gradient(circle at 82% 78%, rgb(129 39 216 / 0.11), transparent 32rem),
+    linear-gradient(145deg, #fffdf9, #faf7ff 58%, #fff9fc);
+  padding: 24px;
+}
+
+.oauth-completion-shell::before,
+.oauth-completion-shell::after {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border: 1px solid rgb(129 39 216 / 0.09);
+  border-radius: 42% 58% 64% 36%;
+  content: "";
+  transform: rotate(24deg);
+}
+
+.oauth-completion-shell::before { top: -110px; right: -78px; }
+.oauth-completion-shell::after { bottom: -135px; left: -68px; transform: rotate(-18deg); }
+
+.oauth-completion-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 460px);
+  border: 1px solid rgb(129 39 216 / 0.11);
+  border-radius: 30px;
+  background: rgb(255 255 255 / 0.82);
+  padding: clamp(36px, 7vw, 58px);
+  text-align: center;
+  box-shadow: 0 28px 80px rgb(70 35 95 / 0.13);
+  backdrop-filter: blur(18px);
+}
+
+.oauth-signin-state { display: grid; justify-items: center; }
+
+.oauth-signin-visual {
+  position: relative;
+  display: grid;
+  width: 150px;
+  height: 150px;
+  place-items: center;
+  margin-bottom: 26px;
+}
+
+.oauth-signin-orbit {
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgb(129 39 216 / 0.14);
+  border-radius: 50%;
+  animation: oauth-orbit-breathe 2.4s ease-in-out infinite;
+}
+
+.oauth-signin-logo-card {
+  position: relative;
+  display: grid;
+  min-width: 124px;
+  min-height: 82px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.9);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.98), rgb(252 247 255 / 0.92));
+  box-shadow: 0 18px 42px rgb(129 39 216 / 0.16);
+  animation: oauth-card-float 2.4s ease-in-out infinite;
+}
+
+.oauth-signin-logo-card::after {
+  position: absolute;
+  right: 15px;
+  bottom: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand-berry);
+  box-shadow: 0 0 0 5px rgb(239 47 118 / 0.1);
+  content: "";
+  animation: oauth-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.oauth-signin-brand { font-size: 1.08rem; }
+.oauth-signin-brand .brand-logo-image { width: 2.35rem; height: 2.35rem; }
+
+.oauth-signin-spark {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand-plum);
+  box-shadow: 0 0 0 5px rgb(129 39 216 / 0.08);
+  animation: oauth-spark-drift 2.6s ease-in-out infinite;
+}
+
+.oauth-signin-spark-one { top: 13px; right: 30px; }
+.oauth-signin-spark-two { bottom: 22px; left: 20px; width: 6px; height: 6px; background: var(--brand-berry); animation-delay: -0.85s; }
+.oauth-signin-spark-three { top: 42px; left: 8px; width: 5px; height: 5px; background: #f2a93b; animation-delay: -1.65s; }
+
+.oauth-signin-kicker {
+  color: var(--brand-plum-deep);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.oauth-signin-state h1 {
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.oauth-signin-copy { margin-top: 9px; color: var(--text-muted); font-size: 0.92rem; }
+
+.oauth-signin-progress {
+  width: min(100%, 230px);
+  height: 4px;
+  overflow: hidden;
+  margin-top: 28px;
+  border-radius: 999px;
+  background: rgb(129 39 216 / 0.09);
+}
+
+.oauth-signin-progress span {
+  display: block;
+  width: 44%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-gradient);
+  animation: oauth-progress-glide 1.45s ease-in-out infinite;
+}
+
+.oauth-signin-error { display: grid; justify-items: center; }
+.oauth-error-brand { margin-bottom: 26px; }
+
+@keyframes oauth-card-float {
+  0%, 100% { transform: translateY(3px) rotate(-0.7deg); }
+  50% { transform: translateY(-6px) rotate(0.7deg); }
+}
+
+@keyframes oauth-orbit-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes oauth-dot-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.75); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes oauth-spark-drift {
+  0%, 100% { opacity: 0.45; transform: translateY(3px) scale(0.82); }
+  50% { opacity: 1; transform: translateY(-5px) scale(1); }
+}
+
+@keyframes oauth-progress-glide {
+  0% { transform: translateX(-110%); }
+  55%, 100% { transform: translateX(245%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oauth-signin-orbit,
+  .oauth-signin-logo-card,
+  .oauth-signin-logo-card::after,
+  .oauth-signin-spark,
+  .oauth-signin-progress span { animation: none; }
+
+  .oauth-signin-progress span { width: 100%; opacity: 0.7; }
+}
+
 /* Final mobile invitation overrides: keep this after legacy responsive rules. */
 @media (max-width: 768px) {
   .design-preview-modal {

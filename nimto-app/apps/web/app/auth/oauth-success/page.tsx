@@ -8,6 +8,7 @@ import {
   clearAuthSession,
   saveAuthSession,
 } from "@/lib/auth-session";
+import { BrandLogo } from "../../brand-logo";
 
 export default function OAuthSuccessPage() {
   const router = useRouter();
@@ -26,18 +27,31 @@ export default function OAuthSuccessPage() {
   }, [router]);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-paper">
-      <div className="w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-xl">
+    <main className="oauth-completion-shell">
+      <div className="oauth-completion-card">
         {status === "loading" ? (
-          <>
-            <div className="mb-6 flex justify-center">
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-leaf border-t-transparent" />
+          <div className="oauth-signin-state" role="status" aria-live="polite">
+            <div className="oauth-signin-visual" aria-hidden="true">
+              <span className="oauth-signin-orbit" />
+              <span className="oauth-signin-spark oauth-signin-spark-one" />
+              <span className="oauth-signin-spark oauth-signin-spark-two" />
+              <span className="oauth-signin-spark oauth-signin-spark-three" />
+              <div className="oauth-signin-logo-card">
+                <BrandLogo className="oauth-signin-brand" priority />
+              </div>
             </div>
-            <h1 className="mb-2 text-xl font-black text-ink">Almost there!</h1>
-            <p className="text-ink/60">Completing sign in...</p>
-          </>
+            <p className="oauth-signin-kicker">myNimto login</p>
+            <h1>Signing you in</h1>
+            <p className="oauth-signin-copy">
+              Opening the door to your invitations…
+            </p>
+            <div className="oauth-signin-progress" aria-hidden="true">
+              <span />
+            </div>
+          </div>
         ) : (
-          <>
+          <div className="oauth-signin-error">
+            <BrandLogo className="oauth-error-brand" priority />
             <h1 className="mb-2 text-xl font-black text-ink">Sign in failed</h1>
             <p className="mb-6 text-ink/60">
               We could not verify your session. Please try again.
@@ -48,7 +62,7 @@ export default function OAuthSuccessPage() {
             >
               Back to Login
             </a>
-          </>
+          </div>
         )}
       </div>
     </main>
