@@ -12,6 +12,7 @@ import {
   setSessionCookie,
 } from "../src/auth/session-cookie";
 import { TemplateDesignService } from "../src/template-design/template-design.service";
+import { AuthService } from "../src/auth/auth.service";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
 
@@ -126,6 +127,47 @@ test("OAuth state is encrypted, browser-bound, and returns the PKCE verifier", a
 
   assert.equal(verified.ok, "pkce-verifier");
   assert.deepEqual(verified.state, { returnTo: "/events" });
+});
+
+test("verified Google login repairs legacy accounts without an email verification timestamp", async () => {
+  let updatedData: Record<string, unknown> | undefined;
+  const prisma = {
+    oAuthAccount: {
+      findUnique: async () => ({
+        id: "oauth-account-id",
+        user: {
+          id: "legacy-user-id",
+          status: "ACTIVE",
+          emailVerifiedAt: null,
+        },
+      }),
+    },
+    user: {
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        updatedData = data;
+      },
+    },
+  };
+  const audit = { record: async () => undefined };
+  const service = new AuthService(
+    prisma as never,
+    new ConfigService({ JWT_SECRET: strongSecret }),
+    {} as never,
+    audit as never,
+  );
+  (service as any).buildAuthResponse = async (userId: string) => ({ userId });
+
+  const response = await service.validateOAuthLogin({
+    id: "google-provider-id",
+    displayName: "Legacy User",
+    emails: [{ value: "legacy@example.com", verified: true }],
+  });
+
+  assert.equal(
+    (response as unknown as { userId: string }).userId,
+    "legacy-user-id",
+  );
+  assert.ok(updatedData?.emailVerifiedAt instanceof Date);
 });
 
 test("cookie-authenticated writes require the browser sentinel and a live DB session", async () => {

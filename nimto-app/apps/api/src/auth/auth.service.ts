@@ -851,6 +851,7 @@ export class AuthService {
       await this.prisma.user.update({
         where: { id: oauthAccount.user.id },
         data: {
+          emailVerifiedAt: oauthAccount.user.emailVerifiedAt ?? new Date(),
           lastLoginAt: new Date(),
           failedLoginAttempts: 0,
           loginLockedUntil: null,
