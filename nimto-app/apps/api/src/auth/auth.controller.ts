@@ -7,6 +7,7 @@ import {
   Req,
   Res,
   UseGuards,
+  UseFilters,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AuthGuard } from "@nestjs/passport";
@@ -29,6 +30,7 @@ import {
 } from "./session-cookie";
 import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
 import { ClaimOAuthSessionDto } from "./dto/claim-oauth-session.dto";
+import { OAuthCallbackExceptionFilter } from "./filters/oauth-callback-exception.filter";
 
 @Controller()
 export class AuthController {
@@ -177,6 +179,7 @@ export class AuthController {
   @Throttle({
     default: { limit: 20, ttl: minutes(15), blockDuration: minutes(15) },
   })
+  @UseFilters(OAuthCallbackExceptionFilter)
   @UseGuards(GoogleConfiguredGuard, AuthGuard("google"))
   async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
     const { token } = req.user;

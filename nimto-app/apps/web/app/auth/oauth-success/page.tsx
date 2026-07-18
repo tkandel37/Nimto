@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { apiRequest, AuthUser } from "@/lib/api";
 import {
   AUTH_SESSION_MARKER,
@@ -11,7 +10,6 @@ import {
 import { BrandLogo } from "../../brand-logo";
 
 export default function OAuthSuccessPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<"loading" | "error">("loading");
 
   useEffect(() => {
@@ -32,7 +30,9 @@ export default function OAuthSuccessPage() {
         const response = await verifySessionWithRetry();
         if (cancelled) return;
         saveAuthSession(AUTH_SESSION_MARKER, response.user);
-        router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+        window.location.replace(
+          isAdminUser(response.user) ? "/dashboard" : "/events",
+        );
       } catch {
         if (cancelled) return;
         clearAuthSession();
@@ -44,7 +44,7 @@ export default function OAuthSuccessPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   return (
     <main className="oauth-completion-shell">

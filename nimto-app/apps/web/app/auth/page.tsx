@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  MouseEvent,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest, AuthResponse } from "@/lib/api";
@@ -43,29 +50,43 @@ function AuthForm() {
 
   useEffect(() => {
     setMode(searchParams.get("mode") === "login" ? "login" : "register");
+    if (searchParams.get("oauthError") === "restart") {
+      setError(
+        "That sign-in attempt was already used or expired. Please start again.",
+      );
+    }
   }, [searchParams]);
 
   useEffect(() => {
-    purgeLegacyPersistentAuthData();
-    const token = localStorage.getItem("nimto_session");
-    if (!token) return;
-
     let isActive = true;
-    apiRequest<{ user: AuthResponse["user"] }>("/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((response) => {
-        if (!isActive) return;
-        saveAuthSession(token, response.user);
-        router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+    let requestId = 0;
+
+    function restoreExistingSession() {
+      purgeLegacyPersistentAuthData();
+      const token = localStorage.getItem("nimto_session");
+      if (!token) return;
+      const currentRequest = ++requestId;
+
+      apiRequest<{ user: AuthResponse["user"] }>("/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => {
-        if (!isActive) return;
-        clearAuthSession();
-      });
+        .then((response) => {
+          if (!isActive || currentRequest !== requestId) return;
+          saveAuthSession(token, response.user);
+          router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+        })
+        .catch(() => {
+          if (!isActive || currentRequest !== requestId) return;
+          clearAuthSession();
+        });
+    }
+
+    restoreExistingSession();
+    window.addEventListener("pageshow", restoreExistingSession);
 
     return () => {
       isActive = false;
+      window.removeEventListener("pageshow", restoreExistingSession);
     };
   }, [router]);
 
@@ -129,6 +150,11 @@ function AuthForm() {
     const nextMode = mode === "register" ? "login" : "register";
     setMode(nextMode);
     router.replace(`/auth?mode=${nextMode}`, { scroll: false });
+  }
+
+  function startGoogleSignIn(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    window.location.replace("/auth/google/start");
   }
 
   return (
@@ -265,6 +291,7 @@ function AuthForm() {
               <div className="mt-6">
                 <a
                   href="/auth/google/start"
+                  onClick={startGoogleSignIn}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-ink/15 bg-white px-5 py-4 font-bold text-ink transition-colors hover:bg-paper"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24">

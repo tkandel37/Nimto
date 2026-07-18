@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ConfigService } from "@nestjs/config";
-import { ExecutionContext } from "@nestjs/common";
+import { ArgumentsHost, ExecutionContext } from "@nestjs/common";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { validateEnvironment } from "../src/config/environment";
@@ -13,6 +13,7 @@ import {
 } from "../src/auth/session-cookie";
 import { TemplateDesignService } from "../src/template-design/template-design.service";
 import { AuthService } from "../src/auth/auth.service";
+import { OAuthCallbackExceptionFilter } from "../src/auth/filters/oauth-callback-exception.filter";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
 
@@ -212,6 +213,40 @@ test("OAuth session handoff is encrypted, short-lived, and single-use", async ()
   assert.equal(bridge.includes(token), false);
   assert.equal(await service.consumeOAuthSessionBridge(bridge), token);
   await assert.rejects(() => service.consumeOAuthSessionBridge(bridge));
+});
+
+test("replayed OAuth callbacks recover to the frontend instead of exposing a 401", () => {
+  let redirectStatus = 0;
+  let redirectUrl = "";
+  let clearedCookie = "";
+  const response = {
+    clearCookie(name: string) {
+      clearedCookie = name;
+    },
+    setHeader() {},
+    redirect(status: number, url: string) {
+      redirectStatus = status;
+      redirectUrl = url;
+    },
+  };
+  const host = {
+    switchToHttp: () => ({ getResponse: () => response }),
+  } as unknown as ArgumentsHost;
+  const filter = new OAuthCallbackExceptionFilter(
+    new ConfigService({
+      NODE_ENV: "production",
+      FRONTEND_URL: "https://www.mynimto.com",
+    }),
+  );
+
+  filter.catch(new Error("Replayed callback"), host);
+
+  assert.equal(clearedCookie, "nimto_oauth_state");
+  assert.equal(redirectStatus, 303);
+  assert.equal(
+    redirectUrl,
+    "https://www.mynimto.com/auth?mode=login&oauthError=restart",
+  );
 });
 
 test("cookie-authenticated writes require the browser sentinel and a live DB session", async () => {
