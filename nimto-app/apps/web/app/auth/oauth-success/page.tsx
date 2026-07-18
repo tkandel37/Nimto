@@ -57,7 +57,7 @@ export default function OAuthSuccessPage() {
               <span className="oauth-signin-spark oauth-signin-spark-two" />
               <span className="oauth-signin-spark oauth-signin-spark-three" />
               <div className="oauth-signin-logo-card">
-                <BrandLogo className="oauth-signin-brand" priority />
+                <BrandLogo compact className="oauth-signin-brand" priority />
               </div>
             </div>
             <p className="oauth-signin-kicker">myNimto login</p>
