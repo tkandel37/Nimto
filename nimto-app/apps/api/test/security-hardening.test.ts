@@ -20,8 +20,44 @@ import { AuthService } from "../src/auth/auth.service";
 import { OAuthCallbackExceptionFilter } from "../src/auth/filters/oauth-callback-exception.filter";
 import { LogoutAuthGuard } from "../src/auth/guards/logout-auth.guard";
 import { AdminService } from "../src/admin/admin.service";
+import { AuthController } from "../src/auth/auth.controller";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
+
+test("mobile login returns the revocable bearer session without changing browser cookie login", async () => {
+  const auth = {
+    token: "signed-mobile-session",
+    user: { id: "user-id", email: "host@example.com", name: "Host" },
+  };
+  let capturedContext: { ipAddress?: string; userAgent?: string } | undefined;
+  const service = {
+    login: async (
+      _dto: { email: string; password: string },
+      context: { ipAddress?: string; userAgent?: string },
+    ) => {
+      capturedContext = context;
+      return auth;
+    },
+  };
+  const controller = new AuthController(
+    service as never,
+    new ConfigService({ JWT_SECRET: strongSecret }),
+  );
+
+  const result = await controller.mobileLogin(
+    { email: "host@example.com", password: "Valid-password1!" },
+    {
+      ip: "127.0.0.1",
+      headers: { "user-agent": "myNimto mobile test" },
+    } as never,
+  );
+
+  assert.deepEqual(result, auth);
+  assert.deepEqual(capturedContext, {
+    ipAddress: "127.0.0.1",
+    userAgent: "myNimto mobile test",
+  });
+});
 
 test("production configuration rejects weak secrets and partial OAuth", () => {
   assert.throws(() =>

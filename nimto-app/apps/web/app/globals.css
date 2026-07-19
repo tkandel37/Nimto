@@ -55,6 +55,68 @@
   --brand-gold: var(--brand-champagne);
 }
 
+.pwa-prompt {
+  position: fixed;
+  z-index: 10000;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  max-width: min(25rem, calc(100vw - 2rem));
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid var(--border-medium);
+  border-radius: 1rem;
+  background: var(--surface-raised);
+  color: var(--text-body);
+  padding: 0.85rem 0.9rem 0.85rem 1rem;
+  box-shadow: var(--shadow-raised);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.pwa-prompt button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+  color: white;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pwa-offline-page {
+  min-height: 100svh;
+  display: grid;
+  place-content: center;
+  gap: 2rem;
+  background: var(--canvas);
+  padding: 2rem;
+}
+
+.pwa-offline-page section {
+  max-width: 34rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1.5rem;
+  background: var(--surface-raised);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  box-shadow: var(--shadow-soft);
+}
+
+.pwa-offline-page h1 {
+  margin: 0.35rem 0 0.8rem;
+  color: var(--text-strong);
+  font-size: clamp(2rem, 7vw, 3.4rem);
+  letter-spacing: -0.05em;
+}
+
+.pwa-offline-page p:not(.site-kicker) {
+  margin-bottom: 1.5rem;
+  color: var(--text-body);
+  line-height: 1.7;
+}
+
 /* Keep scrolling available without leaving heavy browser chrome on every panel. */
 :where(html, body, *) {
   scrollbar-color: transparent transparent;

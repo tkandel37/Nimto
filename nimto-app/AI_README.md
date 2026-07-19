@@ -46,6 +46,11 @@ personalization. Payment and entitlement enforcement are not implemented yet.
   public invitation rendering.
 - Complete local Docker stack using PostgreSQL, Mailpit, Adminer, API, and web.
 - Automatic migration deployment and idempotent Super Admin seeding.
+- Installable Next.js PWA with a manifest, branded icons, static-only service
+  worker caching, offline fallback, and install/update messaging.
+- Expo React Native Android/iOS host app with secure mobile login, design and
+  event workflows, invitation editing/preview, invitees, RSVP summaries,
+  native sharing, and EAS build/update profiles.
 
 ### Planned, not implemented
 
@@ -79,10 +84,14 @@ nimto-app/
 │   │       ├── mail/
 │   │       ├── prisma/
 │   │       └── template-design/
-│   └── web/
+│   ├── web/
 │       ├── app/
 │       ├── lib/
 │       └── public/
+│   └── mobile/
+│       ├── src/app/
+│       ├── src/components/
+│       └── src/lib/
 ├── docker/api-entrypoint.sh
 ├── docs/module-2-template-and-design-epics.md
 ├── Dockerfile
@@ -94,12 +103,13 @@ This is an npm workspace. Run workspace commands from `nimto-app/`.
 
 ## 4. Technology and versions
 
-- Node.js 20+
+- Node.js 20.19.4+
 - Next.js 16.2.6 and React 19.2
 - NestJS 10
 - Prisma 6.19
 - PostgreSQL 16
 - TypeScript throughout
+- Expo 57, React Native 0.86, and Expo Router for Android/iOS
 - Docker Compose for the local environment
 
 Important: this project uses Next.js 16. Read the local documentation in
@@ -128,6 +138,11 @@ is no longer compiled into browser fetches or the Google sign-in link.
 
 Do not replace the internal URL with `localhost` inside the web container;
 `localhost` there means the web container itself.
+
+The native app calls the API directly through `EXPO_PUBLIC_API_URL` and uses
+`/auth/mobile/login` to receive the same database-revocable JWT session used by
+the API guard. The token is stored with Expo SecureStore. Do not return the raw
+token from the browser `/auth/login` endpoint.
 
 ## 6. Core data model
 

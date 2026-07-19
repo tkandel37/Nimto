@@ -26,6 +26,7 @@ the event information and the name of the person or family being invited.
 - Regenerate or remove invitee links.
 - Keep a permanent history of previously used designs and reuse active designs.
 - View and manage events from a personal workspace.
+- Use the installable PWA or the React Native Android/iOS host application.
 
 ### For invited guests
 
@@ -48,7 +49,8 @@ the event information and the name of the person or family being invited.
 
 | Area               | Technology                                     |
 | ------------------ | ---------------------------------------------- |
-| Frontend           | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Web and PWA        | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Mobile             | Expo 57, React Native 0.86, Expo Router        |
 | Backend            | NestJS 11, TypeScript                          |
 | Database           | PostgreSQL 16                                  |
 | ORM and migrations | Prisma 6                                       |
@@ -62,8 +64,9 @@ The repository is an npm workspace:
 ```text
 nimto-app/
 ├── apps/
-│   ├── web/                 # Next.js frontend
-│   └── api/                 # NestJS API and Prisma schema
+│   ├── web/                 # Next.js frontend and PWA
+│   ├── api/                 # NestJS API and Prisma schema
+│   └── mobile/              # Expo Android and iOS host app
 ├── docker/                  # Container startup scripts
 ├── docs/                    # Product and module documentation
 ├── AI_README.md             # Detailed handoff context for AI assistants
@@ -192,6 +195,18 @@ Render, or equivalent providers through environment variables.
 - WhatsApp, Messenger, and email sharing workflows
 - Image uploads and managed media storage
 - Production payment, billing, and entitlement rules
+
+## Mobile and PWA
+
+The web application is installable as a PWA and includes a safe offline
+fallback with static-asset caching. The Expo application provides the core
+host workflow on Android and iOS: authentication, design browsing, event
+creation and editing, invitation previews, invitee links, RSVP summaries, and
+native sharing.
+
+Mobile setup and verification are documented in
+[`apps/mobile/README.md`](apps/mobile/README.md). EAS Build, OTA, store, and PWA
+release procedures are in [`docs/mobile-release.md`](docs/mobile-release.md).
 
 ## AI contributors
 

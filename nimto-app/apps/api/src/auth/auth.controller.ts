@@ -72,6 +72,15 @@ export class AuthController {
     return { user: auth.user, token: AUTH_COOKIE_SENTINEL };
   }
 
+  @Post("auth/mobile/login")
+  @Throttle({
+    default: { limit: 8, ttl: minutes(15), blockDuration: minutes(15) },
+  })
+  async mobileLogin(@Body() dto: LoginDto, @Req() request: Request) {
+    const auth = await this.authService.login(dto, this.context(request));
+    return auth;
+  }
+
   @Post("auth/forgot-password")
   @Throttle({
     default: { limit: 3, ttl: minutes(15), blockDuration: minutes(30) },

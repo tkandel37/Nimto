@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/web",
-    "apps/api"
+    "apps/api",
+    "apps/mobile"
   ],
   "scripts": {
     "dev": "next dev",
@@ -14,10 +15,14 @@
     "docker:up": "docker compose --env-file .env.docker up --build -d",
     "docker:down": "docker compose --env-file .env.docker down",
     "docker:logs": "docker compose --env-file .env.docker logs -f",
-    "docker:reset": "docker compose --env-file .env.docker down -v"
+    "docker:reset": "docker compose --env-file .env.docker down -v",
+    "mobile:start": "npm run start --workspace @nimto/mobile",
+    "mobile:android": "npm run android --workspace @nimto/mobile",
+    "mobile:ios": "npm run ios --workspace @nimto/mobile",
+    "mobile:web": "npm run web --workspace @nimto/mobile"
   },
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=20.19.4"
   },
   "devDependencies": {
     "@nestjs/common": "11.1.28",
@@ -28,6 +33,8 @@
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
-    "postcss": "8.5.10"
+    "postcss": "8.5.10",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
