@@ -19,6 +19,7 @@ import { TemplateDesignService } from "../src/template-design/template-design.se
 import { AuthService } from "../src/auth/auth.service";
 import { OAuthCallbackExceptionFilter } from "../src/auth/filters/oauth-callback-exception.filter";
 import { LogoutAuthGuard } from "../src/auth/guards/logout-auth.guard";
+import { AdminService } from "../src/admin/admin.service";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
 
@@ -329,6 +330,30 @@ test("logout remains CSRF-protected but permits clearing an invalid cookie", asy
 
   request.headers.authorization = "Bearer cookie";
   assert.equal(await guard.canActivate(context), true);
+});
+
+test("admin dashboard summary reuses its short-lived database result", async () => {
+  let countCalls = 0;
+  const count = async () => {
+    countCalls += 1;
+    return countCalls;
+  };
+  const prisma = {
+    event: { count },
+    role: { count },
+    user: { count },
+    userSession: { count },
+    auditLog: { count },
+    $transaction: (queries: Promise<number>[]) => Promise.all(queries),
+  };
+  const service = new AdminService(prisma as never, {} as never);
+  const userId = `summary-cache-${Date.now()}`;
+
+  const first = await service.dashboardSummary(userId);
+  const second = await service.dashboardSummary(userId);
+
+  assert.deepEqual(second, first);
+  assert.equal(countCalls, 6);
 });
 
 test("uploaded invitation HTML rejects executable behavior", () => {

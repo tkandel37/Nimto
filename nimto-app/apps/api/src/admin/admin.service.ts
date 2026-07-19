@@ -42,10 +42,24 @@ type AccountSessionListItem = {
   userAgent: string | null;
 };
 
+type DashboardSummary = {
+  auditCount: number;
+  eventCount: number;
+  roleCount: number;
+  sessionCount: number;
+  staffCount: number;
+  userCount: number;
+};
+
 const ACCOUNT_SESSION_CACHE_MS = 30_000;
+const DASHBOARD_SUMMARY_CACHE_MS = 30_000;
 const accountSessionCache = new Map<
   string,
   { expiresAt: number; value: PageResult<AccountSessionListItem> }
+>();
+const dashboardSummaryCache = new Map<
+  string,
+  { expiresAt: number; value: DashboardSummary }
 >();
 
 @Injectable()
@@ -84,6 +98,11 @@ export class AdminService {
   }
 
   async dashboardSummary(userId: string) {
+    const cached = dashboardSummaryCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     const [
       eventCount,
       roleCount,
@@ -92,15 +111,15 @@ export class AdminService {
       activeSessionCount,
       auditCount,
     ] = await this.prisma.$transaction([
-        this.prisma.event.count({ where: { userId } }),
-        this.prisma.role.count(),
-        this.prisma.user.count({ where: { roles: { some: {} } } }),
-        this.prisma.user.count({ where: { roles: { none: {} } } }),
-        this.prisma.userSession.count({ where: { revokedAt: null } }),
-        this.prisma.auditLog.count(),
-      ]);
+      this.prisma.event.count({ where: { userId } }),
+      this.prisma.role.count(),
+      this.prisma.user.count({ where: { roles: { some: {} } } }),
+      this.prisma.user.count({ where: { roles: { none: {} } } }),
+      this.prisma.userSession.count({ where: { revokedAt: null } }),
+      this.prisma.auditLog.count(),
+    ]);
 
-    return {
+    const value = {
       auditCount,
       eventCount,
       roleCount,
@@ -108,6 +127,11 @@ export class AdminService {
       staffCount,
       userCount,
     };
+    dashboardSummaryCache.set(userId, {
+      expiresAt: Date.now() + DASHBOARD_SUMMARY_CACHE_MS,
+      value,
+    });
+    return value;
   }
 
   listRoles() {

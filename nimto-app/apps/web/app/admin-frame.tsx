@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { AuthUser } from "@/lib/api";
 
 type AdminTabKey =
@@ -155,7 +155,6 @@ function isAdminPath(pathname: string) {
 
 export function AdminFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const navigationRef = useRef<HTMLElement | null>(null);
@@ -209,26 +208,6 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (!isAdmin) return;
-
-    const hrefs = new Set(visibleTabs.map((tab) => tab.href));
-
-    if (
-      canAny(user, [
-        "category:view",
-        "category:manage",
-        "subcategory:view",
-        "subcategory:manage",
-      ])
-    ) {
-      hrefs.add("/settings");
-    }
-
-    hrefs.forEach((href) => router.prefetch(href));
-    router.prefetch("/admin-profile");
-  }, [isAdmin, router, user, visibleTabs]);
-
-  useEffect(() => {
     navigationRef.current
       ?.querySelector<HTMLElement>('[aria-current="page"]')
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -247,7 +226,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <div>
           <div className="sidebar-brand-row">
-            <Link href="/dashboard" className="sidebar-logo">
+            <Link href="/dashboard" className="sidebar-logo" prefetch={false}>
               <BrandLogo className="sidebar-logo-full" />
               <BrandLogo className="sidebar-logo-mark" compact />
             </Link>
@@ -291,6 +270,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
                       }
                       href={tab.href}
                       key={tab.key}
+                      prefetch={false}
                       data-tooltip={tab.label}
                       title={tab.label}
                     >
@@ -322,6 +302,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
               }
               data-tooltip="Settings"
               href="/settings"
+              prefetch={false}
               title="Settings"
             >
               <SettingsIcon />
@@ -339,6 +320,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
               }
               data-tooltip="My profile"
               href="/admin-profile"
+              prefetch={false}
               title="My profile"
             >
               <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-white/15 text-xs font-black text-white">

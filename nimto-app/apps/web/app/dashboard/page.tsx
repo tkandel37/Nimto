@@ -379,6 +379,7 @@ const ACCOUNT_LIST_CACHE_MS = 45_000;
 const ACCESS_CATALOG_CACHE_MS = 60_000;
 const ACCOUNT_ACTIVITY_CACHE_MS = 60_000;
 const DESIGN_SETUP_CACHE_MS = 60_000;
+const DASHBOARD_SUMMARY_CACHE_MS = 30_000;
 
 const ADMIN_TAB_ROUTES: Partial<Record<TabKey, string>> = {
   overview: "/dashboard",
@@ -603,6 +604,8 @@ export function DashboardClient({
   const accountListLoadedAtRef = useRef({ staff: 0, users: 0 });
   const accessCatalogLoadedAtRef = useRef(0);
   const designSetupLoadedAtRef = useRef(0);
+  const summaryLoadedAtRef = useRef(0);
+  const lastAdminRefreshKeyRef = useRef<string | null>(null);
 
   const currentTab = activeTab;
 
@@ -636,6 +639,28 @@ export function DashboardClient({
     setPages(snapshot.pages ?? []);
     setBlogPosts(snapshot.blogPosts ?? []);
     setPublicDesigns(snapshot.publicDesigns ?? []);
+    latestDashboardDataRef.current = {
+      auditLogs: snapshot.auditLogs ?? [],
+      blogPosts: snapshot.blogPosts ?? [],
+      designCategories: snapshot.designCategories ?? [],
+      designs: snapshot.designs ?? [],
+      events: snapshot.events ?? [],
+      pages: snapshot.pages ?? [],
+      permissions: snapshot.permissions ?? [],
+      publicDesigns: snapshot.publicDesigns ?? [],
+      roles: snapshot.roles ?? [],
+      sessions: snapshot.sessions ?? [],
+      staff: snapshot.staff ?? [],
+      staffNextSkip: snapshot.staffNextSkip ?? null,
+      summary: snapshot.summary,
+      templates: snapshot.templates ?? [],
+      users: snapshot.users ?? [],
+      usersNextSkip: snapshot.usersNextSkip ?? null,
+    };
+    hasDashboardDataRef.current = true;
+    if (snapshot.summary) {
+      summaryLoadedAtRef.current = snapshot.cachedAt;
+    }
   }
 
   function hydrateDashboardCache(userId: string) {
@@ -802,7 +827,14 @@ export function DashboardClient({
         return;
       }
 
+      const refreshKey = `${authUser.id}:${currentTab}`;
+      if (!options.force && lastAdminRefreshKeyRef.current === refreshKey) {
+        return;
+      }
+      lastAdminRefreshKeyRef.current = refreshKey;
+
       setIsRefreshing(true);
+      let refreshSucceeded = false;
 
       try {
         const headers = { Authorization: `Bearer ${savedToken}` };
@@ -828,15 +860,23 @@ export function DashboardClient({
           usersNextSkip: latest.usersNextSkip,
         };
 
-        try {
-          const summary = await apiRequest<DashboardSummary>("/admin/summary", {
-            headers,
-          });
-          setDashboardSummary(summary);
-          nextSnapshot.summary = summary;
-        } catch {
-          // Summary is a speed layer. Page-specific data can still load without it.
-        }
+        const shouldRefreshSummary =
+          currentTab === "overview" &&
+          (options.force ||
+            !latest.summary ||
+            Date.now() - summaryLoadedAtRef.current >=
+              DASHBOARD_SUMMARY_CACHE_MS);
+        const summaryRequest = shouldRefreshSummary
+          ? apiRequest<DashboardSummary>("/admin/summary", { headers })
+              .then((summary) => {
+                setDashboardSummary(summary);
+                nextSnapshot.summary = summary;
+                summaryLoadedAtRef.current = Date.now();
+              })
+              .catch(() => {
+                // Page-specific data can still load without the speed layer.
+              })
+          : Promise.resolve();
 
         if (currentTab === "events") {
           const [nextEvents, nextPublicDesigns] = await Promise.all([
@@ -1044,7 +1084,9 @@ export function DashboardClient({
           nextSnapshot.auditLogs = nextAuditLogs;
         }
 
+        await summaryRequest;
         storeDashboardCache(nextSnapshot);
+        refreshSucceeded = true;
       } catch (caughtError) {
         if (!hasDashboardDataRef.current) {
           showToast(
@@ -1055,6 +1097,12 @@ export function DashboardClient({
           );
         }
       } finally {
+        if (
+          !refreshSucceeded &&
+          lastAdminRefreshKeyRef.current === refreshKey
+        ) {
+          lastAdminRefreshKeyRef.current = null;
+        }
         setIsRefreshing(false);
       }
     },
