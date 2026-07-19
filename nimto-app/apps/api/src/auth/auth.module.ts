@@ -7,6 +7,7 @@ import { GoogleStrategy } from "./strategies/google.strategy";
 import { AuditModule } from "../audit/audit.module";
 import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
 import { OAuthCallbackExceptionFilter } from "./filters/oauth-callback-exception.filter";
+import { LogoutAuthGuard } from "./guards/logout-auth.guard";
 
 @Module({
   imports: [AuditModule],
@@ -14,6 +15,7 @@ import { OAuthCallbackExceptionFilter } from "./filters/oauth-callback-exception
   providers: [
     AuthService,
     JwtAuthGuard,
+    LogoutAuthGuard,
     PermissionsGuard,
     GoogleConfiguredGuard,
     GoogleStrategy,

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ConfigService } from "@nestjs/config";
-import { ArgumentsHost, ExecutionContext } from "@nestjs/common";
+import {
+  ArgumentsHost,
+  ExecutionContext,
+  UnauthorizedException,
+} from "@nestjs/common";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { validateEnvironment } from "../src/config/environment";
@@ -14,6 +18,7 @@ import {
 import { TemplateDesignService } from "../src/template-design/template-design.service";
 import { AuthService } from "../src/auth/auth.service";
 import { OAuthCallbackExceptionFilter } from "../src/auth/filters/oauth-callback-exception.filter";
+import { LogoutAuthGuard } from "../src/auth/guards/logout-auth.guard";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
 
@@ -304,6 +309,26 @@ test("cookie-authenticated writes require the browser sentinel and a live DB ses
 
   session.revokedAt = new Date();
   await assert.rejects(() => guard.canActivate(context));
+});
+
+test("logout remains CSRF-protected but permits clearing an invalid cookie", async () => {
+  const request = {
+    headers: {} as { authorization?: string },
+  };
+  const context = {
+    switchToHttp: () => ({ getRequest: () => request }),
+  } as unknown as ExecutionContext;
+  const requiredGuard = {
+    canActivate: async () => {
+      throw new UnauthorizedException("Expired session");
+    },
+  };
+  const guard = new LogoutAuthGuard(requiredGuard as unknown as JwtAuthGuard);
+
+  await assert.rejects(() => guard.canActivate(context));
+
+  request.headers.authorization = "Bearer cookie";
+  assert.equal(await guard.canActivate(context), true);
 });
 
 test("uploaded invitation HTML rejects executable behavior", () => {

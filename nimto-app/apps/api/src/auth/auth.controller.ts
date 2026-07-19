@@ -31,6 +31,7 @@ import {
 import { GoogleConfiguredGuard } from "./guards/google-configured.guard";
 import { ClaimOAuthSessionDto } from "./dto/claim-oauth-session.dto";
 import { OAuthCallbackExceptionFilter } from "./filters/oauth-callback-exception.filter";
+import { LogoutAuthGuard } from "./guards/logout-auth.guard";
 
 @Controller()
 export class AuthController {
@@ -153,7 +154,7 @@ export class AuthController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(LogoutAuthGuard)
   @Post("auth/logout")
   async logout(
     @Req() request: AuthenticatedRequest,

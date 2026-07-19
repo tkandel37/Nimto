@@ -16,6 +16,7 @@ import {
 } from "react";
 import { ApiError, apiRequest, AuthUser } from "@/lib/api";
 import {
+  AUTH_SESSION_MARKER,
   clearAuthSession,
   isSessionFresh,
   readAuthSession,
@@ -245,10 +246,24 @@ export function UserFrame({ children }: { children: ReactNode }) {
     window.location.replace("/auth?mode=login");
   }, [isChecking, isUserArea, token]);
 
-  function logout() {
+  async function logout() {
+    if (isLoggingOutRef.current) return;
     isLoggingOutRef.current = true;
-    clearAuthSession();
-    window.location.replace("/");
+
+    try {
+      await apiRequest("/auth/logout", {
+        headers: {
+          Authorization: `Bearer ${token || AUTH_SESSION_MARKER}`,
+        },
+        method: "POST",
+      });
+      clearAuthSession();
+      setAuthState({ isChecking: false, token: "", user: null });
+      window.location.replace("/");
+    } catch {
+      isLoggingOutRef.current = false;
+      showToast("We could not log you out. Please try again.", "error");
+    }
   }
 
   if (!isUserArea || !activePage) {

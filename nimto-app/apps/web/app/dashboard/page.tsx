@@ -1082,15 +1082,9 @@ export function DashboardClient({
     const savedToken = localStorage.getItem("nimto_session");
     const userId = user?.id;
 
-    clearAuthSession();
-    if (userId) {
-      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
-      sessionStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
-    }
-    setUser(null);
-    router.replace("/");
-
     if (!savedToken) {
+      clearAuthSession();
+      window.location.replace("/");
       return;
     }
 
@@ -1102,8 +1096,17 @@ export function DashboardClient({
         method: "POST",
       });
     } catch {
-      // Local logout is already complete. Expired server sessions are safe to ignore.
+      showToast("We could not log you out. Please try again.", "error");
+      return;
     }
+
+    clearAuthSession();
+    if (userId) {
+      localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+      sessionStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`);
+    }
+    setUser(null);
+    window.location.replace("/");
   }
 
   function showToast(message: string, tone: DashboardToast["tone"]) {
