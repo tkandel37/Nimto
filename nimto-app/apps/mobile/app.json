@@ -12,7 +12,8 @@
     },
     "updates": {
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/ccd18b2d-1730-4d29-b1e3-1cd261e49934"
     },
     "ios": {
       "bundleIdentifier": "com.mynimto.app",
@@ -56,6 +57,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ccd18b2d-1730-4d29-b1e3-1cd261e49934"
+      }
+    },
+    "owner": "my_nimto"
   }
 }
