@@ -19,7 +19,7 @@ export default function DesignPreviewScreen() {
   const version = design?.versions[0];
 
   if (query.isLoading) return <Loading label="Opening design…" />;
-  if (query.isError) return <View style={styles.center}><Text style={styles.error}>{query.error instanceof Error ? query.error.message : "Could not open this design."}</Text><Button onPress={() => router.back()} title="Back to designs" variant="secondary" /></View>;
+  if (query.isError) return <View style={styles.center}><Text style={styles.error}>{query.error instanceof Error ? query.error.message : "Could not open this design."}</Text><Button onPress={() => query.refetch()} title="Try again" /><Button onPress={() => router.back()} title="Back to designs" variant="secondary" /></View>;
   if (!design || !version) return <View style={styles.center}><Text style={uiStyles.sectionTitle}>Design unavailable</Text><Text style={uiStyles.muted}>This design may have been unpublished. Choose another from the catalogue.</Text><Button onPress={() => router.replace("/(tabs)/designs")} title="Browse designs" /></View>;
   const selectedVersionId = version.id;
 

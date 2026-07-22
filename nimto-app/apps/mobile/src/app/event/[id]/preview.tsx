@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { WebView } from "react-native-webview";
-import { Loading } from "@/components/ui";
+import { Button, EmptyState, Loading, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { applyInvitationValues } from "@/lib/invitation";
 import { colors } from "@/lib/theme";
@@ -12,6 +12,7 @@ import { useAuth } from "@/providers/auth-provider";
 export default function PreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); const { token } = useAuth();
   const query = useQuery({ queryKey: ["event", id], queryFn: () => apiRequest<UserEvent>(`/events/${id}`, { token }) });
+  if (query.isError) return <Screen><EmptyState action={<Button onPress={() => query.refetch()} title="Try again" />} detail={query.error instanceof Error ? query.error.message : "Could not prepare this invitation."} title="Preview unavailable" /></Screen>;
   if (query.isLoading || !query.data) return <Loading label="Preparing preview…" />;
   const rawHtml = query.data.designVersion?.rawHtml ?? "";
   if (!rawHtml) return <View style={styles.center}><Text style={styles.message}>This event does not have preview HTML.</Text></View>;

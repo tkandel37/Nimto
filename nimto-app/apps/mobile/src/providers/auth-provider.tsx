@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import {
@@ -26,15 +27,17 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [isReady, setIsReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const clearSession = useCallback(async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    queryClient.clear();
     setToken(null);
     setUser(null);
-  }, []);
+  }, [queryClient]);
 
   const loadUser = useCallback(async (sessionToken: string) => {
     const response = await apiRequest<{ user: AuthUser }>("/auth/me", {

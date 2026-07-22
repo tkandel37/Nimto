@@ -1,4 +1,4 @@
-import { Link, router, useLocalSearchParams } from "expo-router";
+import { Href, Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 import { Brand, Button, Card, Field, Screen, uiStyles } from "@/components/ui";
@@ -21,6 +21,8 @@ export default function LoginScreen() {
       await login(email, password);
       if (params.returnTo === "create" && params.designVersionId) {
         router.replace({ pathname: "/create", params: { designVersionId: params.designVersionId, designName: params.designName ?? "" } });
+      } else if (isSafeEventReturn(params.returnTo)) {
+        router.replace(params.returnTo as Href);
       } else {
         router.replace("/(tabs)");
       }
@@ -51,6 +53,10 @@ export default function LoginScreen() {
       </Screen>
     </KeyboardAvoidingView>
   );
+}
+
+function isSafeEventReturn(value?: string): value is string {
+  return Boolean(value && /^\/event\/[A-Za-z0-9_-]+(?:\/(?:edit|guests|preview))?$/.test(value));
 }
 
 const styles = StyleSheet.create({

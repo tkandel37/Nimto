@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
-import { Button, Card, Field, Loading, PageHeader, Screen, uiStyles } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Loading, PageHeader, Screen, uiStyles } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { colors } from "@/lib/theme";
 import { UserEvent } from "@/lib/types";
@@ -15,6 +15,9 @@ export default function EditEventScreen() {
     queryKey: ["event", id],
     queryFn: () => apiRequest<UserEvent>(`/events/${id}`, { token }),
   });
+  if (query.isError) {
+    return <Screen><EmptyState action={<Button onPress={() => query.refetch()} title="Try again" />} detail={query.error instanceof Error ? query.error.message : "Could not load this event."} title="Could not open editor" /></Screen>;
+  }
   if (query.isLoading || !query.data) {
     return <Loading label="Loading event details…" />;
   }

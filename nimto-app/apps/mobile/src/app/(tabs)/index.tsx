@@ -26,7 +26,8 @@ export default function DashboardScreen() {
     <Button onPress={() => router.push("/(tabs)/designs")} title="Create an invitation" />
     <View style={uiStyles.between}><Text style={uiStyles.sectionTitle}>Recent events</Text><Pressable onPress={() => router.push("/(tabs)/events")}><Text style={styles.link}>View all</Text></Pressable></View>
     {events.isLoading ? <Loading label="Loading your events…" /> : null}
-    {!events.isLoading && !items.length ? <EmptyState detail="Choose a design and create your first event in a few simple steps." title="Your celebrations start here" /> : null}
+    {events.isError ? <EmptyState action={<Button onPress={() => events.refetch()} title="Try again" />} detail={events.error instanceof Error ? events.error.message : "Could not load your events."} title="Could not load your dashboard" /> : null}
+    {!events.isLoading && !events.isError && !items.length ? <EmptyState detail="Choose a design and create your first event in a few simple steps." title="Your celebrations start here" /> : null}
     {items.slice(0, 3).map((event) => <Pressable key={event.id} onPress={() => router.push(`/event/${event.id}`)}><Card><View style={uiStyles.between}><View style={styles.eventText}><Text numberOfLines={1} style={styles.eventTitle}>{event.title}</Text><Text numberOfLines={1} style={uiStyles.muted}>{event.venue || event.type}</Text></View><Text style={event.isPublished ? styles.live : styles.draft}>{event.isPublished ? "Live" : "Draft"}</Text></View><Text style={uiStyles.muted}>{event._count?.invitees ?? 0} invitees · {event.openCount ?? 0} opens</Text></Card></Pressable>)}
   </Screen>;
 }

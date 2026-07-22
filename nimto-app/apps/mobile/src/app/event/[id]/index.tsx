@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { Alert, Pressable, Share, StyleSheet, Text, View } from "react-native";
-import { Button, Card, Loading, PageHeader, Screen, uiStyles } from "@/components/ui";
+import { Button, Card, EmptyState, Loading, PageHeader, Screen, uiStyles } from "@/components/ui";
 import { apiRequest, WEB_URL } from "@/lib/api";
 import { colors, spacing } from "@/lib/theme";
 import { EventStatistics, UserEvent } from "@/lib/types";
@@ -46,6 +46,7 @@ export default function EventScreen() {
     await apiRequest(`/events/${id}/share`, { method: "POST", token, body: JSON.stringify({ channel: "native_share" }) }).catch(() => undefined);
   }
 
+  if (eventQuery.isError) return <Screen><EmptyState action={<Button onPress={() => eventQuery.refetch()} title="Try again" />} detail={eventQuery.error instanceof Error ? eventQuery.error.message : "Could not load this event."} title="Could not open event" /></Screen>;
   if (eventQuery.isLoading || !event) return <Loading label="Opening event…" />;
   const stats = statsQuery.data;
   return <Screen>

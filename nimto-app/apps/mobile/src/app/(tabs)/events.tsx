@@ -52,8 +52,8 @@ export default function EventsScreen() {
       ))}
     </View>
     {query.isLoading ? <Loading label="Loading events…" /> : null}
-    {query.isError ? <Text style={styles.error}>{query.error instanceof Error ? query.error.message : "Could not load events."}</Text> : null}
-    {!query.isLoading && !items.length ? <EmptyState detail={search ? "Try another event name or venue." : status === "archived" ? "Archived events will appear here." : "Choose a design to create your first invitation."} title={search ? "No matching events" : status === "archived" ? "No archived events" : "No events yet"} /> : null}
+    {query.isError ? <EmptyState action={<Button onPress={() => query.refetch()} title="Try again" />} detail={query.error instanceof Error ? query.error.message : "Could not load events."} title="Could not load events" /> : null}
+    {!query.isLoading && !query.isError && !items.length ? <EmptyState detail={search ? "Try another event name or venue." : status === "archived" ? "Archived events will appear here." : "Choose a design to create your first invitation."} title={search ? "No matching events" : status === "archived" ? "No archived events" : "No events yet"} /> : null}
     {items.map((event) => <Pressable key={event.id} onPress={() => router.push(`/event/${event.id}`)}><Card><View style={uiStyles.between}><View style={styles.identity}><View style={styles.monogram}><Text style={styles.monogramText}>{event.title[0]?.toUpperCase() || "E"}</Text></View><View style={styles.copy}><Text numberOfLines={1} style={styles.title}>{event.title}</Text><Text numberOfLines={1} style={uiStyles.muted}>{event.designVersion?.design?.name ?? event.type}</Text></View></View><Text style={uiStyles.badge}>{event.isPublished ? "Published" : "Draft"}</Text></View><View style={uiStyles.between}><Text style={uiStyles.muted}>{formatDate(event.eventDate)}</Text><Text style={uiStyles.muted}>{event._count?.invitees ?? 0} invitees</Text></View></Card></Pressable>)}
   </Screen>;
 }
@@ -66,7 +66,6 @@ const styles = StyleSheet.create({
   filterActive: { borderColor: colors.plum, backgroundColor: colors.surfaceBrand },
   filterText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
   filterTextActive: { color: colors.plumDeep },
-  error: { color: colors.danger, fontSize: 13 },
   identity: { flex: 1, flexDirection: "row", alignItems: "center", gap: 11 },
   monogram: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.surfaceBrand, alignItems: "center", justifyContent: "center" },
   monogramText: { color: colors.plumDeep, fontWeight: "900", fontSize: 18 },
