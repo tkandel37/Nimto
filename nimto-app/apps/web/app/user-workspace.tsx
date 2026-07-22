@@ -42,8 +42,13 @@ type UserWorkspaceContextValue = {
   refreshUser: () => Promise<AuthUser | null>;
   showToast: (message: string, tone?: Toast["tone"]) => void;
   token: string;
-  user: AuthUser;
+  user: AuthUser | null;
 };
+
+type AuthenticatedUserWorkspaceContextValue = Omit<
+  UserWorkspaceContextValue,
+  "user"
+> & { user: AuthUser };
 
 const UserWorkspaceContext = createContext<UserWorkspaceContextValue | null>(
   null,
@@ -228,7 +233,10 @@ export function UserFrame({ children }: { children: ReactNode }) {
         return;
       }
       setAuthState({ isChecking: false, token: "", user: null });
-      if (window.location.pathname !== "/auth") {
+      if (
+        window.location.pathname !== "/auth" &&
+        window.location.pathname !== "/designs"
+      ) {
         window.location.replace("/auth?mode=login");
       }
     }
@@ -242,9 +250,16 @@ export function UserFrame({ children }: { children: ReactNode }) {
   }, [isUserArea]);
 
   useEffect(() => {
-    if (!isUserArea || isChecking || token || isLoggingOutRef.current) return;
+    if (
+      !isUserArea ||
+      activePage === "designs" ||
+      isChecking ||
+      token ||
+      isLoggingOutRef.current
+    )
+      return;
     window.location.replace("/auth?mode=login");
-  }, [isChecking, isUserArea, token]);
+  }, [activePage, isChecking, isUserArea, token]);
 
   async function logout() {
     if (isLoggingOutRef.current) return;
@@ -272,6 +287,23 @@ export function UserFrame({ children }: { children: ReactNode }) {
 
   if (isChecking && !user) {
     return <PendingUserShell activePage={activePage} />;
+  }
+
+  if (!token && activePage === "designs") {
+    return (
+      <UserWorkspaceContext.Provider
+        value={{ authHeaders: {}, refreshUser, showToast, token: "", user: null }}
+      >
+        <GuestDesignShell
+          onDismissToast={(id) =>
+            setToasts((current) => current.filter((toast) => toast.id !== id))
+          }
+          toasts={toasts}
+        >
+          {children}
+        </GuestDesignShell>
+      </UserWorkspaceContext.Provider>
+    );
   }
 
   if (!token) {
@@ -531,13 +563,78 @@ export function UserWorkspace({
   children,
 }: {
   activePage: WorkspacePage;
+  children: (context: AuthenticatedUserWorkspaceContextValue) => ReactNode;
+}) {
+  const context = useContext(UserWorkspaceContext);
+  if (!context?.token || !context.user) {
+    return null;
+  }
+  return <>{children(context as AuthenticatedUserWorkspaceContextValue)}</>;
+}
+
+export function DesignWorkspace({
+  children,
+}: {
   children: (context: UserWorkspaceContextValue) => ReactNode;
 }) {
   const context = useContext(UserWorkspaceContext);
-  if (!context) {
-    return null;
-  }
+  if (!context) return null;
   return <>{children(context)}</>;
+}
+
+function GuestDesignShell({
+  children,
+  onDismissToast,
+  toasts,
+}: {
+  children: ReactNode;
+  onDismissToast: (id: number) => void;
+  toasts: Toast[];
+}) {
+  return (
+    <main className="user-shell guest-design-shell">
+      <aside className="user-sidebar">
+        <Link className="user-logo" href="/designs">
+          <BrandLogo compact />
+        </Link>
+        <nav className="user-nav" aria-label="Explore myNimto">
+          <Link className="user-nav-link active" href="/designs">
+            <span aria-hidden="true">✦</span><span>Designs</span>
+          </Link>
+          <Link className="user-nav-link" href="/features">
+            <span aria-hidden="true">◎</span><span>Features</span>
+          </Link>
+          <Link className="user-nav-link" href="/about">
+            <span aria-hidden="true">○</span><span>About</span>
+          </Link>
+        </nav>
+        <div className="user-sidebar-note"><span>✍</span><p>Browse first, sign in when ready</p></div>
+      </aside>
+      <section className="user-main">
+        <header className="user-topbar">
+          <Link className="user-mobile-logo" href="/designs"><BrandLogo compact /></Link>
+          <div className="user-workspace-context"><span>Invitation gallery</span><strong>Explore designs</strong></div>
+          <div className="guest-design-auth-actions">
+            <Link className="user-secondary-button" href="/auth?mode=login&next=%2Fdesigns">Log in</Link>
+            <Link className="user-primary-button" href="/auth?mode=register&next=%2Fdesigns">Create account</Link>
+          </div>
+        </header>
+        <div className="user-page">{children}</div>
+      </section>
+      <nav className="user-bottom-nav" aria-label="Guest navigation">
+        <Link className="active" href="/designs"><span aria-hidden="true">✦</span><span>Explore</span></Link>
+        <Link href="/auth?mode=login&next=%2Fdesigns"><span aria-hidden="true">●</span><span>Sign in</span></Link>
+      </nav>
+      <div className="user-toast-region" role="status" aria-live="polite">
+        {toasts.map((toast) => (
+          <div className={toast.tone === "error" ? "user-toast user-toast-error" : "user-toast"} key={toast.id}>
+            <span className="user-toast-dot" /><p>{toast.message}</p>
+            <button aria-label="Close notification" onClick={() => onDismissToast(toast.id)} type="button">x</button>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
 }
 
 function workspacePage(pathname: string): WorkspacePage | null {

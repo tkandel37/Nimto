@@ -7,8 +7,10 @@ import { Card, EmptyState, Loading, PageHeader, Screen, uiStyles } from "@/compo
 import { apiRequest } from "@/lib/api";
 import { colors, radii, spacing } from "@/lib/theme";
 import { PublicCategory, PublicDesign } from "@/lib/types";
+import { useAuth } from "@/providers/auth-provider";
 
 export default function DesignsScreen() {
+  const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const categories = useQuery({ queryKey: ["categories"], queryFn: () => apiRequest<PublicCategory[]>("/template-design/public/categories") });
@@ -19,12 +21,13 @@ export default function DesignsScreen() {
     return matchesCategory && (!value || [design.name, design.category?.name, design.subcategory?.name].filter(Boolean).some((item) => item!.toLowerCase().includes(value)));
   }), [category, designs.data, search]);
   return <Screen>
-    <PageHeader eyebrow="Invitation catalogue" title="Choose your design" detail="Start with a published design, then personalize every editable field." />
+    <PageHeader eyebrow="Invitation catalogue" title="Choose your design" detail={token ? "Start with a published design, then personalize every editable field." : "Browse and preview freely. Sign in only when you are ready to use a design."} />
     <TextInput onChangeText={setSearch} placeholder="Search wedding, birthday, puja…" placeholderTextColor={colors.muted} style={styles.search} value={search} />
     <View style={styles.chips}><Pressable onPress={() => setCategory("")}><Text style={[styles.chip, !category && styles.chipActive]}>All</Text></Pressable>{(categories.data ?? []).map((item) => <Pressable key={item.id} onPress={() => setCategory(item.id)}><Text style={[styles.chip, category === item.id && styles.chipActive]}>{item.name}</Text></Pressable>)}</View>
     {designs.isLoading ? <Loading label="Loading designs…" /> : null}
+    {designs.isError ? <Text style={styles.error}>{designs.error instanceof Error ? designs.error.message : "Could not load designs."}</Text> : null}
     {!designs.isLoading && !visible.length ? <EmptyState detail="Try a broader search or a different category." title="No designs found" /> : null}
-    <View style={styles.grid}>{visible.map((design) => { const version = design.versions[0]; const previewHtml = version?.thumbnailHtml || version?.rawHtml; return <Pressable key={design.id} onPress={() => version && router.push({ pathname: "/create", params: { designVersionId: version.id, designName: design.name } })} style={styles.gridItem}><Card style={styles.designCard}><View pointerEvents="none" style={styles.art}>{previewHtml ? <WebView allowFileAccess={false} javaScriptEnabled={false} originWhitelist={["about:blank"]} scrollEnabled={false} source={{ html: previewHtml }} style={styles.webPreview} /> : <><Text style={styles.artMark}>✦</Text><Text numberOfLines={2} style={styles.artName}>{design.name}</Text></>}</View><Text numberOfLines={1} style={styles.designName}>{design.name}</Text><Text style={uiStyles.muted}>{design.category?.name ?? "Invitation"}</Text></Card></Pressable>; })}</View>
+    <View style={styles.grid}>{visible.map((design) => { const version = design.versions[0]; const previewHtml = version?.thumbnailHtml || version?.rawHtml; return <Pressable key={design.id} onPress={() => version && router.push(`/design/${design.id}`)} style={styles.gridItem}><Card style={styles.designCard}><View pointerEvents="none" style={styles.art}>{previewHtml ? <WebView allowFileAccess={false} javaScriptEnabled={false} originWhitelist={["about:blank"]} scrollEnabled={false} source={{ html: previewHtml }} style={styles.webPreview} /> : <><Text style={styles.artMark}>✦</Text><Text numberOfLines={2} style={styles.artName}>{design.name}</Text></>}</View><Text numberOfLines={1} style={styles.designName}>{design.name}</Text><Text style={uiStyles.muted}>{design.category?.name ?? "Invitation"} · Preview</Text></Card></Pressable>; })}</View>
   </Screen>;
 }
 
@@ -41,4 +44,5 @@ const styles = StyleSheet.create({
   artMark: { color: colors.berry, fontSize: 34 },
   artName: { color: colors.plumDeep, fontSize: 17, fontWeight: "900", textAlign: "center" },
   designName: { color: colors.ink, fontSize: 15, fontWeight: "800", marginTop: 4 },
+  error: { color: colors.danger, fontSize: 13 },
 });

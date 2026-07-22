@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/api";
 import { colors } from "@/lib/theme";
 
 export default function VerifyScreen() {
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string; returnTo?: string; designVersionId?: string; designName?: string }>();
   const [email, setEmail] = useState(params.email ?? "");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
@@ -17,7 +17,7 @@ export default function VerifyScreen() {
     setBusy(true); setError(""); setMessage("");
     try {
       await apiRequest("/auth/verify-email", { method: "POST", body: JSON.stringify({ email: email.trim(), code: code.trim() }) });
-      router.replace("/(auth)/login");
+      router.replace({ pathname: "/(auth)/login", params: { returnTo: params.returnTo ?? "", designVersionId: params.designVersionId ?? "", designName: params.designName ?? "" } });
     } catch (nextError) { setError(nextError instanceof Error ? nextError.message : "Could not verify."); }
     finally { setBusy(false); }
   }

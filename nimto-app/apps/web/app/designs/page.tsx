@@ -14,7 +14,7 @@ import {
 import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/api";
 import { StableInvitationPreview } from "../events/stable-invitation-preview";
-import { UserWorkspace } from "../user-workspace";
+import { DesignWorkspace } from "../user-workspace";
 
 type PublicCategory = {
   id: string;
@@ -128,19 +128,21 @@ function readStoredList(key: string) {
 
 export default function DesignsPage() {
   return (
-    <UserWorkspace activePage="designs">
-      {({ authHeaders, showToast }) => (
-        <DesignsContent authHeaders={authHeaders} showToast={showToast} />
+    <DesignWorkspace>
+      {({ authHeaders, showToast, token }) => (
+        <DesignsContent authHeaders={authHeaders} isAuthenticated={Boolean(token)} showToast={showToast} />
       )}
-    </UserWorkspace>
+    </DesignWorkspace>
   );
 }
 
 function DesignsContent({
   authHeaders,
+  isAuthenticated,
   showToast,
 }: {
   authHeaders: Record<string, string>;
+  isAuthenticated: boolean;
   showToast: (message: string, tone?: "success" | "error") => void;
 }) {
   const router = useRouter();
@@ -319,6 +321,11 @@ function DesignsContent({
     rememberViewedDesign(design.id);
     clearPreviewUrl();
     setPreviewDesign(null);
+    if (!isAuthenticated) {
+      const next = `/designs?template=${encodeURIComponent(design.slug)}`;
+      router.push(`/auth?mode=login&next=${encodeURIComponent(next)}`);
+      return;
+    }
     router.push(`/designs?template=${encodeURIComponent(design.slug)}`);
   }
 
@@ -377,6 +384,18 @@ function DesignsContent({
     setShowFavourites(false);
   }
 
+  if (selectedDesign && !isAuthenticated) {
+    const next = `/designs?template=${encodeURIComponent(selectedDesign.slug)}`;
+    return (
+      <section className="user-panel design-login-gate">
+        <p className="user-kicker">Your design is saved</p>
+        <h1>Sign in to customize {selectedDesign.name}</h1>
+        <p>You can browse and preview without an account. Sign in now to personalize this design and save it as an event.</p>
+        <div><Link className="user-primary-button" href={`/auth?mode=login&next=${encodeURIComponent(next)}`}>Log in and continue</Link><Link className="user-secondary-button" href={`/auth?mode=register&next=${encodeURIComponent(next)}`}>Create account</Link><button className="user-secondary-button" onClick={closeDesignEditor} type="button">Back to designs</button></div>
+      </section>
+    );
+  }
+
   if (selectedDesign) {
     return (
       <DesignEditor
@@ -396,7 +415,9 @@ function DesignsContent({
             <p className="user-kicker">Invitation gallery</p>
             <h1>Choose your invitation</h1>
             <p>
-              Search, filter, preview, and customize a design for your event.
+              {isAuthenticated
+                ? "Search, filter, preview, and customize a design for your event."
+                : "Search, filter, and preview every design. Sign in only when you are ready to customize one."}
             </p>
           </div>
           <div className="design-filter-toolbar">
@@ -610,7 +631,7 @@ function DesignsContent({
                     onClick={() => openDesignEditor(design)}
                     type="button"
                   >
-                    Customize
+                    {isAuthenticated ? "Customize" : "Use this design"}
                   </button>
                 </div>
               </div>
@@ -696,7 +717,7 @@ function DesignsContent({
                       onClick={() => openDesignEditor(previewDesign)}
                       type="button"
                     >
-                      Customize
+                      {isAuthenticated ? "Customize" : "Use this design"}
                     </button>
                   </div>
                 </header>

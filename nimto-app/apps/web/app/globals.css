@@ -2293,6 +2293,38 @@ a {
   padding: 24px;
 }
 
+.guest-design-auth-actions,
+.design-login-gate > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.guest-design-auth-actions a {
+  min-height: 40px;
+  padding: 10px 16px;
+}
+
+.design-login-gate {
+  display: grid;
+  max-width: 720px;
+  gap: 16px;
+  margin: 36px auto;
+}
+
+.design-login-gate h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.design-login-gate > p:not(.user-kicker) {
+  max-width: 60ch;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
 .user-panel,
 .user-auth-card {
   min-width: 0;
@@ -7536,6 +7568,20 @@ button.user-design-preview {
     padding: 5px;
     box-shadow: 0 18px 50px rgb(23 32 51 / 0.2);
     backdrop-filter: blur(18px);
+  }
+
+  .guest-design-shell .user-bottom-nav {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .guest-design-auth-actions .user-secondary-button {
+    display: none;
+  }
+
+  .guest-design-auth-actions a {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 0.76rem;
   }
 
   .user-bottom-nav a {

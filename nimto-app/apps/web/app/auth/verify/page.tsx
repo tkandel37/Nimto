@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { safeAuthNext } from "@/lib/auth-next";
 import { BrandLogo } from "../../brand-logo";
 
 function VerifyEmailContent() {
@@ -19,12 +20,19 @@ function VerifyEmailContent() {
   >("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [nextPath, setNextPath] = useState("");
 
   useEffect(() => {
     const url = new URL(window.location.href);
     const hash = new URLSearchParams(url.hash.slice(1));
     setEmail(hash.get("email") ?? url.searchParams.get("email") ?? "");
-    window.history.replaceState(null, "", window.location.pathname);
+    const safeNext = safeAuthNext(url.searchParams.get("next"));
+    setNextPath(safeNext);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`,
+    );
   }, []);
 
   const helperCopy = useMemo(() => {
@@ -57,7 +65,9 @@ function VerifyEmailContent() {
       setStatus("success");
       setMessage(response.message);
       window.setTimeout(() => {
-        router.replace("/auth?mode=login");
+        router.replace(
+          `/auth?mode=login${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`,
+        );
       }, 1200);
     } catch (caughtError) {
       setStatus("error");
@@ -208,7 +218,7 @@ function VerifyEmailContent() {
           <p className="mt-8 text-center text-sm text-ink/70">
             Back to{" "}
             <Link
-              href="/auth?mode=login"
+              href={`/auth?mode=login${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`}
               className="font-bold text-leaf underline-offset-4 hover:underline"
             >
               login

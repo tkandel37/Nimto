@@ -56,6 +56,7 @@ export default async function BlogPage() {
           <BrandLogo />
         </Link>
         <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
+          <Link href="/designs">Designs</Link>
           <Link href="/features">Features</Link>
           <Link href="/about">About</Link>
           <AuthAwareAccountLink className="site-login-button" />

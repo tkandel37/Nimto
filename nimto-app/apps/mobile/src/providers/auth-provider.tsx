@@ -78,7 +78,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
     await clearSession();
-    router.replace("/(auth)/login");
+    router.replace("/(tabs)/designs");
   }, [clearSession, token]);
 
   const refreshUser = useCallback(async () => {

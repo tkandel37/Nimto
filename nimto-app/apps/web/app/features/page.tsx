@@ -79,6 +79,7 @@ function SimpleHeader() {
         <BrandLogo />
       </Link>
       <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
+        <Link href="/designs">Designs</Link>
         <Link href="/blog">Blog</Link>
         <Link href="/about">About</Link>
         <AuthAwareAccountLink className="site-login-button" />

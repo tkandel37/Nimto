@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 import { Brand, Button, Card, Field, Screen, uiStyles } from "@/components/ui";
@@ -6,6 +6,7 @@ import { colors, spacing } from "@/lib/theme";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams<{ returnTo?: string; designVersionId?: string; designName?: string }>();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,7 +19,11 @@ export default function LoginScreen() {
     setError("");
     try {
       await login(email, password);
-      router.replace("/(tabs)");
+      if (params.returnTo === "create" && params.designVersionId) {
+        router.replace({ pathname: "/create", params: { designVersionId: params.designVersionId, designName: params.designName ?? "" } });
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not sign in.");
     } finally {
@@ -39,9 +44,10 @@ export default function LoginScreen() {
           <Field autoCapitalize="none" autoComplete="current-password" label="Password" onChangeText={setPassword} onSubmitEditing={submit} secureTextEntry value={password} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button busy={busy} onPress={submit} title="Sign in" />
-          <Link href="/(auth)/forgot" style={styles.link}>Forgot password?</Link>
+          <Link href={{ pathname: "/(auth)/forgot", params }} style={styles.link}>Forgot password?</Link>
         </Card>
-        <Text style={styles.account}>New to myNimto? <Link href="/(auth)/register" style={styles.link}>Create an account</Link></Text>
+        <Text style={styles.account}>New to myNimto? <Link href={{ pathname: "/(auth)/register", params }} style={styles.link}>Create an account</Link></Text>
+        <Link href="/(tabs)/designs" style={styles.link}>Continue browsing designs</Link>
       </Screen>
     </KeyboardAvoidingView>
   );

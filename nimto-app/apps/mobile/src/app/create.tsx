@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button, Card, Field, PageHeader, Screen } from "@/components/ui";
@@ -12,7 +12,7 @@ const eventTypes = ["WEDDING", "BIRTHDAY", "CORPORATE", "OTHER"] as const;
 
 export default function CreateEventScreen() {
   const params = useLocalSearchParams<{ designVersionId?: string; designName?: string }>();
-  const { token } = useAuth();
+  const { isReady, token } = useAuth();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<(typeof eventTypes)[number]>("WEDDING");
@@ -29,6 +29,10 @@ export default function CreateEventScreen() {
     onSuccess: async (event) => { await queryClient.invalidateQueries({ queryKey: ["events"] }); router.replace(`/event/${event.id}`); },
     onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "Could not create event."),
   });
+
+  if (isReady && !token) {
+    return <Redirect href={{ pathname: "/(auth)/login", params: { returnTo: "create", designVersionId: params.designVersionId ?? "", designName: params.designName ?? "" } }} />;
+  }
 
   function submit() {
     if (title.trim().length < 2) return setError("Event title must contain at least two characters.");

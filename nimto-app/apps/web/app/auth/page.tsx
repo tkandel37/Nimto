@@ -17,6 +17,7 @@ import {
   saveAuthSession,
 } from "@/lib/auth-session";
 import { BrandLogo } from "../brand-logo";
+import { rememberAuthNext, safeAuthNext } from "@/lib/auth-next";
 
 type Mode = "login" | "register";
 
@@ -39,6 +40,7 @@ function AuthForm() {
   const searchParams = useSearchParams();
   const initialMode =
     searchParams.get("mode") === "login" ? "login" : "register";
+  const nextPath = safeAuthNext(searchParams.get("next"));
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -47,6 +49,10 @@ function AuthForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isGoogleEnabled =
     process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "false";
+
+  useEffect(() => {
+    rememberAuthNext(nextPath);
+  }, [nextPath]);
 
   useEffect(() => {
     setMode(searchParams.get("mode") === "login" ? "login" : "register");
@@ -73,7 +79,7 @@ function AuthForm() {
         .then((response) => {
           if (!isActive || currentRequest !== requestId) return;
           saveAuthSession(token, response.user);
-          router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+          router.replace(nextPath || (isAdminUser(response.user) ? "/dashboard" : "/events"));
         })
         .catch(() => {
           if (!isActive || currentRequest !== requestId) return;
@@ -88,7 +94,7 @@ function AuthForm() {
       isActive = false;
       window.removeEventListener("pageshow", restoreExistingSession);
     };
-  }, [router]);
+  }, [nextPath, router]);
 
   const copy = useMemo(
     () =>
@@ -122,7 +128,7 @@ function AuthForm() {
 
         clearAuthSession();
         router.replace(
-          `/auth/verify#email=${encodeURIComponent(response.email)}`,
+          `/auth/verify${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}#email=${encodeURIComponent(response.email)}`,
         );
         return;
       }
@@ -133,7 +139,7 @@ function AuthForm() {
       });
 
       saveAuthSession(response.token, response.user);
-      router.replace(isAdminUser(response.user) ? "/dashboard" : "/events");
+      router.replace(nextPath || (isAdminUser(response.user) ? "/dashboard" : "/events"));
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -149,11 +155,12 @@ function AuthForm() {
     setError("");
     const nextMode = mode === "register" ? "login" : "register";
     setMode(nextMode);
-    router.replace(`/auth?mode=${nextMode}`, { scroll: false });
+    router.replace(`/auth?mode=${nextMode}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`, { scroll: false });
   }
 
   function startGoogleSignIn(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
+    rememberAuthNext(nextPath);
     window.location.replace("/auth/google/start");
   }
 

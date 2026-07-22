@@ -33,7 +33,9 @@ personalization. Payment and entitlement enforcement are not implemented yet.
   unpublication, immutable design version snapshots, and matching catalogue
   thumbnail authoring through a guided two-step workflow with reusable AI
   conversion prompts and an automatic publish-time thumbnail fallback.
-- Public design catalogue.
+- Public design catalogue on web/PWA and React Native, including logged-out
+  browsing and previews with the selected design preserved through login or
+  registration before customization.
 - Opening and background animation-component catalogue.
 - User event creation, update, deletion, and design-field values.
 - Capability-aware event navigation: RSVP, music URL, and field-link tabs stay

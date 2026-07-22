@@ -1,4 +1,4 @@
-import { Redirect, Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import { StyleSheet, Text } from "react-native";
 import { colors } from "@/lib/theme";
 import { useAuth } from "@/providers/auth-provider";
@@ -6,8 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 const icons: Record<string, string> = { index: "⌂", designs: "✦", events: "▣", profile: "●" };
 
 export default function TabLayout() {
-  const { isReady, token } = useAuth();
-  if (isReady && !token) return <Redirect href="/(auth)/login" />;
+  const { token } = useAuth();
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -19,10 +18,10 @@ export default function TabLayout() {
         tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>{icons[route.name] ?? "•"}</Text>,
       })}
     >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="designs" options={{ title: "Designs" }} />
-      <Tabs.Screen name="events" options={{ title: "Events" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      <Tabs.Screen name="index" options={{ href: token ? undefined : null, title: "Home" }} />
+      <Tabs.Screen name="designs" options={{ title: token ? "Designs" : "Explore" }} />
+      <Tabs.Screen name="events" options={{ href: token ? undefined : null, title: "Events" }} />
+      <Tabs.Screen name="profile" options={{ title: token ? "Profile" : "Sign in" }} />
     </Tabs>
   );
 }

@@ -18,7 +18,8 @@ the event information and the name of the person or family being invited.
 ### For event hosts
 
 - Register and manage a profile.
-- Browse published invitation designs.
+- Browse and preview published invitation designs before creating an account.
+- Log in only when ready to customize a selected design.
 - Create wedding, birthday, corporate, or custom events.
 - Enter event date, venue, description, cover image, and design field values.
 - Create and manage guest names.
@@ -202,7 +203,9 @@ The web application is installable as a PWA and includes a safe offline
 fallback with static-asset caching. The Expo application provides the core
 host workflow on Android and iOS: authentication, design browsing, event
 creation and editing, invitation previews, invitee links, RSVP summaries, and
-native sharing.
+native sharing. On web, PWA, Android, and iOS, visitors can explore published
+designs without logging in and are asked to authenticate only when they choose
+one to customize.
 
 Mobile setup and verification are documented in
 [`apps/mobile/README.md`](apps/mobile/README.md). EAS Build, OTA, store, and PWA

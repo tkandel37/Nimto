@@ -36,6 +36,7 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="create" options={{ title: "Create event" }} />
+              <Stack.Screen name="design/[id]" options={{ title: "Design preview" }} />
               <Stack.Screen name="event/[id]/index" options={{ title: "Event" }} />
               <Stack.Screen name="event/[id]/edit" options={{ title: "Edit event" }} />
               <Stack.Screen name="event/[id]/guests" options={{ title: "Invitees" }} />

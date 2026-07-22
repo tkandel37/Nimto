@@ -50,8 +50,8 @@ export default async function Home() {
                 "Pick a design, add the little details, and send a link that feels made for the people you are inviting."}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="site-button-primary" href="/auth?mode=register">
-                Make my first invite
+              <Link className="site-button-primary" href="/designs">
+                Browse invitation designs
               </Link>
               <AuthAwareAccountLink
                 className="site-button-secondary"
@@ -137,8 +137,8 @@ export default async function Home() {
           flow stays the same when the event gets bigger.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
-          <Link className="site-button-primary" href="/auth?mode=register">
-            Start an invite
+          <Link className="site-button-primary" href="/designs">
+            Browse designs
           </Link>
           <AuthAwareAccountLink className="site-button-secondary" />
         </div>
@@ -184,6 +184,7 @@ function SiteHeader() {
         <BrandLogo priority />
       </Link>
       <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
+        <Link href="/designs">Designs</Link>
         <Link href="/features">Features</Link>
         <Link href="/blog">Blog</Link>
         <Link href="/about">About</Link>

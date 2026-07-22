@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import { Brand, Button, Card, Field, PageHeader, Screen } from "@/components/ui";
@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/api";
 import { colors } from "@/lib/theme";
 
 export default function RegisterScreen() {
+  const params = useLocalSearchParams<{ returnTo?: string; designVersionId?: string; designName?: string }>();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +20,7 @@ export default function RegisterScreen() {
         method: "POST",
         body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password }),
       });
-      router.push({ pathname: "/(auth)/verify", params: { email: response.email } });
+      router.push({ pathname: "/(auth)/verify", params: { email: response.email, returnTo: params.returnTo ?? "", designVersionId: params.designVersionId ?? "", designName: params.designName ?? "" } });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not register.");
     } finally { setBusy(false); }
@@ -36,7 +37,8 @@ export default function RegisterScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button busy={busy} onPress={submit} title="Create account" />
     </Card>
-    <Text style={styles.center}>Already registered? <Link href="/(auth)/login" style={styles.link}>Sign in</Link></Text>
+    <Text style={styles.center}>Already registered? <Link href={{ pathname: "/(auth)/login", params }} style={styles.link}>Sign in</Link></Text>
+    <Link href="/(tabs)/designs" style={[styles.link, styles.browse]}>Continue browsing designs</Link>
   </Screen>;
 }
 
@@ -45,4 +47,5 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 13 },
   center: { color: colors.muted, textAlign: "center" },
   link: { color: colors.plum, fontWeight: "800" },
+  browse: { textAlign: "center", padding: 8 },
 });

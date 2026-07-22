@@ -8,6 +8,7 @@ import {
   saveAuthSession,
 } from "@/lib/auth-session";
 import { BrandLogo } from "../../brand-logo";
+import { readAndClearAuthNext } from "@/lib/auth-next";
 
 export default function OAuthSuccessPage() {
   const [status, setStatus] = useState<"loading" | "error">("loading");
@@ -30,8 +31,9 @@ export default function OAuthSuccessPage() {
         const response = await verifySessionWithRetry();
         if (cancelled) return;
         saveAuthSession(AUTH_SESSION_MARKER, response.user);
+        const nextPath = readAndClearAuthNext();
         window.location.replace(
-          isAdminUser(response.user) ? "/dashboard" : "/events",
+          nextPath || (isAdminUser(response.user) ? "/dashboard" : "/events"),
         );
       } catch {
         if (cancelled) return;
