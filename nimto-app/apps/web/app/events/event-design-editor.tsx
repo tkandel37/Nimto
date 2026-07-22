@@ -121,7 +121,11 @@ export function EventDesignEditor({
   );
   const [featureSettings, setFeatureSettings] = useState<EventFeatureSettings>(
     () =>
-      initialFeatureSettings(event.featureSettings, featureConfig, styleSlots),
+      initialFeatureSettings(
+        event.draftFeatureSettings ?? event.featureSettings,
+        featureConfig,
+        styleSlots,
+      ),
   );
   const selectedLinkFields = new Set(
     (featureSettings.links ?? []).map((link) => link.fieldKey),
@@ -316,7 +320,7 @@ export function EventDesignEditor({
     );
     setFeatureSettings(
       initialFeatureSettings(
-        updated.featureSettings,
+        updated.draftFeatureSettings ?? updated.featureSettings,
         featureConfig,
         styleSlots,
       ),

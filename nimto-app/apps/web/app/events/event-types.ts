@@ -44,6 +44,7 @@ export type UserEvent = {
   organizerNotes?: string | null;
   checklist?: Record<string, boolean> | null;
   featureSettings?: Record<string, unknown> | null;
+  draftFeatureSettings?: Record<string, unknown> | null;
   rsvpConfig?: Record<string, unknown> | null;
   designFieldValues?: Record<string, unknown> | null;
   draftDesignVersionId?: string | null;
@@ -155,6 +156,7 @@ export type EventActivity = {
 export type EventDesignRevision = {
   id: string;
   fieldValues: Record<string, unknown>;
+  featureSettings?: Record<string, unknown> | null;
   label?: string | null;
   createdAt: string;
   designVersion: {
@@ -167,11 +169,7 @@ export type EventDesignRevision = {
 export type InviteeDraft = {
   name: string;
   status:
-    | "Ready"
-    | "Duplicate"
-    | "Empty name"
-    | "Invalid character"
-    | "Too long";
+    "Ready" | "Duplicate" | "Empty name" | "Invalid character" | "Too long";
 };
 
 export function formatEventDate(value?: string | null, prefix?: string) {

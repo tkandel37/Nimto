@@ -5,17 +5,22 @@
 The mobile application defines four EAS Build profiles in
 `apps/mobile/eas.json`:
 
-| Profile | Distribution | OTA channel |
-| --- | --- | --- |
+| Profile       | Distribution                | OTA channel   |
+| ------------- | --------------------------- | ------------- |
 | `development` | Internal development client | `development` |
-| `preview` | Internal tester build | `preview` |
-| `staging` | TestFlight / Play testing | `staging` |
-| `production` | App Store / Play production | `production` |
+| `preview`     | Internal tester build       | `preview`     |
+| `staging`     | TestFlight / Play testing   | `staging`     |
+| `production`  | App Store / Play production | `production`  |
 
 `runtimeVersion.policy` is `appVersion`. JavaScript and asset updates can only
 reach binaries with the same compatible app version. Increment the app version
 whenever native modules, permissions, bundle configuration, or native code
 changes.
+
+The full editor release introduces
+`@react-native-async-storage/async-storage` for on-device draft recovery. Ship
+this release in a newly built iOS/Android binary with a new app version before
+publishing later JavaScript-only editor updates over OTA.
 
 ## One-time Expo account linking
 
@@ -91,9 +96,11 @@ Do not publish placeholder signing fingerprints.
 
 ## PWA releases
 
-The Next.js app owns the PWA. Production deployment publishes the manifest,
-service worker, offline fallback, icons, and install/update UI. The service
-worker caches static assets only; authenticated `/api` responses are excluded.
+Both the Next.js site and the Expo static web export can be deployed as PWA
+surfaces. The Expo export includes its own manifest, icon, service worker, and
+offline route. Keep them on separate origins or non-overlapping service-worker
+scopes. Both service workers cache static assets only; authenticated API
+responses are excluded.
 
 After deployment, verify:
 
@@ -102,3 +109,8 @@ After deployment, verify:
 3. Offline navigation reaches `/offline`.
 4. Login, event, and invitee API responses are not present in Cache Storage.
 5. A subsequent deployment shows the in-app update notice.
+
+For the Expo host PWA, run `npm run export --workspace @nimto/mobile`, publish
+`apps/mobile/dist` to an HTTPS static host with clean-route rewrites, and verify
+the catalogue previews, login, editor autosave, publish flow, and `/offline`
+fallback from the deployed origin.

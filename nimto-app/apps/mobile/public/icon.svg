@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="myNimto">
+  <rect width="512" height="512" rx="112" fill="#552f48"/>
+  <path d="M137 367V145h58l122 135V145h58v222h-53L195 227v140z" fill="#fffaf7"/>
+  <circle cx="377" cy="137" r="24" fill="#d9a5bd"/>
+</svg>

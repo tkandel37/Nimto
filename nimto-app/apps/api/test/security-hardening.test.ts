@@ -21,6 +21,7 @@ import { OAuthCallbackExceptionFilter } from "../src/auth/filters/oauth-callback
 import { LogoutAuthGuard } from "../src/auth/guards/logout-auth.guard";
 import { AdminService } from "../src/admin/admin.service";
 import { AuthController } from "../src/auth/auth.controller";
+import { EventsService } from "../src/events/events.service";
 
 const strongSecret = "s3cure-production-secret-with-more-than-32-characters!";
 
@@ -409,5 +410,134 @@ test("uploaded invitation HTML rejects executable behavior", () => {
     service.assertStrictTemplateUpload(
       "<!doctype html><html><head><style>body{background:url(https://evil.example)}</style></head><body></body></html>",
     ),
+  );
+});
+
+test("event design values only accept editable free template fields", () => {
+  const service = new EventsService({} as never, {} as never) as any;
+  const scanResult = {
+    fields: [
+      { key: "headline", editableByUser: true },
+      { key: "locked_copy", locked: true },
+      { key: "guest_name", paid: true },
+    ],
+  };
+
+  assert.deepEqual(
+    service.normalizeDesignFieldValues(scanResult, { headline: "Welcome" }),
+    { headline: "Welcome" },
+  );
+  assert.throws(() =>
+    service.normalizeDesignFieldValues(scanResult, { locked_copy: "Changed" }),
+  );
+  assert.throws(() =>
+    service.normalizeDesignFieldValues(scanResult, { guest_name: "Guest" }),
+  );
+  assert.throws(() =>
+    service.normalizeDesignFieldValues(scanResult, { unknown: "Changed" }),
+  );
+  assert.throws(() =>
+    service.normalizeDesignFieldValues(scanResult, {
+      headline: { nested: true },
+    }),
+  );
+});
+
+test("event feature drafts are constrained to template capabilities and safe values", () => {
+  const service = new EventsService({} as never, {} as never) as any;
+  const featureConfig = {
+    music: { available: true },
+    links: { available: true },
+    theme: { available: true },
+    rsvp: { available: false },
+    sharePreview: { available: true },
+  };
+  const scanResult = {
+    linkableFieldKeys: ["venue"],
+    styleSlots: [{ key: "accentColor" }],
+  };
+
+  assert.deepEqual(
+    service.normalizeFeatureSettings(featureConfig, scanResult, {
+      music: { enabled: true, url: "https://cdn.example.test/song.mp3" },
+      rsvp: { enabled: true },
+      links: [
+        {
+          fieldKey: "venue",
+          url: "https://maps.example.test/place",
+          hoverText: "Open map",
+        },
+      ],
+      theme: { accentColor: "#663355" },
+      sharePreview: { title: "Our invitation" },
+    }),
+    {
+      countdown: { enabled: false },
+      rsvp: { enabled: false },
+      openingAnimation: { enabled: false },
+      music: {
+        enabled: true,
+        url: "https://cdn.example.test/song.mp3",
+      },
+      additionalInfo: { enabled: false, text: "" },
+      links: [
+        {
+          fieldKey: "venue",
+          url: "https://maps.example.test/place",
+          hoverText: "Open map",
+        },
+      ],
+      theme: { accentColor: "#663355" },
+      sharePreview: {
+        title: "Our invitation",
+        description: "",
+        imageUrl: "",
+      },
+    },
+  );
+  assert.throws(() =>
+    service.normalizeFeatureSettings(featureConfig, scanResult, {
+      links: [{ fieldKey: "venue", url: "javascript:alert(1)" }],
+    }),
+  );
+  assert.throws(() =>
+    service.normalizeFeatureSettings(featureConfig, scanResult, {
+      theme: { accentColor: "red;}body{display:none}" },
+    }),
+  );
+});
+
+test("publishing requires event details and every editable required field", async () => {
+  const prisma = {
+    designVersion: {
+      findUnique: async () => ({
+        scanResult: {
+          fields: [
+            { key: "headline", label: "Headline", required: true },
+            { key: "locked_copy", required: true, locked: true },
+          ],
+        },
+      }),
+    },
+  };
+  const service = new EventsService(prisma as never, {} as never) as any;
+  const complete = {
+    eventDate: new Date("2027-04-18T06:00:00.000Z"),
+    venue: "Kathmandu",
+    designVersionId: "version-id",
+    designFieldValues: { headline: "You are invited" },
+  };
+
+  await assert.doesNotReject(() =>
+    service.assertPublishableInvitation(complete),
+  );
+  await assert.rejects(() =>
+    service.assertPublishableInvitation({ ...complete, eventDate: null }),
+  );
+  await assert.rejects(() =>
+    service.assertPublishableInvitation({
+      ...complete,
+      designFieldValues: {},
+    }),
   );
 });

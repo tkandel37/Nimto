@@ -8,10 +8,10 @@ personalized invitation links. Guests open a clean invitation page containing
 the event information and the name of the person or family being invited.
 
 > Project status: active MVP development. Authentication, administration,
-> template publishing, event creation, invitee links, CMS pages, and local
-> Docker infrastructure are implemented. Payments, bulk PDF export, RSVP,
-> bilingual editing, QR generation, and production-ready sharing integrations
-> remain on the roadmap.
+> template publishing, event creation, invitation editing, RSVP, invitee links,
+> CMS pages, and local Docker infrastructure are implemented. Payments, bulk
+> PDF export, bilingual editing, QR generation, and production-ready sharing
+> integrations remain on the roadmap.
 
 ## Product experience
 
@@ -22,6 +22,10 @@ the event information and the name of the person or family being invited.
 - Log in only when ready to customize a selected design.
 - Create wedding, birthday, corporate, or custom events.
 - Enter event date, venue, description, cover image, and design field values.
+- Edit template-approved invitation content, theme, links, RSVP, countdown,
+  music, and additional information with a private live preview and autosave.
+- Recover unsynced editor changes from the device, publish only when ready, and
+  restore earlier published invitation revisions.
 - Create and manage guest names.
 - Generate a unique invitation link for each invitee.
 - Regenerate or remove invitee links.
@@ -35,6 +39,7 @@ the event information and the name of the person or family being invited.
 - See the correct published design version.
 - See the personalized guest name.
 - View the host, date, venue, description, and invitation content.
+- Submit or update an RSVP when the host enables it.
 
 ### For administrators and staff
 
@@ -190,7 +195,6 @@ Render, or equivalent providers through environment variables.
 - Paid guest-name personalization
 - Bulk invitation and PDF generation
 - English and Nepali editing
-- RSVP and attendance tracking
 - QR codes and calendar links
 - Maps, countdowns, galleries, and music controls
 - WhatsApp, Messenger, and email sharing workflows
@@ -199,13 +203,14 @@ Render, or equivalent providers through environment variables.
 
 ## Mobile and PWA
 
-The web application is installable as a PWA and includes a safe offline
-fallback with static-asset caching. The Expo application provides the core
-host workflow on Android and iOS: authentication, design browsing, event
-creation and editing, invitation previews, invitee links, RSVP summaries, and
-native sharing. On web, PWA, Android, and iOS, visitors can explore published
-designs without logging in and are asked to authenticate only when they choose
-one to customize.
+The Next.js application and Expo web export are installable PWA surfaces with
+safe offline fallbacks and static-asset caching. The Expo application provides
+the core host workflow on Android, iOS, and the web: authentication, design
+browsing, event creation, full invitation editing, private draft autosave and
+recovery, publishing, invitation previews, invitee links, RSVP summaries, and
+native sharing where supported. On web, PWA, Android, and iOS, visitors can
+explore published designs without logging in and are asked to authenticate
+only when they choose one to customize.
 
 Mobile setup and verification are documented in
 [`apps/mobile/README.md`](apps/mobile/README.md). EAS Build, OTA, store, and PWA

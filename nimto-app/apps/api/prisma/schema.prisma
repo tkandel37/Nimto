@@ -381,6 +381,7 @@ model Event {
   draftDesignVersionId   String?
   draftDesignVersion     DesignVersion?        @relation("DraftEventDesign", fields: [draftDesignVersionId], references: [id], onDelete: Restrict)
   draftDesignFieldValues Json?
+  draftFeatureSettings   Json?
   draftSavedAt           DateTime?
   invitees               InvitationInvitee[]
   rsvpResponses          EventRsvpResponse[]
@@ -455,6 +456,7 @@ model EventDesignRevision {
   designVersionId String
   designVersion   DesignVersion @relation(fields: [designVersionId], references: [id], onDelete: Restrict)
   fieldValues     Json
+  featureSettings Json?
   label           String?
   createdAt       DateTime      @default(now())
 

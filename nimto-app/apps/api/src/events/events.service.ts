@@ -110,6 +110,7 @@ export class EventsService {
         lastOpenedAt: true,
         rsvpDeadline: true,
         featureSettings: true,
+        draftFeatureSettings: true,
         rsvpConfig: true,
         createdAt: true,
         updatedAt: true,
@@ -149,6 +150,7 @@ export class EventsService {
         organizerNotes: true,
         checklist: true,
         featureSettings: true,
+        draftFeatureSettings: true,
         rsvpConfig: true,
         designFieldValues: true,
         draftDesignVersionId: true,
@@ -254,6 +256,14 @@ export class EventsService {
 
   async create(userId: string, dto: CreateEventDto, context: ActorContext) {
     const designData = await this.designEventData(dto);
+    if (dto.isPublished) {
+      await this.assertPublishableInvitation({
+        eventDate: dto.eventDate ? new Date(dto.eventDate) : null,
+        venue: dto.venue,
+        designVersionId: designData.designVersionId,
+        designFieldValues: designData.designFieldValues,
+      });
+    }
     const slug = await this.uniqueSlug(dto.title);
     const event = await this.prisma.$transaction(async (transaction) => {
       const createdEvent = await transaction.event.create({
@@ -305,6 +315,7 @@ export class EventsService {
           eventId: event.id,
           designVersionId: designData.designVersionId,
           fieldValues: designData.designFieldValues ?? {},
+          featureSettings: {},
           label: "Initial invitation",
         },
       });
@@ -545,17 +556,17 @@ export class EventsService {
     eventId: string,
     dto: SaveEventDesignDraftDto,
   ) {
-    await this.assertOwner(userId, eventId);
-    const designData = await this.designEventData(dto);
+    const event = await this.assertOwner(userId, eventId);
+    const designData = await this.designEventData(dto, [
+      event.designVersionId,
+      event.draftDesignVersionId,
+    ]);
     return this.prisma.event.update({
       where: { id: eventId },
       data: {
         draftDesignVersionId: designData.designVersionId,
         draftDesignFieldValues: designData.designFieldValues,
-        featureSettings:
-          dto.featureSettings !== undefined
-            ? (dto.featureSettings as Prisma.InputJsonObject)
-            : undefined,
+        draftFeatureSettings: designData.featureSettings,
         draftSavedAt: new Date(),
       },
     });
@@ -568,13 +579,21 @@ export class EventsService {
     }
     const fieldValues =
       (event.draftDesignFieldValues as Prisma.InputJsonValue | null) ?? {};
+    await this.assertPublishableInvitation({
+      eventDate: event.eventDate,
+      venue: event.venue,
+      designVersionId: event.draftDesignVersionId,
+      designFieldValues: fieldValues,
+    });
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         designVersionId: event.draftDesignVersionId,
         designFieldValues: fieldValues,
         featureSettings:
-          (event.featureSettings as Prisma.InputJsonObject | null) ?? {},
+          (event.draftFeatureSettings as Prisma.InputJsonObject | null) ??
+          (event.featureSettings as Prisma.InputJsonObject | null) ??
+          {},
         isPublished: true,
       },
     });
@@ -583,6 +602,10 @@ export class EventsService {
         eventId,
         designVersionId: event.draftDesignVersionId,
         fieldValues,
+        featureSettings:
+          (event.draftFeatureSettings as Prisma.InputJsonObject | null) ??
+          (event.featureSettings as Prisma.InputJsonObject | null) ??
+          {},
         label: `Published ${new Date().toLocaleDateString("en")}`,
       },
     });
@@ -599,7 +622,7 @@ export class EventsService {
     eventId: string,
     revisionId: string,
   ) {
-    await this.assertOwner(userId, eventId);
+    const event = await this.assertOwner(userId, eventId);
     const revision = await this.prisma.eventDesignRevision.findFirst({
       where: { id: revisionId, eventId },
     });
@@ -609,6 +632,10 @@ export class EventsService {
       data: {
         draftDesignVersionId: revision.designVersionId,
         draftDesignFieldValues: revision.fieldValues as Prisma.InputJsonValue,
+        draftFeatureSettings:
+          (revision.featureSettings as Prisma.InputJsonValue | null) ??
+          (event.featureSettings as Prisma.InputJsonValue | null) ??
+          {},
         draftSavedAt: new Date(),
       },
     });
@@ -622,6 +649,29 @@ export class EventsService {
   ) {
     const existing = await this.assertOwner(userId, eventId);
     const designData = await this.designEventData(dto);
+    const changesPublishedInvitation =
+      dto.isPublished === true ||
+      (existing.isPublished &&
+        dto.isPublished !== false &&
+        (dto.eventDate !== undefined ||
+          dto.venue !== undefined ||
+          dto.designVersionId !== undefined ||
+          dto.designFieldValues !== undefined));
+    if (changesPublishedInvitation) {
+      await this.assertPublishableInvitation({
+        eventDate:
+          dto.eventDate !== undefined
+            ? dto.eventDate
+              ? new Date(dto.eventDate)
+              : null
+            : existing.eventDate,
+        venue:
+          dto.venue !== undefined ? dto.venue?.trim() || null : existing.venue,
+        designVersionId: designData.designVersionId ?? existing.designVersionId,
+        designFieldValues:
+          designData.designFieldValues ?? existing.designFieldValues,
+      });
+    }
     const event = await this.prisma.$transaction(async (transaction) => {
       const updatedEvent = await transaction.event.update({
         where: { id: eventId },
@@ -720,6 +770,10 @@ export class EventsService {
           organizerNotes: source.organizerNotes,
           checklist: source.checklist as Prisma.InputJsonValue | undefined,
           featureSettings:
+            (source.featureSettings as Prisma.InputJsonValue | null) ??
+            undefined,
+          draftFeatureSettings:
+            (source.draftFeatureSettings as Prisma.InputJsonValue | null) ??
             (source.featureSettings as Prisma.InputJsonValue | null) ??
             undefined,
           rsvpConfig:
@@ -1368,14 +1422,14 @@ export class EventsService {
             ? new Date(dto.eventDate)
             : null
           : undefined,
-      venue: dto.venue !== undefined ? dto.venue.trim() || null : undefined,
+      venue: dto.venue !== undefined ? dto.venue?.trim() || null : undefined,
       description:
         dto.description !== undefined
-          ? dto.description.trim() || null
+          ? dto.description?.trim() || null
           : undefined,
       coverImage:
         dto.coverImage !== undefined
-          ? dto.coverImage.trim() || null
+          ? dto.coverImage?.trim() || null
           : undefined,
       isPublished: dto.isPublished,
       rsvpDeadline:
@@ -1386,7 +1440,7 @@ export class EventsService {
           : undefined,
       organizerNotes:
         "organizerNotes" in dto && dto.organizerNotes !== undefined
-          ? dto.organizerNotes.trim() || null
+          ? dto.organizerNotes?.trim() || null
           : undefined,
       checklist:
         "checklist" in dto && dto.checklist !== undefined
@@ -1756,10 +1810,14 @@ export class EventsService {
     return null;
   }
 
-  private async designEventData(dto: CreateEventDto | UpdateEventDto): Promise<{
+  private async designEventData(
+    dto: CreateEventDto | UpdateEventDto | SaveEventDesignDraftDto,
+    allowedExistingVersionIds: (string | null | undefined)[] = [],
+  ): Promise<{
     designVersionId?: string;
     designId?: string;
     designFieldValues?: Prisma.InputJsonObject;
+    featureSettings?: Prisma.InputJsonObject;
   }> {
     if (!dto.designVersionId && dto.designFieldValues === undefined) {
       return {};
@@ -1774,20 +1832,314 @@ export class EventsService {
       where: { id: dto.designVersionId },
       include: { design: true },
     });
-    if (
-      !version ||
-      version.status !== DesignVersionStatus.CURRENT ||
-      version.design.status !== DesignStatus.ACTIVE
-    ) {
+    if (!version) {
+      throw new BadRequestException("Select a valid design version.");
+    }
+    const isCurrentActive =
+      version.status === DesignVersionStatus.CURRENT &&
+      version.design.status === DesignStatus.ACTIVE;
+    const isAttachedVersion = allowedExistingVersionIds.some(
+      (versionId) => versionId === version.id,
+    );
+    if (!isCurrentActive && !isAttachedVersion) {
       throw new BadRequestException("Select a current active design version.");
     }
 
     return {
       designVersionId: version.id,
       designId: version.designId,
-      designFieldValues: (dto.designFieldValues ??
-        {}) as Prisma.InputJsonObject,
+      designFieldValues: this.normalizeDesignFieldValues(
+        version.scanResult,
+        dto.designFieldValues ?? {},
+      ),
+      featureSettings:
+        "featureSettings" in dto && dto.featureSettings !== undefined
+          ? this.normalizeFeatureSettings(
+              version.featureConfig,
+              version.scanResult,
+              dto.featureSettings,
+            )
+          : undefined,
     };
+  }
+
+  private normalizeFeatureSettings(
+    featureConfigValue: Prisma.JsonValue,
+    scanResultValue: Prisma.JsonValue,
+    input: Record<string, unknown>,
+  ): Prisma.InputJsonObject {
+    const featureConfig = this.jsonRecord(featureConfigValue);
+    const scanResult = this.jsonRecord(scanResultValue);
+    const available = (key: string) =>
+      this.jsonRecord(featureConfig[key]).available === true;
+    const toggle = (key: string) => ({
+      enabled: available(key) && this.jsonRecord(input[key]).enabled === true,
+    });
+    const result: Record<string, Prisma.InputJsonValue> = {
+      countdown: toggle("countdown"),
+      rsvp: toggle("rsvp"),
+      openingAnimation: toggle("openingAnimation"),
+    };
+
+    const music = this.jsonRecord(input.music);
+    const musicUrl = this.boundedString(music.url, "Music URL", 2_048);
+    if (musicUrl && !this.allowedUrl(musicUrl, ["https:"])) {
+      throw new BadRequestException("Music URL must use HTTPS.");
+    }
+    result.music = {
+      enabled: available("music") && music.enabled === true,
+      url: available("music") ? musicUrl : "",
+    };
+
+    const additionalInfo = this.jsonRecord(input.additionalInfo);
+    result.additionalInfo = {
+      enabled: available("additionalInfo") && additionalInfo.enabled === true,
+      text: available("additionalInfo")
+        ? this.boundedString(
+            additionalInfo.text,
+            "Additional information",
+            1_200,
+          )
+        : "",
+    };
+
+    const linkableKeys = new Set(
+      (Array.isArray(scanResult.linkableFieldKeys)
+        ? scanResult.linkableFieldKeys
+        : []
+      ).filter((key): key is string => typeof key === "string"),
+    );
+    const links =
+      available("links") && Array.isArray(input.links) ? input.links : [];
+    if (links.length > 50) {
+      throw new BadRequestException("Too many invitation field links.");
+    }
+    const usedLinkKeys = new Set<string>();
+    result.links = links.map((item) => {
+      const link = this.jsonRecord(item);
+      const fieldKey = this.boundedString(link.fieldKey, "Linked field", 120);
+      const url = this.boundedString(link.url, "Field link URL", 2_048);
+      if (!linkableKeys.has(fieldKey)) {
+        throw new BadRequestException(
+          `The invitation field "${fieldKey}" cannot be linked.`,
+        );
+      }
+      if (usedLinkKeys.has(fieldKey)) {
+        throw new BadRequestException(
+          `The invitation field "${fieldKey}" has more than one link.`,
+        );
+      }
+      if (url && !this.allowedUrl(url, ["https:", "mailto:", "tel:"])) {
+        throw new BadRequestException(
+          "Field links must use HTTPS, mailto, or tel.",
+        );
+      }
+      usedLinkKeys.add(fieldKey);
+      return {
+        fieldKey,
+        url,
+        hoverText:
+          this.boundedString(link.hoverText, "Link hover text", 120) ||
+          "Follow link",
+      };
+    });
+
+    const styleSlots = Array.isArray(scanResult.styleSlots)
+      ? scanResult.styleSlots
+      : [];
+    const styleKeys = new Set(
+      styleSlots
+        .map((slot) => this.jsonRecord(slot).key)
+        .filter((key): key is string => typeof key === "string"),
+    );
+    const themeInput = this.jsonRecord(input.theme);
+    const theme: Record<string, Prisma.InputJsonValue> = {};
+    if (available("theme")) {
+      for (const [key, rawValue] of Object.entries(themeInput)) {
+        if (!styleKeys.has(key)) {
+          throw new BadRequestException(`The theme value "${key}" is invalid.`);
+        }
+        const value = this.boundedString(rawValue, "Theme value", 160);
+        if (/[;{}<>]|url\s*\(|@import/i.test(value)) {
+          throw new BadRequestException("Theme values contain unsafe CSS.");
+        }
+        theme[key] = value;
+      }
+    }
+    result.theme = theme;
+
+    const sharePreview = this.jsonRecord(input.sharePreview);
+    const imageUrl = this.boundedString(
+      sharePreview.imageUrl,
+      "Share preview image URL",
+      2_048,
+    );
+    if (imageUrl && !this.allowedUrl(imageUrl, ["https:"])) {
+      throw new BadRequestException("Share preview image URL must use HTTPS.");
+    }
+    result.sharePreview = available("sharePreview")
+      ? {
+          title: this.boundedString(
+            sharePreview.title,
+            "Share preview title",
+            120,
+          ),
+          description: this.boundedString(
+            sharePreview.description,
+            "Share preview description",
+            240,
+          ),
+          imageUrl,
+        }
+      : { title: "", description: "", imageUrl: "" };
+
+    return result as Prisma.InputJsonObject;
+  }
+
+  private jsonRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private boundedString(value: unknown, label: string, maxLength: number) {
+    if (value === undefined || value === null) return "";
+    if (typeof value !== "string") {
+      throw new BadRequestException(`${label} must be text.`);
+    }
+    const normalized = value.trim();
+    if (normalized.length > maxLength) {
+      throw new BadRequestException(
+        `${label} must be ${maxLength} characters or fewer.`,
+      );
+    }
+    return normalized;
+  }
+
+  private allowedUrl(value: string, protocols: string[]) {
+    if (!value) return false;
+    try {
+      return protocols.includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  }
+
+  private normalizeDesignFieldValues(
+    scanResult: Prisma.JsonValue,
+    input: Record<string, unknown>,
+  ) {
+    const fields =
+      scanResult && typeof scanResult === "object" && !Array.isArray(scanResult)
+        ? (scanResult as { fields?: unknown }).fields
+        : undefined;
+    const editableKeys = new Set(
+      (Array.isArray(fields) ? fields : [])
+        .filter(
+          (field): field is Record<string, unknown> =>
+            Boolean(field) &&
+            typeof field === "object" &&
+            !Array.isArray(field),
+        )
+        .filter(
+          (field) =>
+            field.editableByUser !== false &&
+            field.locked !== true &&
+            field.paid !== true,
+        )
+        .map((field) => field.key)
+        .filter(
+          (key): key is string => typeof key === "string" && Boolean(key),
+        ),
+    );
+    const normalized: Record<string, Prisma.InputJsonValue> = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (!editableKeys.has(key)) {
+        throw new BadRequestException(
+          `The invitation field "${key}" cannot be edited.`,
+        );
+      }
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean"
+      ) {
+        throw new BadRequestException(
+          `The invitation field "${key}" has an invalid value.`,
+        );
+      }
+      if (typeof value === "string" && value.length > 4_000) {
+        throw new BadRequestException(
+          `The invitation field "${key}" is too long.`,
+        );
+      }
+      if (typeof value === "number" && !Number.isFinite(value)) {
+        throw new BadRequestException(
+          `The invitation field "${key}" has an invalid number.`,
+        );
+      }
+      normalized[key] = value;
+    }
+    return normalized as Prisma.InputJsonObject;
+  }
+
+  private async assertPublishableInvitation({
+    eventDate,
+    venue,
+    designVersionId,
+    designFieldValues,
+  }: {
+    eventDate: Date | null | undefined;
+    venue: string | null | undefined;
+    designVersionId: string | null | undefined;
+    designFieldValues: unknown;
+  }) {
+    if (!eventDate || !venue?.trim()) {
+      throw new BadRequestException(
+        "Add the event date and venue before publishing.",
+      );
+    }
+    if (!designVersionId) {
+      throw new BadRequestException(
+        "Select an invitation design before publishing.",
+      );
+    }
+    const version = await this.prisma.designVersion.findUnique({
+      where: { id: designVersionId },
+      select: { scanResult: true },
+    });
+    if (!version) {
+      throw new BadRequestException("Select a valid invitation design.");
+    }
+    const scanResult = this.jsonRecord(version.scanResult);
+    const values = this.jsonRecord(designFieldValues);
+    const missing = (Array.isArray(scanResult.fields) ? scanResult.fields : [])
+      .map((field) => this.jsonRecord(field))
+      .filter(
+        (field) =>
+          field.required === true &&
+          field.editableByUser !== false &&
+          field.locked !== true &&
+          field.paid !== true,
+      )
+      .filter((field) => {
+        const key = typeof field.key === "string" ? field.key : "";
+        const value = values[key];
+        const defaultValue = field.defaultValue;
+        return (
+          !String(value ?? "").trim() && !String(defaultValue ?? "").trim()
+        );
+      })
+      .map((field) =>
+        typeof field.label === "string"
+          ? field.label
+          : String(field.key ?? "Invitation field"),
+      );
+    if (missing.length) {
+      throw new BadRequestException(
+        `Complete the required invitation fields: ${missing.join(", ")}.`,
+      );
+    }
   }
 
   private async assertOwner(userId: string, eventId: string) {

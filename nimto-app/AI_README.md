@@ -51,15 +51,21 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Installable Next.js PWA with a manifest, branded icons, static-only service
   worker caching, offline fallback, and install/update messaging.
 - Expo React Native Android/iOS host app with secure mobile login, design and
-  event workflows, invitation editing/preview, invitees, RSVP summaries,
-  native sharing, and EAS build/update profiles.
+  event workflows, full invitation editing, private draft autosave and local
+  recovery, feature/theme/link controls, revision restore, safe web/native
+  previews, invitees, RSVP summaries, native sharing, and EAS build/update
+  profiles.
+- Expo static web/PWA export with sandboxed invitation iframes, platform-aware
+  session storage, a manifest, service worker, and offline fallback.
+- Separate published and draft feature settings. Invitation features remain
+  private with draft content until an explicit publish, and published revisions
+  retain both field values and feature settings.
 
 ### Planned, not implemented
 
 - Payments, subscriptions, checkout, billing, and paid-field enforcement.
 - Bulk PDF generation or printing.
 - Full English/Nepali localization.
-- RSVP collection and attendance tracking.
 - QR-code generation.
 - Managed image/file storage.
 - Turnkey WhatsApp, Messenger, SMS, or email distribution.
@@ -141,10 +147,11 @@ is no longer compiled into browser fetches or the Google sign-in link.
 Do not replace the internal URL with `localhost` inside the web container;
 `localhost` there means the web container itself.
 
-The native app calls the API directly through `EXPO_PUBLIC_API_URL` and uses
+The Expo app calls the API directly through `EXPO_PUBLIC_API_URL` and uses
 `/auth/mobile/login` to receive the same database-revocable JWT session used by
-the API guard. The token is stored with Expo SecureStore. Do not return the raw
-token from the browser `/auth/login` endpoint.
+the API guard. Native tokens are stored with Expo SecureStore; the Expo PWA
+uses AsyncStorage's browser implementation. Do not return the raw token from
+the browser `/auth/login` endpoint.
 
 ## 6. Core data model
 
@@ -155,7 +162,8 @@ Main Prisma models:
 - Authorization: `Role`, `Permission`, `UserRole`, `RolePermission`.
 - Designs: `DesignCategory`, `DesignSubcategory`, `InvitationTemplate`,
   `InvitationDesign`, `DesignVersion`, `AnimationComponent`.
-- Invitations: `Event`, `InvitationInvitee`, `UserDesignUsage`.
+- Invitations: `Event`, `EventDesignRevision`, `EventRsvpResponse`,
+  `InvitationInvitee`, `UserDesignUsage`.
 - Content: `PageContent`, `BlogPost`.
 - Operations: `AuditLog`.
 
@@ -169,6 +177,9 @@ Read `apps/api/prisma/schema.prisma` before changing database behavior.
 - Published designs are versioned.
 - Existing events reference a specific `DesignVersion`; publishing a newer
   design must not silently change old invitations.
+- `draftDesignFieldValues` and `draftFeatureSettings` must never affect public
+  invitation rendering until `publishDesignDraft` copies them to the published
+  fields.
 - `UserDesignUsage` is lifetime history. Deleting an event must not remove its
   design from the user's history.
 - Invitee slugs must remain unique.
@@ -332,7 +343,7 @@ Other developers may use Docker Desktop without changing project files.
 
 The Docker Compose stack was previously verified with:
 
-- all 21 Prisma migrations applied;
+- all 34 Prisma migrations applied;
 - seeded Super Admin login;
 - authenticated `/auth/me`;
 - healthy web and API containers;

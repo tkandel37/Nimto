@@ -1,0 +1,20 @@
+{
+  "name": "myNimto Invitations",
+  "short_name": "myNimto",
+  "description": "Create, edit, publish, and manage digital invitations.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F2F6",
+  "theme_color": "#552F48",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

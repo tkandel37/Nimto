@@ -24,22 +24,22 @@ export class UpdateEventDto {
 
   @IsDateString()
   @IsOptional()
-  eventDate?: string;
+  eventDate?: string | null;
 
   @IsString()
   @MaxLength(180)
   @IsOptional()
-  venue?: string;
+  venue?: string | null;
 
   @IsString()
   @MaxLength(1200)
   @IsOptional()
-  description?: string;
+  description?: string | null;
 
   @IsUrl({ require_protocol: true })
   @MaxLength(600)
   @IsOptional()
-  coverImage?: string;
+  coverImage?: string | null;
 
   @IsBoolean()
   @IsOptional()
@@ -55,12 +55,12 @@ export class UpdateEventDto {
 
   @IsDateString()
   @IsOptional()
-  rsvpDeadline?: string;
+  rsvpDeadline?: string | null;
 
   @IsString()
   @MaxLength(4000)
   @IsOptional()
-  organizerNotes?: string;
+  organizerNotes?: string | null;
 
   @IsObject()
   @IsOptional()

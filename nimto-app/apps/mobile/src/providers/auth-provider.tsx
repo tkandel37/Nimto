@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import {
   createContext,
@@ -11,9 +10,13 @@ import {
   useState,
 } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
+import { clearAllInvitationEditorDrafts } from "@/lib/editor-draft";
+import {
+  deleteSessionToken,
+  getSessionToken,
+  setSessionToken,
+} from "@/lib/session-store";
 import { AuthResponse, AuthUser } from "@/lib/types";
-
-const TOKEN_KEY = "nimto_mobile_session";
 
 type AuthContextValue = {
   isReady: boolean;
@@ -33,7 +36,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const clearSession = useCallback(async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await deleteSessionToken();
+    await clearAllInvitationEditorDrafts();
     queryClient.clear();
     setToken(null);
     setUser(null);
@@ -48,7 +52,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    SecureStore.getItemAsync(TOKEN_KEY)
+    getSessionToken()
       .then(async (storedToken) => {
         if (storedToken) await loadUser(storedToken);
       })
@@ -65,9 +69,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       method: "POST",
       body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
     });
-    await SecureStore.setItemAsync(TOKEN_KEY, response.token, {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
+    await setSessionToken(response.token);
     setToken(response.token);
     setUser(response.user);
   }, []);
