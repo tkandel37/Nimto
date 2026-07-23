@@ -51,7 +51,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Complete local Docker stack using PostgreSQL, Mailpit, Adminer, API, and web.
 - Automatic migration deployment and idempotent Super Admin seeding.
 - Installable Next.js PWA with a manifest, branded icons, static-only service
-  worker caching, offline fallback, and install/update messaging.
+  worker caching, offline fallback, install-aware delayed prompts, dismissible
+  install/update messaging, and automatic prompt timeout.
 - Expo React Native Android/iOS host app with secure mobile login, design and
   event workflows, full invitation editing, private draft autosave and local
   recovery, feature/theme/link controls, revision restore, safe web/native

@@ -595,26 +595,26 @@ function GuestDesignShell({
     <main className="user-shell guest-design-shell">
       <aside className="user-sidebar">
         <Link className="user-logo" href="/designs">
-          <BrandLogo compact />
+          <BrandLogo />
         </Link>
         <nav className="user-nav" aria-label="Explore myNimto">
           <Link className="user-nav-link" href="/">
-            <span aria-hidden="true">⌂</span><span>Home</span>
+            <span>Home</span>
           </Link>
           <Link className="user-nav-link active" href="/designs">
-            <span aria-hidden="true">✦</span><span>Designs</span>
+            <span>Designs</span>
           </Link>
           <Link className="user-nav-link" href="/features">
-            <span aria-hidden="true">◎</span><span>Features</span>
+            <span>Features</span>
           </Link>
           <Link className="user-nav-link" href="/blog">
-            <span aria-hidden="true">◫</span><span>Blog</span>
+            <span>Blog</span>
           </Link>
           <Link className="user-nav-link" href="/about">
-            <span aria-hidden="true">○</span><span>About</span>
+            <span>About</span>
           </Link>
         </nav>
-        <div className="user-sidebar-note"><span>✍</span><p>Browse first, sign in when ready</p></div>
+        <div className="user-sidebar-note"><p>Browse first, sign in when ready</p></div>
       </aside>
       <section className="user-main">
         <header className="user-topbar">
@@ -627,8 +627,8 @@ function GuestDesignShell({
         <div className="user-page">{children}</div>
       </section>
       <nav className="user-bottom-nav" aria-label="Guest navigation">
-        <Link className="active" href="/designs"><span aria-hidden="true">✦</span><span>Explore</span></Link>
-        <Link href="/auth?mode=login&next=%2Fdesigns"><span aria-hidden="true">●</span><span>Sign in</span></Link>
+        <Link className="active" href="/designs"><span>Designs</span></Link>
+        <Link href="/auth?mode=login&next=%2Fdesigns"><span>Sign in</span></Link>
       </nav>
       <div className="user-toast-region" role="status" aria-live="polite">
         {toasts.map((toast) => (

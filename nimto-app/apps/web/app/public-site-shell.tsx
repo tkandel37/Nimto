@@ -7,15 +7,14 @@ export type PublicPage = "home" | "designs" | "features" | "blog" | "about";
 
 const publicLinks: {
   href: string;
-  icon: string;
   label: string;
   page: PublicPage;
 }[] = [
-  { href: "/", icon: "⌂", label: "Home", page: "home" },
-  { href: "/designs", icon: "✦", label: "Designs", page: "designs" },
-  { href: "/features", icon: "◎", label: "Features", page: "features" },
-  { href: "/blog", icon: "◫", label: "Blog", page: "blog" },
-  { href: "/about", icon: "○", label: "About", page: "about" },
+  { href: "/", label: "Home", page: "home" },
+  { href: "/designs", label: "Designs", page: "designs" },
+  { href: "/features", label: "Features", page: "features" },
+  { href: "/blog", label: "Blog", page: "blog" },
+  { href: "/about", label: "About", page: "about" },
 ];
 
 export function PublicSiteShell({
@@ -29,7 +28,7 @@ export function PublicSiteShell({
     <main className="site-shell public-site-shell">
       <aside className="public-site-rail">
         <Link className="public-site-logo" href="/" aria-label="myNimto home">
-          <BrandLogo compact priority={activePage === "home"} />
+          <BrandLogo priority={activePage === "home"} />
         </Link>
         <PublicNavigation activePage={activePage} />
         <p className="public-site-rail-note">
@@ -72,7 +71,6 @@ function PublicNavigation({ activePage }: { activePage: PublicPage }) {
           href={link.href}
           key={link.page}
         >
-          <span aria-hidden="true">{link.icon}</span>
           <strong>{link.label}</strong>
         </Link>
       ))}
