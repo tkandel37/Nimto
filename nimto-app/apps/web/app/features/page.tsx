@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { serverApiUrl } from "@/lib/server-api";
-import { AuthAwareAccountLink } from "../auth-aware-account-link";
-import { BrandLogo } from "../brand-logo";
+import { PublicSiteShell } from "../public-site-shell";
 
 type PageContent = {
   title: string;
@@ -30,8 +28,7 @@ export default async function FeaturesPage() {
   const page = await getPage();
 
   return (
-    <main className="site-shell">
-      <SimpleHeader />
+    <PublicSiteShell activePage="features">
       <section className="mx-auto max-w-6xl px-5 py-16">
         <h1 className="text-5xl font-black text-ink">{page.title}</h1>
         <p className="mt-5 max-w-3xl text-xl leading-8 text-ink/65">
@@ -59,7 +56,7 @@ export default async function FeaturesPage() {
           {page.body}
         </p>
       </section>
-    </main>
+    </PublicSiteShell>
   );
 }
 
@@ -69,21 +66,5 @@ function Feature({ body, title }: { body: string; title: string }) {
       <h2 className="text-xl font-black text-ink">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-ink/60">{body}</p>
     </article>
-  );
-}
-
-function SimpleHeader() {
-  return (
-    <header className="site-header">
-      <Link className="site-brand-link" href="/" aria-label="myNimto home">
-        <BrandLogo />
-      </Link>
-      <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-        <Link href="/designs">Designs</Link>
-        <Link href="/blog">Blog</Link>
-        <Link href="/about">About</Link>
-        <AuthAwareAccountLink className="site-login-button" />
-      </nav>
-    </header>
   );
 }

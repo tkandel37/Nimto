@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverApiUrl } from "@/lib/server-api";
-import { BrandLogo } from "../../brand-logo";
+import { PublicSiteShell } from "../../public-site-shell";
 
 type BlogPost = {
   title: string;
@@ -111,7 +111,7 @@ export default async function BlogPostPage({
   };
 
   return (
-    <main className="site-shell">
+    <PublicSiteShell activePage="blog">
       {[articleStructuredData, faqStructuredData, breadcrumbStructuredData]
         .filter(Boolean)
         .map((item, index) => (
@@ -121,17 +121,6 @@ export default async function BlogPostPage({
             type="application/ld+json"
           />
         ))}
-      <header className="site-header">
-        <Link className="site-brand-link" href="/" aria-label="myNimto home">
-          <BrandLogo />
-        </Link>
-        <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-          <Link href="/designs">Designs</Link>
-          <Link href="/blog">Blog</Link>
-          <Link href="/features">Features</Link>
-          <Link href="/about">About</Link>
-        </nav>
-      </header>
       <article className="mx-auto max-w-3xl px-5 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.22em] text-leaf">
           Digital invitation guide
@@ -200,6 +189,6 @@ export default async function BlogPostPage({
           </section>
         ) : null}
       </article>
-    </main>
+    </PublicSiteShell>
   );
 }

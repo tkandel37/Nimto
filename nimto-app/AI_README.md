@@ -28,6 +28,8 @@ personalization. Payment and entitlement enforcement are not implemented yet.
 - Route-backed, permission-aware admin navigation with compact table-first
   category and subcategory management.
 - Public and administrative CMS pages and blog posts.
+- Responsive logged-out discovery navigation with a desktop left rail, compact
+  mobile navigation, and authentication kept separate in the top bar.
 - Dynamic design categories and subcategories.
 - HTML template upload, scanning, editing, duplication, rescan, publication,
   unpublication, immutable design version snapshots, and matching catalogue

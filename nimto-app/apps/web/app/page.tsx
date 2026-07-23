@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverApiUrl } from "@/lib/server-api";
 import { AuthAwareAccountLink } from "./auth-aware-account-link";
-import { BrandLogo } from "./brand-logo";
+import { PublicSiteShell } from "./public-site-shell";
 
 type PageContent = {
   title: string;
@@ -34,8 +34,7 @@ export default async function Home() {
   const content = await getLandingContent();
 
   return (
-    <main className="site-shell">
-      <SiteHeader />
+    <PublicSiteShell activePage="home">
       <section className="hero-section landing-hero">
         <div className="landing-orb landing-orb-one" />
         <div className="landing-orb landing-orb-two" />
@@ -143,7 +142,7 @@ export default async function Home() {
           <AuthAwareAccountLink className="site-button-secondary" />
         </div>
       </section>
-    </main>
+    </PublicSiteShell>
   );
 }
 
@@ -174,23 +173,6 @@ function InvitationShowcase({ body }: { body?: string | null }) {
         <strong>84</strong>
       </div>
     </div>
-  );
-}
-
-function SiteHeader() {
-  return (
-    <header className="site-header">
-      <Link className="site-brand-link" href="/" aria-label="myNimto home">
-        <BrandLogo priority />
-      </Link>
-      <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-        <Link href="/designs">Designs</Link>
-        <Link href="/features">Features</Link>
-        <Link href="/blog">Blog</Link>
-        <Link href="/about">About</Link>
-        <AuthAwareAccountLink className="site-login-button" />
-      </nav>
-    </header>
   );
 }
 

@@ -598,11 +598,17 @@ function GuestDesignShell({
           <BrandLogo compact />
         </Link>
         <nav className="user-nav" aria-label="Explore myNimto">
+          <Link className="user-nav-link" href="/">
+            <span aria-hidden="true">⌂</span><span>Home</span>
+          </Link>
           <Link className="user-nav-link active" href="/designs">
             <span aria-hidden="true">✦</span><span>Designs</span>
           </Link>
           <Link className="user-nav-link" href="/features">
             <span aria-hidden="true">◎</span><span>Features</span>
+          </Link>
+          <Link className="user-nav-link" href="/blog">
+            <span aria-hidden="true">◫</span><span>Blog</span>
           </Link>
           <Link className="user-nav-link" href="/about">
             <span aria-hidden="true">○</span><span>About</span>
@@ -613,7 +619,6 @@ function GuestDesignShell({
       <section className="user-main">
         <header className="user-topbar">
           <Link className="user-mobile-logo" href="/designs"><BrandLogo compact /></Link>
-          <div className="user-workspace-context"><span>Invitation gallery</span><strong>Explore designs</strong></div>
           <div className="guest-design-auth-actions">
             <Link className="user-secondary-button" href="/auth?mode=login&next=%2Fdesigns">Log in</Link>
             <Link className="user-primary-button" href="/auth?mode=register&next=%2Fdesigns">Create account</Link>

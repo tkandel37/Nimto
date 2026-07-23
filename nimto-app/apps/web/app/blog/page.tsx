@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { serverApiUrl } from "@/lib/server-api";
-import { AuthAwareAccountLink } from "../auth-aware-account-link";
-import { BrandLogo } from "../brand-logo";
+import { PublicSiteShell } from "../public-site-shell";
 
 type BlogPost = {
   id: string;
@@ -46,22 +45,11 @@ export default async function BlogPage() {
   };
 
   return (
-    <main className="site-shell">
+    <PublicSiteShell activePage="blog">
       <script
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         type="application/ld+json"
       />
-      <header className="site-header">
-        <Link className="site-brand-link" href="/" aria-label="myNimto home">
-          <BrandLogo />
-        </Link>
-        <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-          <Link href="/designs">Designs</Link>
-          <Link href="/features">Features</Link>
-          <Link href="/about">About</Link>
-          <AuthAwareAccountLink className="site-login-button" />
-        </nav>
-      </header>
       <section className="mx-auto max-w-6xl px-5 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
           myNimto blog
@@ -113,6 +101,6 @@ export default async function BlogPage() {
           )}
         </div>
       </section>
-    </main>
+    </PublicSiteShell>
   );
 }

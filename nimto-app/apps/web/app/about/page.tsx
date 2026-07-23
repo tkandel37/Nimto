@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { serverApiUrl } from "@/lib/server-api";
-import { AuthAwareAccountLink } from "../auth-aware-account-link";
-import { BrandLogo } from "../brand-logo";
+import { PublicSiteShell } from "../public-site-shell";
 
 type PageContent = {
   title: string;
@@ -31,8 +29,7 @@ export default async function AboutPage() {
   const page = await getPage();
 
   return (
-    <main className="site-shell">
-      <SimpleHeader />
+    <PublicSiteShell activePage="about">
       <section className="mx-auto max-w-4xl px-5 py-16">
         <p className="text-sm font-bold uppercase tracking-[0.28em] text-leaf">
           About us
@@ -49,22 +46,6 @@ export default async function AboutPage() {
           </p>
         </div>
       </section>
-    </main>
-  );
-}
-
-function SimpleHeader() {
-  return (
-    <header className="site-header">
-      <Link className="site-brand-link" href="/" aria-label="myNimto home">
-        <BrandLogo />
-      </Link>
-      <nav className="flex flex-wrap items-center gap-5 text-sm font-bold text-ink/65">
-        <Link href="/designs">Designs</Link>
-        <Link href="/features">Features</Link>
-        <Link href="/blog">Blog</Link>
-        <AuthAwareAccountLink className="site-login-button" />
-      </nav>
-    </header>
+    </PublicSiteShell>
   );
 }
